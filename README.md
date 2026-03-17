@@ -15,40 +15,72 @@ Sistema di gestione per salone di parrucchiere. Include calendario appuntamenti,
 - Python 3.12+ con virtualenv
 - Node.js 20+
 
-## Avvio rapido
+## Avvio in locale
 
-### 1. Copia le variabili d'ambiente
+> **Prerequisito**: Docker Desktop deve essere aperto e in esecuzione.
 
+### Prima installazione (solo la prima volta)
+
+**1. Copia le variabili d'ambiente**
 ```bash
 cp .env.example .env
 ```
 
-### 2. Avvia i servizi Docker (DB + Redis)
-
-```bash
-docker-compose up -d db redis
-```
-
-### 3. Backend
-
+**2. Installa le dipendenze Python**
 ```bash
 cd backend
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-python seed.py          # popola il DB con dati demo
-uvicorn app.main:app --reload --port 8000
 ```
 
-### 4. Frontend
-
+**3. Installa le dipendenze Node**
 ```bash
 cd frontend
 npm install
+```
+
+---
+
+### Avvio (ogni volta)
+
+Apri **3 terminali separati** e lancia in ordine:
+
+**Terminale 1 — Database e Redis**
+```bash
+docker-compose up -d db redis
+```
+
+**Terminale 2 — Backend**
+```bash
+cd backend
+source .venv/bin/activate
+uvicorn app.main:app --reload --port 8000
+```
+
+**Terminale 3 — Frontend**
+```bash
+cd frontend
 npm run dev
 ```
 
 L'app è disponibile su **http://localhost:5173**
+L'API è disponibile su **http://localhost:8000/docs**
+
+> **Prima volta in assoluto**: dopo aver avviato il DB, esegui `python seed.py` (dal terminale 2 con venv attivo) per popolare il database con i dati demo.
+
+---
+
+### Stop (ogni volta)
+
+**Terminale 2 e 3**: premi `Ctrl+C` per fermare backend e frontend.
+
+**Terminale 1 — Ferma i container Docker**
+```bash
+docker-compose stop db redis
+```
+
+> Usa `docker-compose down` invece di `stop` solo se vuoi eliminare i container (i dati nel DB verranno persi).
 
 ## Credenziali demo
 

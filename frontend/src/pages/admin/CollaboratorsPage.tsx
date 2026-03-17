@@ -1,0 +1,285 @@
+import { useState } from 'react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { Plus, X, Edit } from 'lucide-react'
+import {
+  getCollaborators, createCollaborator, updateCollaborator,
+  updateCollaboratorSchedule, updateCollaboratorServices, getServices
+} from '@/services/api'
+import type { Collaborator, CollaboratorSchedule } from '@/types'
+import clsx from 'clsx'
+
+const DAYS = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom']
+
+export default function CollaboratorsPage() {
+  const qc = useQueryClient()
+  const [selected, setSelected] = useState<Collaborator | null>(null)
+  const [showForm, setShowForm] = useState(false)
+
+  const { data } = useQuery({
+    queryKey: ['collaborators'],
+    queryFn: () => getCollaborators(),
+  })
+
+  const { data: servicesData } = useQuery({
+    queryKey: ['services'],
+    queryFn: () => getServices({ active_only: true }),
+  })
+
+  const inv = () => qc.invalidateQueries({ queryKey: ['collaborators'] })
+
+  const createMut = useMutation({ mutationFn: createCollaborator, onSuccess: () => { inv(); setShowForm(false) } })
+  const updateMut = useMutation({ mutationFn: ({ id, data }: any) => updateCollaborator(id, data), onSuccess: () => { inv(); setShowForm(false) } })
+  const schedMut = useMutation({ mutationFn: ({ id, s }: any) => updateCollaboratorSchedule(id, s), onSuccess: inv })
+  const svcsMut = useMutation({ mutationFn: ({ id, ids }: any) => updateCollaboratorServices(id, ids), onSuccess: inv })
+
+  const collaborators = data?.items ?? []
+  const services = servicesData?.items ?? []
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Collaboratori</h1>
+        <button onClick={() => { setSelected(null); setShowForm(true) }} className="btn-primary flex items-center gap-1.5">
+          <Plus className="w-4 h-4" /> Nuovo
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {collaborators.map(c => (
+          <CollaboratorCard
+            key={c.id}
+            collaborator={c}
+            services={services}
+            onEdit={() => { setSelected(c); setShowForm(true) }}
+            onUpdateSchedule={(s) => schedMut.mutate({ id: c.id, s })}
+            onUpdateServices={(ids) => svcsMut.mutate({ id: c.id, ids })}
+          />
+        ))}
+      </div>
+
+      {showForm && (
+        <CollaboratorFormModal
+          collaborator={selected ?? undefined}
+          onClose={() => setShowForm(false)}
+          onSave={(data) => selected
+            ? updateMut.mutate({ id: selected.id, data })
+            : createMut.mutate(data)
+          }
+          loading={createMut.isPending || updateMut.isPending}
+        />
+      )}
+    </div>
+  )
+}
+
+function CollaboratorCard({ collaborator: c, services, onEdit, onUpdateSchedule, onUpdateServices }: {
+  collaborator: Collaborator
+  services: any[]
+  onEdit: () => void
+  onUpdateSchedule: (s: Partial<CollaboratorSchedule>[]) => void
+  onUpdateServices: (ids: number[]) => void
+}) {
+  const [tab, setTab] = useState<'info' | 'schedule' | 'services'>('info')
+  const [schedules, setSchedules] = useState<Record<number, { start: string; end: string; working: boolean }>>(
+    Object.fromEntries(
+      DAYS.map((_, i) => {
+        const s = c.schedules.find(s => s.day_of_week === i)
+        return [i, {
+          start: s?.start_time?.slice(0, 5) ?? '09:00',
+          end: s?.end_time?.slice(0, 5) ?? '19:00',
+          working: s?.is_working ?? (i < 6),
+        }]
+      })
+    )
+  )
+  const [selectedServices, setSelectedServices] = useState<number[]>(c.service_ids)
+
+  const saveSchedules = () => {
+    onUpdateSchedule(
+      Object.entries(schedules).map(([day, s]) => ({
+        day_of_week: Number(day),
+        start_time: s.working ? s.start : undefined,
+        end_time: s.working ? s.end : undefined,
+        is_working: s.working,
+      }))
+    )
+  }
+
+  return (
+    <div className="card overflow-hidden">
+      <div className="p-4 flex items-center gap-3" style={{ borderLeft: `4px solid ${c.color}` }}>
+        <div
+          className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0"
+          style={{ backgroundColor: c.color }}
+        >
+          {c.first_name[0]}{c.last_name[0]}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-semibold text-sm">{c.first_name} {c.last_name}</p>
+          <p className="text-xs text-muted-foreground truncate">{c.email ?? c.phone ?? '–'}</p>
+        </div>
+        <div className="flex items-center gap-1">
+          {!c.is_active && <span className="text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded">inattivo</span>}
+          {c.visible_online && <span className="text-xs bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded">online</span>}
+          <button onClick={onEdit} className="text-muted-foreground hover:text-foreground p-1">
+            <Edit className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex border-b border-border">
+        {(['info', 'schedule', 'services'] as const).map(t => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={clsx(
+              'flex-1 py-1.5 text-xs font-medium transition-colors',
+              tab === t ? 'text-primary border-b-2 border-primary' : 'text-muted-foreground hover:text-foreground'
+            )}
+          >
+            {t === 'info' ? 'Info' : t === 'schedule' ? 'Orari' : 'Servizi'}
+          </button>
+        ))}
+      </div>
+
+      <div className="p-3">
+        {tab === 'info' && (
+          <div className="space-y-1 text-xs">
+            <p><span className="text-muted-foreground">Tel:</span> {c.phone ?? '–'}</p>
+            <p><span className="text-muted-foreground">Email:</span> {c.email ?? '–'}</p>
+          </div>
+        )}
+
+        {tab === 'schedule' && (
+          <div className="space-y-1.5">
+            {DAYS.map((day, i) => (
+              <div key={i} className="flex items-center gap-2 text-xs">
+                <input
+                  type="checkbox"
+                  checked={schedules[i].working}
+                  onChange={e => setSchedules(s => ({ ...s, [i]: { ...s[i], working: e.target.checked } }))}
+                />
+                <span className="w-7 font-medium">{day}</span>
+                {schedules[i].working && (
+                  <>
+                    <input
+                      type="time"
+                      className="border border-border rounded px-1 py-0.5 text-xs"
+                      value={schedules[i].start}
+                      onChange={e => setSchedules(s => ({ ...s, [i]: { ...s[i], start: e.target.value } }))}
+                    />
+                    <span>–</span>
+                    <input
+                      type="time"
+                      className="border border-border rounded px-1 py-0.5 text-xs"
+                      value={schedules[i].end}
+                      onChange={e => setSchedules(s => ({ ...s, [i]: { ...s[i], end: e.target.value } }))}
+                    />
+                  </>
+                )}
+              </div>
+            ))}
+            <button onClick={saveSchedules} className="btn-primary text-xs py-1 mt-2 w-full">
+              Salva orari
+            </button>
+          </div>
+        )}
+
+        {tab === 'services' && (
+          <div className="space-y-1.5">
+            {services.map(s => (
+              <label key={s.id} className="flex items-center gap-2 text-xs cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={selectedServices.includes(s.id)}
+                  onChange={e => setSelectedServices(prev =>
+                    e.target.checked ? [...prev, s.id] : prev.filter(id => id !== s.id)
+                  )}
+                />
+                {s.name}
+              </label>
+            ))}
+            <button
+              onClick={() => onUpdateServices(selectedServices)}
+              className="btn-primary text-xs py-1 mt-2 w-full"
+            >
+              Salva servizi
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function CollaboratorFormModal({ collaborator, onClose, onSave, loading }: {
+  collaborator?: Collaborator
+  onClose: () => void
+  onSave: (data: Partial<Collaborator>) => void
+  loading: boolean
+}) {
+  const [form, setForm] = useState({
+    first_name: collaborator?.first_name ?? '',
+    last_name: collaborator?.last_name ?? '',
+    phone: collaborator?.phone ?? '',
+    email: collaborator?.email ?? '',
+    color: collaborator?.color ?? '#C8A96E',
+    visible_online: collaborator?.visible_online ?? true,
+    is_active: collaborator?.is_active ?? true,
+  })
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div className="bg-surface rounded-xl shadow-xl w-full max-w-md">
+        <div className="flex items-center justify-between p-4 border-b border-border">
+          <h3 className="font-semibold">{collaborator ? 'Modifica collaboratore' : 'Nuovo collaboratore'}</h3>
+          <button onClick={onClose}><X className="w-5 h-5" /></button>
+        </div>
+        <form onSubmit={(e) => { e.preventDefault(); onSave(form) }} className="p-4 space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label block mb-1">Nome *</label>
+              <input className="input" required value={form.first_name} onChange={e => setForm({...form, first_name: e.target.value})} />
+            </div>
+            <div>
+              <label className="label block mb-1">Cognome *</label>
+              <input className="input" required value={form.last_name} onChange={e => setForm({...form, last_name: e.target.value})} />
+            </div>
+          </div>
+          <div>
+            <label className="label block mb-1">Telefono</label>
+            <input className="input" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} />
+          </div>
+          <div>
+            <label className="label block mb-1">Email</label>
+            <input className="input" type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} />
+          </div>
+          <div>
+            <label className="label block mb-1">Colore calendario</label>
+            <div className="flex items-center gap-2">
+              <input type="color" value={form.color} onChange={e => setForm({...form, color: e.target.value})} className="h-9 w-12 rounded border border-border cursor-pointer" />
+              <span className="text-sm text-muted-foreground">{form.color}</span>
+            </div>
+          </div>
+          <div className="flex gap-4">
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
+              <input type="checkbox" checked={form.visible_online} onChange={e => setForm({...form, visible_online: e.target.checked})} />
+              Visibile online
+            </label>
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
+              <input type="checkbox" checked={form.is_active} onChange={e => setForm({...form, is_active: e.target.checked})} />
+              Attivo
+            </label>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <button type="button" onClick={onClose} className="btn-secondary text-sm">Annulla</button>
+            <button type="submit" disabled={loading} className="btn-primary text-sm disabled:opacity-60">
+              {loading ? 'Salvataggio...' : 'Salva'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}

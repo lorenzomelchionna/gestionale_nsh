@@ -36,9 +36,6 @@ export default function ClientDetailPage() {
         {client.account_id && (
           <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">Account online</span>
         )}
-        {client.tags.map(t => (
-          <span key={t} className="text-xs bg-primary/10 text-primary-dark px-2 py-0.5 rounded-full">{t}</span>
-        ))}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

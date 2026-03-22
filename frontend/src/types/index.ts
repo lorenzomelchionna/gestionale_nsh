@@ -52,7 +52,6 @@ export interface Client {
   email: string | null
   birth_date: string | null
   notes: string | null
-  tags: string[]
   is_active: boolean
   account_id: number | null
   created_at: string

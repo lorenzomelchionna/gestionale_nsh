@@ -1,5 +1,5 @@
 from datetime import datetime, date
-from typing import Optional, List
+from typing import Optional
 from pydantic import BaseModel, EmailStr
 
 
@@ -10,7 +10,6 @@ class ClientBase(BaseModel):
     email: Optional[EmailStr] = None
     birth_date: Optional[date] = None
     notes: Optional[str] = None
-    tags: List[str] = []
 
 
 class ClientCreate(ClientBase):

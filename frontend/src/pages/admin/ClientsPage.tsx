@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { Plus, Search, User, Phone, Mail, Tag, ChevronRight } from 'lucide-react'
+import { Plus, Search, ChevronRight } from 'lucide-react'
 import { getClients, createClient, updateClient } from '@/services/api'
 import type { Client } from '@/types'
 import { X } from 'lucide-react'
@@ -53,7 +53,6 @@ export default function ClientsPage() {
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Nome</th>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Telefono</th>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Email</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Tag</th>
                 <th className="w-10" />
               </tr>
             </thead>
@@ -66,13 +65,6 @@ export default function ClientsPage() {
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">{client.phone ?? '–'}</td>
                   <td className="px-4 py-3 text-muted-foreground">{client.email ?? '–'}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex flex-wrap gap-1">
-                      {client.tags.map(t => (
-                        <span key={t} className="text-[10px] bg-primary/10 text-primary-dark px-2 py-0.5 rounded-full">{t}</span>
-                      ))}
-                    </div>
-                  </td>
                   <td className="px-4 py-3">
                     <Link to={`/admin/clients/${client.id}`} className="text-muted-foreground hover:text-foreground">
                       <ChevronRight className="w-4 h-4" />
@@ -128,14 +120,12 @@ function ClientFormModal({ client, onClose, onSave, loading }: {
     email: client?.email ?? '',
     birth_date: client?.birth_date ?? '',
     notes: client?.notes ?? '',
-    tags: client?.tags?.join(', ') ?? '',
   })
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     onSave({
       ...form,
-      tags: form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
       birth_date: form.birth_date || undefined,
       phone: form.phone || undefined,
       email: form.email || undefined,
@@ -175,10 +165,6 @@ function ClientFormModal({ client, onClose, onSave, loading }: {
           <div>
             <label className="label block mb-1">Note</label>
             <textarea className="input" rows={2} value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} />
-          </div>
-          <div>
-            <label className="label block mb-1">Tag (separati da virgola)</label>
-            <input className="input" placeholder="VIP, nuovo cliente" value={form.tags} onChange={e => setForm({...form, tags: e.target.value})} />
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={onClose} className="btn-secondary text-sm">Annulla</button>

@@ -229,10 +229,22 @@ export const updateBookingConfig = (data: Partial<BookingConfig>) =>
 
 // ── Dashboard ─────────────────────────────────────────────────────
 
-export const getDashboardStats = (period: 'today' | 'week' | 'month') =>
+export const getDashboardStats = (period: 'today' | 'week' | 'month' | 'year') =>
   api.get<DashboardStats>('/admin/dashboard/stats', { params: { period } }).then(r => r.data)
 
 export const getRevenueChart = (days: number) =>
   api.get<{ date: string; total: number }[]>('/admin/dashboard/revenue-chart', { params: { days } }).then(r => r.data)
+
+export interface YearlyChartEntry {
+  month: string
+  month_num: number
+  revenue: number
+  expenses: number
+  net_margin: number
+  appointments: number
+}
+
+export const getYearlyChart = (year?: number) =>
+  api.get<YearlyChartEntry[]>('/admin/dashboard/yearly-chart', { params: year ? { year } : {} }).then(r => r.data)
 
 export default api

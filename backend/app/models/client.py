@@ -1,6 +1,6 @@
 from datetime import datetime, date
-from typing import Optional, List
-from sqlalchemy import String, Boolean, DateTime, Date, Text, ForeignKey, func, JSON
+from typing import Optional, List  # List kept for relationships
+from sqlalchemy import String, Boolean, DateTime, Date, Text, ForeignKey, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
 
@@ -32,7 +32,6 @@ class Client(Base):
     email: Mapped[Optional[str]] = mapped_column(String(255), index=True, nullable=True)
     birth_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    tags: Mapped[List[str]] = mapped_column(JSON, default=list, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     # Link to online account (optional – walk-in clients won't have one)

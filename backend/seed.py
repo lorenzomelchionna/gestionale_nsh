@@ -133,14 +133,9 @@ async def seed():
         ]
         clients = []
         for fn, ln, phone, email, bday in clients_data:
-            tags = []
-            if bday.year < 1985:
-                tags = ["VIP"]
-            elif bday.year > 1993:
-                tags = ["nuovo cliente"]
             c = Client(
                 first_name=fn, last_name=ln, phone=phone, email=email,
-                birth_date=bday, tags=tags
+                birth_date=bday
             )
             db.add(c)
             clients.append(c)

@@ -2,7 +2,7 @@ from typing import Annotated
 from datetime import datetime, date, timedelta, timezone
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func, and_, extract
 from app.database import get_db
 from app.models.appointment import Appointment, AppointmentStatus
 from app.models.payment import Payment, PaymentMethod, PaymentType
@@ -17,7 +17,7 @@ router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 async def get_stats(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_user)],
-    period: str = Query("today", regex="^(today|week|month)$"),
+    period: str = Query("today", regex="^(today|week|month|year)$"),
 ):
     now = datetime.now(timezone.utc)
     if period == "today":
@@ -26,8 +26,11 @@ async def get_stats(
     elif period == "week":
         start = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0)
         end = now
-    else:
+    elif period == "month":
         start = now.replace(day=1, hour=0, minute=0, second=0)
+        end = now
+    else:  # year
+        start = now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
         end = now
 
     # Payments in period
@@ -105,3 +108,70 @@ async def revenue_chart(
     )
     rows = result.all()
     return [{"date": str(r.day), "total": float(r.total)} for r in rows]
+
+
+@router.get("/yearly-chart")
+async def yearly_chart(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_user)],
+    year: int = Query(default=None),
+):
+    """Monthly revenue, expenses and appointment count for a given year."""
+    now = datetime.now(timezone.utc)
+    target_year = year or now.year
+
+    # Monthly revenue
+    rev_result = await db.execute(
+        select(
+            extract("month", Payment.date).label("month"),
+            func.sum(Payment.amount).label("revenue"),
+        )
+        .where(extract("year", Payment.date) == target_year)
+        .group_by(extract("month", Payment.date))
+        .order_by(extract("month", Payment.date))
+    )
+    rev_rows = {int(r.month): float(r.revenue) for r in rev_result.all()}
+
+    # Monthly expenses
+    exp_result = await db.execute(
+        select(
+            extract("month", Expense.date).label("month"),
+            func.sum(Expense.amount).label("expenses"),
+        )
+        .where(extract("year", Expense.date) == target_year)
+        .group_by(extract("month", Expense.date))
+        .order_by(extract("month", Expense.date))
+    )
+    exp_rows = {int(r.month): float(r.expenses) for r in exp_result.all()}
+
+    # Monthly appointments
+    appt_result = await db.execute(
+        select(
+            extract("month", Appointment.start_time).label("month"),
+            func.count().label("count"),
+        )
+        .where(
+            and_(
+                extract("year", Appointment.start_time) == target_year,
+                Appointment.status.in_([AppointmentStatus.confirmed, AppointmentStatus.completed]),
+            )
+        )
+        .group_by(extract("month", Appointment.start_time))
+        .order_by(extract("month", Appointment.start_time))
+    )
+    appt_rows = {int(r.month): int(r.count) for r in appt_result.all()}
+
+    MONTH_NAMES = ["Gen", "Feb", "Mar", "Apr", "Mag", "Giu",
+                   "Lug", "Ago", "Set", "Ott", "Nov", "Dic"]
+
+    return [
+        {
+            "month": MONTH_NAMES[m - 1],
+            "month_num": m,
+            "revenue": rev_rows.get(m, 0.0),
+            "expenses": exp_rows.get(m, 0.0),
+            "net_margin": rev_rows.get(m, 0.0) - exp_rows.get(m, 0.0),
+            "appointments": appt_rows.get(m, 0),
+        }
+        for m in range(1, 13)
+    ]

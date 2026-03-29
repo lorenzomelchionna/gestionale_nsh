@@ -1,19 +1,25 @@
-import { useState, useMemo, useCallback } from 'react'
+import React, { useState, useMemo, useCallback, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   format, addDays, startOfWeek, isSameDay, parseISO, addMinutes, differenceInMinutes
 } from 'date-fns'
 import { it } from 'date-fns/locale'
 import {
-  ChevronLeft, ChevronRight, Plus, Check, X, Clock, ArrowRight
+  ChevronLeft, ChevronRight, Plus, Check, X
 } from 'lucide-react'
 import {
   getAppointments, getCollaborators, confirmAppointment,
-  rejectAppointment, rescheduleAppointment, completeAppointment,
-  createAppointment, getClients, getServices
+  rejectAppointment, completeAppointment,
+  createAppointment, getClients, getServices, updateAppointment
 } from '@/services/api'
 import type { Appointment, Collaborator } from '@/types'
 import clsx from 'clsx'
+
+interface DragState {
+  id: number
+  durationMin: number
+  collaboratorId: number
+}
 
 const SLOT_HEIGHT = 48  // px per 30-min slot
 const HOUR_HEIGHT = SLOT_HEIGHT * 2
@@ -39,6 +45,8 @@ export default function CalendarPage() {
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [newApptSlot, setNewApptSlot] = useState<{ date: Date; collaboratorId: number } | null>(null)
+  const dragState = useRef<DragState | null>(null)
+  const didDrag = useRef(false)
 
   // Date range for query
   const dateFrom = viewMode === 'day'
@@ -71,6 +79,30 @@ export default function CalendarPage() {
 
   // Mutations
   const invalidate = () => qc.invalidateQueries({ queryKey: ['appointments'] })
+
+  const moveMut = useMutation({
+    mutationFn: ({ id, start_time, end_time, collaborator_id }: {
+      id: number; start_time: string; end_time: string; collaborator_id: number
+    }) => updateAppointment(id, { start_time, end_time, collaborator_id }),
+    onSuccess: invalidate,
+  })
+
+  const handleDrop = useCallback((dropDate: Date, collaboratorId: number, relativeY: number) => {
+    const ds = dragState.current
+    if (!ds) return
+    const snappedMin = Math.floor(relativeY / SLOT_HEIGHT) * 30
+    const clampedMin = Math.max(0, Math.min(snappedMin, (END_HOUR - START_HOUR) * 60 - ds.durationMin))
+    const start = new Date(dropDate)
+    start.setHours(START_HOUR + Math.floor(clampedMin / 60), clampedMin % 60, 0, 0)
+    const end = addMinutes(start, ds.durationMin)
+    moveMut.mutate({
+      id: ds.id,
+      start_time: start.toISOString(),
+      end_time: end.toISOString(),
+      collaborator_id: collaboratorId,
+    })
+    dragState.current = null
+  }, [moveMut])
 
   const confirmMut = useMutation({ mutationFn: confirmAppointment, onSuccess: invalidate })
   const rejectMut = useMutation({
@@ -199,7 +231,10 @@ export default function CalendarPage() {
                   timeToY={timeToY}
                   durationToH={durationToH}
                   onSlotClick={(d) => handleSlotClick(d, collab.id)}
-                  onAppointmentClick={setSelectedAppointment}
+                  onAppointmentClick={(a) => { if (!didDrag.current) setSelectedAppointment(a) }}
+                  dragState={dragState}
+                  didDrag={didDrag}
+                  onDrop={(relY) => handleDrop(currentDate, collab.id, relY)}
                 />
               ))}
             </div>
@@ -215,7 +250,10 @@ export default function CalendarPage() {
                   timeToY={timeToY}
                   durationToH={durationToH}
                   onSlotClick={(d) => handleSlotClick(d, visibleCollabs[0]?.id ?? 0)}
-                  onAppointmentClick={setSelectedAppointment}
+                  onAppointmentClick={(a) => { if (!didDrag.current) setSelectedAppointment(a) }}
+                  dragState={dragState}
+                  didDrag={didDrag}
+                  onDrop={(relY, collaboratorId) => handleDrop(day, collaboratorId, relY)}
                 />
               ))}
             </div>
@@ -249,7 +287,7 @@ export default function CalendarPage() {
 
 // ── Day column ────────────────────────────────────────────────────
 
-function DayColumn({ collaborator, date, appointments, timeToY, durationToH, onSlotClick, onAppointmentClick }: {
+function DayColumn({ collaborator, date, appointments, timeToY, durationToH, onSlotClick, onAppointmentClick, dragState, didDrag, onDrop }: {
   collaborator: Collaborator
   date: Date
   appointments: Appointment[]
@@ -257,6 +295,9 @@ function DayColumn({ collaborator, date, appointments, timeToY, durationToH, onS
   durationToH: (s: Date, e: Date) => number
   onSlotClick: (d: Date) => void
   onAppointmentClick: (a: Appointment) => void
+  dragState: React.MutableRefObject<DragState | null>
+  didDrag: React.MutableRefObject<boolean>
+  onDrop: (relativeY: number) => void
 }) {
   return (
     <div className="flex-1 min-w-[120px] border-l border-border">
@@ -272,6 +313,7 @@ function DayColumn({ collaborator, date, appointments, timeToY, durationToH, onS
         className="relative"
         style={{ height: (END_HOUR - START_HOUR) * HOUR_HEIGHT }}
         onClick={(e) => {
+          if (didDrag.current) { didDrag.current = false; return }
           const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
           const y = e.clientY - rect.top
           const totalMin = (y / SLOT_HEIGHT) * 30
@@ -279,6 +321,13 @@ function DayColumn({ collaborator, date, appointments, timeToY, durationToH, onS
           const slotDate = new Date(date)
           slotDate.setHours(START_HOUR + Math.floor(slotMin / 60), slotMin % 60, 0, 0)
           onSlotClick(slotDate)
+        }}
+        onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move' }}
+        onDrop={(e) => {
+          e.preventDefault()
+          const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+          onDrop(e.clientY - rect.top)
+          didDrag.current = true
         }}
       >
         {/* Hour lines */}
@@ -298,11 +347,20 @@ function DayColumn({ collaborator, date, appointments, timeToY, durationToH, onS
           return (
             <div
               key={appt.id}
+              draggable
               className={clsx(
-                'absolute left-1 right-1 rounded border-l-2 px-1.5 py-0.5 cursor-pointer hover:brightness-95 overflow-hidden z-10',
+                'absolute left-1 right-1 rounded border-l-2 px-1.5 py-0.5 cursor-grab active:cursor-grabbing hover:brightness-95 overflow-hidden z-10',
                 STATUS_COLORS[appt.status]
               )}
               style={{ top, height }}
+              onDragStart={() => {
+                didDrag.current = false
+                dragState.current = {
+                  id: appt.id,
+                  durationMin: differenceInMinutes(end, start),
+                  collaboratorId: appt.collaborator_id,
+                }
+              }}
               onClick={(e) => { e.stopPropagation(); onAppointmentClick(appt) }}
             >
               <p className="text-[11px] font-semibold leading-tight truncate">
@@ -321,7 +379,7 @@ function DayColumn({ collaborator, date, appointments, timeToY, durationToH, onS
 
 // ── Week day column ───────────────────────────────────────────────
 
-function WeekDayColumn({ date, collaborators, appointments, timeToY, durationToH, onSlotClick, onAppointmentClick }: {
+function WeekDayColumn({ date, collaborators, appointments, timeToY, durationToH, onSlotClick, onAppointmentClick, dragState, didDrag, onDrop }: {
   date: Date
   collaborators: Collaborator[]
   appointments: Appointment[]
@@ -329,6 +387,9 @@ function WeekDayColumn({ date, collaborators, appointments, timeToY, durationToH
   durationToH: (s: Date, e: Date) => number
   onSlotClick: (d: Date) => void
   onAppointmentClick: (a: Appointment) => void
+  dragState: React.MutableRefObject<DragState | null>
+  didDrag: React.MutableRefObject<boolean>
+  onDrop: (relativeY: number, collaboratorId: number) => void
 }) {
   const isToday = isSameDay(date, new Date())
   return (
@@ -343,6 +404,7 @@ function WeekDayColumn({ date, collaborators, appointments, timeToY, durationToH
         className="relative"
         style={{ height: (END_HOUR - START_HOUR) * HOUR_HEIGHT }}
         onClick={(e) => {
+          if (didDrag.current) { didDrag.current = false; return }
           const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
           const y = e.clientY - rect.top
           const totalMin = (y / SLOT_HEIGHT) * 30
@@ -350,6 +412,14 @@ function WeekDayColumn({ date, collaborators, appointments, timeToY, durationToH
           const slotDate = new Date(date)
           slotDate.setHours(START_HOUR + Math.floor(slotMin / 60), slotMin % 60, 0, 0)
           onSlotClick(slotDate)
+        }}
+        onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move' }}
+        onDrop={(e) => {
+          e.preventDefault()
+          const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+          const collaboratorId = dragState.current?.collaboratorId ?? collaborators[0]?.id ?? 0
+          onDrop(e.clientY - rect.top, collaboratorId)
+          didDrag.current = true
         }}
       >
         {Array.from({ length: (END_HOUR - START_HOUR) * 2 }, (_, i) => (
@@ -364,11 +434,20 @@ function WeekDayColumn({ date, collaborators, appointments, timeToY, durationToH
           return (
             <div
               key={appt.id}
+              draggable
               className={clsx(
-                'absolute left-0.5 right-0.5 rounded border-l-2 px-1 py-0.5 cursor-pointer hover:brightness-95 overflow-hidden z-10',
+                'absolute left-0.5 right-0.5 rounded border-l-2 px-1 py-0.5 cursor-grab active:cursor-grabbing hover:brightness-95 overflow-hidden z-10',
                 STATUS_COLORS[appt.status]
               )}
               style={{ top, height }}
+              onDragStart={() => {
+                didDrag.current = false
+                dragState.current = {
+                  id: appt.id,
+                  durationMin: differenceInMinutes(end, start),
+                  collaboratorId: appt.collaborator_id,
+                }
+              }}
               onClick={(e) => { e.stopPropagation(); onAppointmentClick(appt) }}
             >
               <p className="text-[10px] font-semibold truncate">{appt.client_name}</p>

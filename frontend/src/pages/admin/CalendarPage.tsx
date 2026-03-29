@@ -482,9 +482,13 @@ function CreateAppointmentModal({ initialSlot, collaborators, onClose, onCreated
   const [selectedCollabId, setSelectedCollabId] = useState<number>(
     initialSlot?.collaboratorId ?? collaborators[0]?.id ?? 0
   )
-  const [startTime, setStartTime] = useState(
-    initialSlot ? format(initialSlot.date, "yyyy-MM-dd'T'HH:mm") : ''
+  const [startDate, setStartDate] = useState(
+    initialSlot ? format(initialSlot.date, 'yyyy-MM-dd') : ''
   )
+  const [startHour, setStartHour] = useState(
+    initialSlot ? format(initialSlot.date, 'HH:mm') : ''
+  )
+  const startTime = startDate && startHour ? `${startDate}T${startHour}` : ''
   const [selectedServiceIds, setSelectedServiceIds] = useState<number[]>([])
   const [notes, setNotes] = useState('')
 
@@ -581,15 +585,27 @@ function CreateAppointmentModal({ initialSlot, collaborators, onClose, onCreated
           </div>
 
           {/* Date/time */}
-          <div>
-            <label className="label block mb-1">Data e ora inizio</label>
-            <input
-              type="datetime-local"
-              className="input"
-              value={startTime}
-              onChange={e => setStartTime(e.target.value)}
-              required
-            />
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="label block mb-1">Data inizio</label>
+              <input
+                type="date"
+                className="input"
+                value={startDate}
+                onChange={e => setStartDate(e.target.value)}
+                required
+              />
+            </div>
+            <div>
+              <label className="label block mb-1">Ora inizio</label>
+              <input
+                type="time"
+                className="input"
+                value={startHour}
+                onChange={e => setStartHour(e.target.value)}
+                required
+              />
+            </div>
           </div>
 
           {/* Services */}

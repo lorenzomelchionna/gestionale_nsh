@@ -15,6 +15,7 @@ import ProductsPage from '@/pages/admin/ProductsPage'
 import CashPage from '@/pages/admin/CashPage'
 import ExpensesPage from '@/pages/admin/ExpensesPage'
 import SettingsPage from '@/pages/admin/SettingsPage'
+import MessagingPage from '@/pages/admin/MessagingPage'
 
 // Booking portal pages
 import BookingLayout from '@/components/layout/BookingLayout'
@@ -49,6 +50,7 @@ export default function App() {
           <Route path="cash" element={<CashPage />} />
           <Route path="expenses" element={<ExpensesPage />} />
           <Route path="settings" element={<SettingsPage />} />
+          <Route path="messaging" element={<MessagingPage />} />
         </Route>
 
         {/* Booking portal */}

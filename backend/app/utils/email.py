@@ -40,6 +40,24 @@ async def send_appointment_reminder(appointment) -> None:
     await send_email(client.email, subject, body)
 
 
+async def send_custom_message(client, subject: str, body: str) -> None:
+    """Send a custom message to a client.
+
+    NOTE: Currently email-only. To add SMS/WhatsApp: implement the provider
+    call here using client.phone when no email is available.
+    """
+    if not client.email:
+        print(f"[MESSAGING STUB] No email for {client.first_name} {client.last_name} (id={client.id})")
+        return
+    html_body = f"""
+    <h2>New Style Hair</h2>
+    <p>Ciao {client.first_name},</p>
+    {body.replace(chr(10), '<br>')}
+    <p>A presto,<br><strong>New Style Hair</strong></p>
+    """
+    await send_email(client.email, subject, html_body)
+
+
 async def send_birthday_greeting(client) -> None:
     """Send a birthday greeting to a client.
 

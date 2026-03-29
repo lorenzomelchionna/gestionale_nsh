@@ -26,13 +26,15 @@ const HOUR_HEIGHT = SLOT_HEIGHT * 2
 const START_HOUR = 8
 const END_HOUR = 20
 
-const STATUS_COLORS: Record<string, string> = {
-  pending:     'bg-amber-100 border-amber-400 text-amber-900',
-  confirmed:   'bg-emerald-100 border-emerald-400 text-emerald-900',
-  completed:   'bg-gray-100 border-gray-300 text-gray-600',
-  cancelled:   'bg-red-50 border-red-300 text-red-700 opacity-60',
-  rejected:    'bg-red-100 border-red-400 text-red-800 opacity-60',
-  rescheduled: 'bg-blue-100 border-blue-400 text-blue-900',
+const TERMINAL_STATUSES = ['completed', 'cancelled', 'rejected']
+
+function apptCardStyle(color: string, status: string): React.CSSProperties {
+  return {
+    backgroundColor: color + '22',
+    borderLeftColor: color,
+    color: color,
+    opacity: TERMINAL_STATUSES.includes(status) ? 0.5 : 1,
+  }
 }
 
 type ViewMode = 'day' | 'week'
@@ -419,11 +421,8 @@ function DayColumn({ collaborator, date, appointments, timeToY, durationToH, onS
             <div
               key={appt.id}
               draggable
-              className={clsx(
-                'absolute left-1 right-1 rounded border-l-2 px-1.5 py-0.5 cursor-grab active:cursor-grabbing hover:brightness-95 overflow-hidden z-10',
-                STATUS_COLORS[appt.status]
-              )}
-              style={{ top, height }}
+              className="absolute left-1 right-1 rounded border-l-2 px-1.5 py-0.5 cursor-grab active:cursor-grabbing hover:brightness-95 overflow-hidden z-10"
+              style={{ top, height, ...apptCardStyle(collaborator.color, appt.status) }}
               onDragStart={() => {
                 didDrag.current = false
                 dragState.current = {
@@ -501,6 +500,7 @@ function WeekDayColumn({ date, collaborators, appointments, timeToY, durationToH
         ))}
         {appointments.map(appt => {
           const collab = collaborators.find(c => c.id === appt.collaborator_id)
+          const collabColor = collab?.color ?? '#C8A96E'
           const start = parseISO(appt.start_time)
           const end = parseISO(appt.end_time)
           const top = timeToY(start)
@@ -509,11 +509,8 @@ function WeekDayColumn({ date, collaborators, appointments, timeToY, durationToH
             <div
               key={appt.id}
               draggable
-              className={clsx(
-                'absolute left-0.5 right-0.5 rounded border-l-2 px-1 py-0.5 cursor-grab active:cursor-grabbing hover:brightness-95 overflow-hidden z-10',
-                STATUS_COLORS[appt.status]
-              )}
-              style={{ top, height }}
+              className="absolute left-0.5 right-0.5 rounded border-l-2 px-1 py-0.5 cursor-grab active:cursor-grabbing hover:brightness-95 overflow-hidden z-10"
+              style={{ top, height, ...apptCardStyle(collabColor, appt.status) }}
               onDragStart={() => {
                 didDrag.current = false
                 dragState.current = {

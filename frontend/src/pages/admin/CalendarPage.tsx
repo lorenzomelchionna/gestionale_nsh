@@ -611,12 +611,18 @@ function CreateAppointmentModal({ initialSlot, collaborators, onClose, onCreated
   const [selectedCollabId, setSelectedCollabId] = useState<number>(
     initialSlot?.collaboratorId ?? collaborators[0]?.id ?? 0
   )
-  const [startDate, setStartDate] = useState(
-    initialSlot ? format(initialSlot.date, 'yyyy-MM-dd') : ''
-  )
-  const [startHour, setStartHour] = useState(
-    initialSlot ? format(initialSlot.date, 'HH:mm') : ''
-  )
+  const [day, setDay] = useState(initialSlot ? String(initialSlot.date.getDate()) : '')
+  const [month, setMonth] = useState(initialSlot ? String(initialSlot.date.getMonth() + 1) : '')
+  const [year, setYear] = useState(initialSlot ? String(initialSlot.date.getFullYear()) : '')
+  const [hours, setHours] = useState(initialSlot ? String(initialSlot.date.getHours()) : '')
+  const [minutes, setMinutes] = useState(initialSlot ? String(Math.floor(initialSlot.date.getMinutes() / 30) * 30) : '')
+
+  const startDate = day && month && year
+    ? `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`
+    : ''
+  const startHour = hours !== '' && minutes !== ''
+    ? `${String(hours).padStart(2,'0')}:${String(minutes).padStart(2,'0')}`
+    : ''
   const startTime = startDate && startHour ? `${startDate}T${startHour}` : ''
   const [selectedServiceIds, setSelectedServiceIds] = useState<number[]>([])
   const [notes, setNotes] = useState('')
@@ -714,28 +720,54 @@ function CreateAppointmentModal({ initialSlot, collaborators, onClose, onCreated
           </div>
 
           {/* Date/time */}
-          <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-2">
             <div>
               <label className="label block mb-1">Data inizio</label>
-              <input
-                type="date"
-                lang="it-IT"
-                className="input"
-                value={startDate}
-                onChange={e => setStartDate(e.target.value)}
-                required
-              />
+              <div className="flex gap-1">
+                <input
+                  type="number" min="1" max="31" placeholder="GG"
+                  className="input w-16 text-center"
+                  value={day}
+                  onChange={e => setDay(e.target.value)}
+                  required
+                />
+                <span className="self-center text-muted-foreground">/</span>
+                <input
+                  type="number" min="1" max="12" placeholder="MM"
+                  className="input w-16 text-center"
+                  value={month}
+                  onChange={e => setMonth(e.target.value)}
+                  required
+                />
+                <span className="self-center text-muted-foreground">/</span>
+                <input
+                  type="number" min="2024" max="2099" placeholder="AAAA"
+                  className="input flex-1 text-center"
+                  value={year}
+                  onChange={e => setYear(e.target.value)}
+                  required
+                />
+              </div>
             </div>
             <div>
               <label className="label block mb-1">Ora inizio</label>
-              <input
-                type="time"
-                lang="it-IT"
-                className="input"
-                value={startHour}
-                onChange={e => setStartHour(e.target.value)}
-                required
-              />
+              <div className="flex gap-1 items-center">
+                <input
+                  type="number" min="0" max="23" placeholder="HH"
+                  className="input w-16 text-center"
+                  value={hours}
+                  onChange={e => setHours(e.target.value)}
+                  required
+                />
+                <span className="self-center text-muted-foreground font-medium">:</span>
+                <input
+                  type="number" min="0" max="59" step="30" placeholder="MM"
+                  className="input w-16 text-center"
+                  value={minutes}
+                  onChange={e => setMinutes(e.target.value)}
+                  required
+                />
+              </div>
             </div>
           </div>
 

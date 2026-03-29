@@ -45,6 +45,9 @@ export default function CalendarPage() {
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [newApptSlot, setNewApptSlot] = useState<{ date: Date; collaboratorId: number } | null>(null)
+  const [pendingMove, setPendingMove] = useState<{
+    id: number; start: Date; end: Date; collaboratorId: number
+  } | null>(null)
   const dragState = useRef<DragState | null>(null)
   const didDrag = useRef(false)
 
@@ -95,14 +98,9 @@ export default function CalendarPage() {
     const start = new Date(dropDate)
     start.setHours(START_HOUR + Math.floor(clampedMin / 60), clampedMin % 60, 0, 0)
     const end = addMinutes(start, ds.durationMin)
-    moveMut.mutate({
-      id: ds.id,
-      start_time: start.toISOString(),
-      end_time: end.toISOString(),
-      collaborator_id: collaboratorId,
-    })
+    setPendingMove({ id: ds.id, start, end, collaboratorId })
     dragState.current = null
-  }, [moveMut])
+  }, [])
 
   const confirmMut = useMutation({ mutationFn: confirmAppointment, onSuccess: invalidate })
   const rejectMut = useMutation({
@@ -280,6 +278,44 @@ export default function CalendarPage() {
           onClose={() => { setShowCreateModal(false); setNewApptSlot(null) }}
           onCreated={() => { invalidate(); setShowCreateModal(false); setNewApptSlot(null) }}
         />
+      )}
+
+      {/* Move confirmation modal */}
+      {pendingMove && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-surface rounded-xl shadow-xl w-full max-w-sm p-5 space-y-4">
+            <h3 className="font-semibold text-foreground">Sposta appuntamento</h3>
+            <p className="text-sm text-muted-foreground">
+              Vuoi spostare l'appuntamento a{' '}
+              <span className="font-medium text-foreground">
+                {format(pendingMove.start, 'dd/MM/yyyy HH:mm', )} → {format(pendingMove.end, 'HH:mm')}
+              </span>
+              ?
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                className="btn-secondary text-sm py-1.5"
+                onClick={() => setPendingMove(null)}
+              >
+                Annulla
+              </button>
+              <button
+                className="btn-primary text-sm py-1.5"
+                disabled={moveMut.isPending}
+                onClick={() => {
+                  moveMut.mutate({
+                    id: pendingMove.id,
+                    start_time: pendingMove.start.toISOString(),
+                    end_time: pendingMove.end.toISOString(),
+                    collaborator_id: pendingMove.collaboratorId,
+                  }, { onSuccess: () => setPendingMove(null) })
+                }}
+              >
+                {moveMut.isPending ? 'Salvataggio...' : 'Conferma'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

@@ -281,6 +281,7 @@ export default function CalendarPage() {
       {selectedAppointment && (
         <AppointmentModal
           appointment={selectedAppointment}
+          appointments={appointments}
           onClose={() => setSelectedAppointment(null)}
           onConfirm={() => confirmMut.mutate(selectedAppointment.id)}
           onReject={(reason) => rejectMut.mutate({ id: selectedAppointment.id, reason })}
@@ -539,8 +540,9 @@ function WeekDayColumn({ date, collaborators, appointments, timeToY, durationToH
 
 // ── Appointment modal ─────────────────────────────────────────────
 
-function AppointmentModal({ appointment, onClose, onConfirm, onReject, onComplete, onInvalidate }: {
+function AppointmentModal({ appointment, appointments, onClose, onConfirm, onReject, onComplete, onInvalidate }: {
   appointment: Appointment
+  appointments: Appointment[]
   onClose: () => void
   onConfirm: () => void
   onReject: (reason?: string) => void
@@ -553,6 +555,10 @@ function AppointmentModal({ appointment, onClose, onConfirm, onReject, onComplet
   const [earlyHours, setEarlyHours] = useState('')
   const [earlyMinutes, setEarlyMinutes] = useState('')
   const [earlyEndError, setEarlyEndError] = useState('')
+  const [showResize, setShowResize] = useState(false)
+  const [resizeHours, setResizeHours] = useState('')
+  const [resizeMinutes, setResizeMinutes] = useState('')
+  const [resizeError, setResizeError] = useState('')
 
   const apptStart = parseISO(appointment.start_time)
   const apptEnd = parseISO(appointment.end_time)
@@ -580,6 +586,37 @@ function AppointmentModal({ appointment, onClose, onConfirm, onReject, onComplet
     }
     if (newEnd >= apptEnd) {
       setEarlyEndError(`L'orario deve essere prima di ${format(apptEnd, 'HH:mm')}.`)
+      return
+    }
+    updateMut.mutate({ end_time: newEnd.toISOString() })
+  }
+
+  const handleSaveResize = () => {
+    setResizeError('')
+    const h = Number(resizeHours)
+    const m = Number(resizeMinutes)
+    if (resizeHours === '' || resizeMinutes === '' || isNaN(h) || isNaN(m)) {
+      setResizeError('Inserisci un orario valido.')
+      return
+    }
+    const dateStr = format(apptStart, 'yyyy-MM-dd')
+    const newEnd = new Date(`${dateStr}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`)
+    if (newEnd <= apptStart) {
+      setResizeError(`L'orario deve essere dopo ${format(apptStart, 'HH:mm')}.`)
+      return
+    }
+    // Check overlaps with other appointments of the same collaborator
+    const conflict = appointments.find(a => {
+      if (a.id === appointment.id) return false
+      if (a.collaborator_id !== appointment.collaborator_id) return false
+      const aStart = parseISO(a.start_time)
+      const aEnd = parseISO(a.end_time)
+      return aStart < newEnd && aEnd > apptStart
+    })
+    if (conflict) {
+      setResizeError(
+        `Sovrapposizione con l'appuntamento di ${conflict.client_name} (${format(parseISO(conflict.start_time), 'HH:mm')}–${format(parseISO(conflict.end_time), 'HH:mm')}).`
+      )
       return
     }
     updateMut.mutate({ end_time: newEnd.toISOString() })
@@ -626,15 +663,24 @@ function AppointmentModal({ appointment, onClose, onConfirm, onReject, onComplet
               <Check className="w-4 h-4" /> Segna completato
             </button>
           )}
-          {!['completed', 'cancelled', 'rejected'].includes(appointment.status) && !showEarlyEnd && (
-            <button onClick={() => {
-                const mid = new Date((apptStart.getTime() + apptEnd.getTime()) / 2)
-                setEarlyHours(String(mid.getHours()))
-                setEarlyMinutes(String(mid.getMinutes()))
-                setShowEarlyEnd(true)
-              }} className="btn-secondary text-sm py-1.5">
-              Termina prima
-            </button>
+          {!['completed', 'cancelled', 'rejected'].includes(appointment.status) && !showEarlyEnd && !showResize && (
+            <>
+              <button onClick={() => {
+                  const mid = new Date((apptStart.getTime() + apptEnd.getTime()) / 2)
+                  setEarlyHours(String(mid.getHours()))
+                  setEarlyMinutes(String(mid.getMinutes()))
+                  setShowEarlyEnd(true)
+                }} className="btn-secondary text-sm py-1.5">
+                Termina prima
+              </button>
+              <button onClick={() => {
+                  setResizeHours(String(apptEnd.getHours()))
+                  setResizeMinutes(String(apptEnd.getMinutes()))
+                  setShowResize(true)
+                }} className="btn-secondary text-sm py-1.5">
+                Ridimensiona
+              </button>
+            </>
           )}
         </div>
 
@@ -663,8 +709,53 @@ function AppointmentModal({ appointment, onClose, onConfirm, onReject, onComplet
               >
                 {updateMut.isPending ? '...' : 'Salva'}
               </button>
+              <button
+                className="btn-secondary text-sm py-1.5"
+                onClick={() => { setShowEarlyEnd(false); setEarlyEndError('') }}
+              >
+                Annulla
+              </button>
             </div>
             {earlyEndError && <p className="text-xs text-red-500">{earlyEndError}</p>}
+            {updateMut.isError && <p className="text-xs text-red-500">Errore nel salvataggio. Riprova.</p>}
+          </div>
+        )}
+
+        {/* Resize input */}
+        {showResize && (
+          <div className="px-4 pb-4 border-t border-border pt-3 space-y-2">
+            <p className="text-xs text-muted-foreground">
+              Nuovo orario di fine (attuale: <span className="font-medium">{format(apptEnd, 'HH:mm')}</span>):
+            </p>
+            <div className="flex items-center gap-1">
+              <input
+                type="number" min="0" max="23" placeholder="HH"
+                className="input w-16 text-center"
+                value={resizeHours}
+                onChange={e => setResizeHours(e.target.value)}
+              />
+              <span className="text-muted-foreground font-medium">:</span>
+              <input
+                type="number" min="0" max="59" placeholder="MM"
+                className="input w-16 text-center"
+                value={resizeMinutes}
+                onChange={e => setResizeMinutes(e.target.value)}
+              />
+              <button
+                className="btn-primary text-sm py-1.5 ml-2"
+                disabled={updateMut.isPending}
+                onClick={handleSaveResize}
+              >
+                {updateMut.isPending ? '...' : 'Salva'}
+              </button>
+              <button
+                className="btn-secondary text-sm py-1.5"
+                onClick={() => { setShowResize(false); setResizeError('') }}
+              >
+                Annulla
+              </button>
+            </div>
+            {resizeError && <p className="text-xs text-red-500">{resizeError}</p>}
             {updateMut.isError && <p className="text-xs text-red-500">Errore nel salvataggio. Riprova.</p>}
           </div>
         )}

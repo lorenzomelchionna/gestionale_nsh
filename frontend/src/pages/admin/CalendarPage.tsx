@@ -719,6 +719,7 @@ function CreateAppointmentModal({ initialSlot, collaborators, onClose, onCreated
               <label className="label block mb-1">Data inizio</label>
               <input
                 type="date"
+                lang="it-IT"
                 className="input"
                 value={startDate}
                 onChange={e => setStartDate(e.target.value)}
@@ -729,6 +730,7 @@ function CreateAppointmentModal({ initialSlot, collaborators, onClose, onCreated
               <label className="label block mb-1">Ora inizio</label>
               <input
                 type="time"
+                lang="it-IT"
                 className="input"
                 value={startHour}
                 onChange={e => setStartHour(e.target.value)}

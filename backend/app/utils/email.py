@@ -40,6 +40,27 @@ async def send_appointment_reminder(appointment) -> None:
     await send_email(client.email, subject, body)
 
 
+async def send_birthday_greeting(client) -> None:
+    """Send a birthday greeting to a client.
+
+    Currently email-only. To add SMS/WhatsApp: implement the provider call
+    here alongside (or instead of) the email, using client.phone.
+    """
+    if not client.email:
+        # TODO: fallback to SMS/WhatsApp when a provider is configured
+        print(f"[BIRTHDAY STUB] No email for {client.first_name} {client.last_name} (id={client.id})")
+        return
+    subject = "Tanti auguri di buon compleanno! – New Style Hair"
+    body = f"""
+    <h2>New Style Hair</h2>
+    <p>Ciao {client.first_name},</p>
+    <p>Tutto il team di <strong>New Style Hair</strong> ti augura un <strong>felice compleanno</strong>! 🎉</p>
+    <p>Passa a trovarci: il tuo giorno speciale merita una coccola in più.</p>
+    <p>A presto e ancora tanti auguri!</p>
+    """
+    await send_email(client.email, subject, body)
+
+
 async def send_booking_status_email(appointment, status_msg: str) -> None:
     client = appointment.client
     if not client or not client.email:

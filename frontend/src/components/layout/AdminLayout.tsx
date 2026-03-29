@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import {
   LayoutDashboard, Calendar, Users, Scissors, Package,
   DollarSign, TrendingDown, Settings, LogOut, Bell, Menu, X,
-  UserCircle, Clock
+  UserCircle, Clock, MessageSquare
 } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import { useUIStore } from '@/store/uiStore'
@@ -20,6 +20,7 @@ const navItems = [
   { to: '/admin/products',               icon: Package,         label: 'Prodotti' },
   { to: '/admin/cash',                   icon: DollarSign,      label: 'Cassa' },
   { to: '/admin/expenses',               icon: TrendingDown,    label: 'Spese' },
+  { to: '/admin/messaging',              icon: MessageSquare,   label: 'Messaggi' },
   { to: '/admin/settings',               icon: Settings,        label: 'Impostazioni' },
 ]
 

@@ -169,7 +169,7 @@ export const getAvailability = (params: {
 
 // ── Products ──────────────────────────────────────────────────────
 
-export const getProducts = (params?: { low_stock?: boolean }) =>
+export const getProducts = (params?: { low_stock?: boolean; active_only?: boolean }) =>
   api.get<PaginatedResponse<Product>>('/admin/products', { params }).then(r => r.data)
 
 export const createProduct = (data: Partial<Product>) =>
@@ -246,5 +246,15 @@ export interface YearlyChartEntry {
 
 export const getYearlyChart = (year?: number) =>
   api.get<YearlyChartEntry[]>('/admin/dashboard/yearly-chart', { params: year ? { year } : {} }).then(r => r.data)
+
+// ── Messaging ─────────────────────────────────────────────────────
+
+import type { SendMessageRequest, PreviewResponse, SendResponse } from '@/types'
+
+export const previewMessage = (data: SendMessageRequest) =>
+  api.post<PreviewResponse>('/admin/messaging/preview', data).then(r => r.data)
+
+export const sendMessage = (data: SendMessageRequest) =>
+  api.post<SendResponse>('/admin/messaging/send', data).then(r => r.data)
 
 export default api

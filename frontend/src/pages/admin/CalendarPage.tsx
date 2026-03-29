@@ -1,32 +1,40 @@
-import { useState, useMemo, useCallback } from 'react'
+import React, { useState, useMemo, useCallback, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   format, addDays, startOfWeek, isSameDay, parseISO, addMinutes, differenceInMinutes
 } from 'date-fns'
 import { it } from 'date-fns/locale'
 import {
-  ChevronLeft, ChevronRight, Plus, Check, X, Clock, ArrowRight
+  ChevronLeft, ChevronRight, Plus, Check, X
 } from 'lucide-react'
 import {
   getAppointments, getCollaborators, confirmAppointment,
-  rejectAppointment, rescheduleAppointment, completeAppointment,
-  createAppointment, getClients, getServices
+  rejectAppointment, completeAppointment,
+  createAppointment, getClients, getServices, updateAppointment
 } from '@/services/api'
 import type { Appointment, Collaborator } from '@/types'
 import clsx from 'clsx'
+
+interface DragState {
+  id: number
+  durationMin: number
+  collaboratorId: number
+}
 
 const SLOT_HEIGHT = 48  // px per 30-min slot
 const HOUR_HEIGHT = SLOT_HEIGHT * 2
 const START_HOUR = 8
 const END_HOUR = 20
 
-const STATUS_COLORS: Record<string, string> = {
-  pending:     'bg-amber-100 border-amber-400 text-amber-900',
-  confirmed:   'bg-emerald-100 border-emerald-400 text-emerald-900',
-  completed:   'bg-gray-100 border-gray-300 text-gray-600',
-  cancelled:   'bg-red-50 border-red-300 text-red-700 opacity-60',
-  rejected:    'bg-red-100 border-red-400 text-red-800 opacity-60',
-  rescheduled: 'bg-blue-100 border-blue-400 text-blue-900',
+const TERMINAL_STATUSES = ['completed', 'cancelled', 'rejected']
+
+function apptCardStyle(color: string, status: string): React.CSSProperties {
+  return {
+    backgroundColor: color + '22',
+    borderLeftColor: color,
+    color: color,
+    opacity: TERMINAL_STATUSES.includes(status) ? 0.5 : 1,
+  }
 }
 
 type ViewMode = 'day' | 'week'
@@ -39,6 +47,11 @@ export default function CalendarPage() {
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [newApptSlot, setNewApptSlot] = useState<{ date: Date; collaboratorId: number } | null>(null)
+  const [pendingMove, setPendingMove] = useState<{
+    id: number; start: Date; end: Date; collaboratorId: number; originalCollaboratorId: number
+  } | null>(null)
+  const dragState = useRef<DragState | null>(null)
+  const didDrag = useRef(false)
 
   // Date range for query
   const dateFrom = viewMode === 'day'
@@ -71,6 +84,41 @@ export default function CalendarPage() {
 
   // Mutations
   const invalidate = () => qc.invalidateQueries({ queryKey: ['appointments'] })
+
+  const moveMut = useMutation({
+    mutationFn: ({ id, start_time, end_time, collaborator_id }: {
+      id: number; start_time: string; end_time: string; collaborator_id: number
+    }) => updateAppointment(id, { start_time, end_time, collaborator_id }),
+    onSuccess: invalidate,
+  })
+
+  const handleDrop = useCallback((dropDate: Date, collaboratorId: number, relativeY: number) => {
+    const ds = dragState.current
+    if (!ds) return
+    const snappedMin = Math.floor(relativeY / SLOT_HEIGHT) * 30
+    const clampedMin = Math.max(0, Math.min(snappedMin, (END_HOUR - START_HOUR) * 60 - ds.durationMin))
+    const start = new Date(dropDate)
+    start.setHours(START_HOUR + Math.floor(clampedMin / 60), clampedMin % 60, 0, 0)
+    const end = addMinutes(start, ds.durationMin)
+    setPendingMove({ id: ds.id, start, end, collaboratorId, originalCollaboratorId: ds.collaboratorId })
+    dragState.current = null
+  }, [])
+
+  // Drop on top of another appointment → start exactly at its end (no snap)
+  const handleDropOnAppointment = useCallback((targetAppt: Appointment) => {
+    const ds = dragState.current
+    if (!ds || ds.id === targetAppt.id) return
+    const start = parseISO(targetAppt.end_time)
+    const end = addMinutes(start, ds.durationMin)
+    setPendingMove({
+      id: ds.id,
+      start,
+      end,
+      collaboratorId: targetAppt.collaborator_id,
+      originalCollaboratorId: ds.collaboratorId,
+    })
+    dragState.current = null
+  }, [])
 
   const confirmMut = useMutation({ mutationFn: confirmAppointment, onSuccess: invalidate })
   const rejectMut = useMutation({
@@ -199,7 +247,11 @@ export default function CalendarPage() {
                   timeToY={timeToY}
                   durationToH={durationToH}
                   onSlotClick={(d) => handleSlotClick(d, collab.id)}
-                  onAppointmentClick={setSelectedAppointment}
+                  onAppointmentClick={(a) => { if (!didDrag.current) setSelectedAppointment(a); didDrag.current = false }}
+                  dragState={dragState}
+                  didDrag={didDrag}
+                  onDrop={(relY) => handleDrop(currentDate, collab.id, relY)}
+                  onDropOnAppointment={handleDropOnAppointment}
                 />
               ))}
             </div>
@@ -215,7 +267,11 @@ export default function CalendarPage() {
                   timeToY={timeToY}
                   durationToH={durationToH}
                   onSlotClick={(d) => handleSlotClick(d, visibleCollabs[0]?.id ?? 0)}
-                  onAppointmentClick={setSelectedAppointment}
+                  onAppointmentClick={(a) => { if (!didDrag.current) setSelectedAppointment(a); didDrag.current = false }}
+                  dragState={dragState}
+                  didDrag={didDrag}
+                  onDrop={(relY, collaboratorId) => handleDrop(day, collaboratorId, relY)}
+                  onDropOnAppointment={handleDropOnAppointment}
                 />
               ))}
             </div>
@@ -227,10 +283,12 @@ export default function CalendarPage() {
       {selectedAppointment && (
         <AppointmentModal
           appointment={selectedAppointment}
+          appointments={appointments}
           onClose={() => setSelectedAppointment(null)}
           onConfirm={() => confirmMut.mutate(selectedAppointment.id)}
           onReject={(reason) => rejectMut.mutate({ id: selectedAppointment.id, reason })}
           onComplete={() => completeMut.mutate(selectedAppointment.id)}
+          onInvalidate={invalidate}
         />
       )}
 
@@ -243,13 +301,65 @@ export default function CalendarPage() {
           onCreated={() => { invalidate(); setShowCreateModal(false); setNewApptSlot(null) }}
         />
       )}
+
+      {/* Move confirmation modal */}
+      {pendingMove && (() => {
+        const fromCollab = collaborators.find(c => c.id === pendingMove.originalCollaboratorId)
+        const toCollab = collaborators.find(c => c.id === pendingMove.collaboratorId)
+        const collabChanged = pendingMove.collaboratorId !== pendingMove.originalCollaboratorId
+        return (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-surface rounded-xl shadow-xl w-full max-w-sm p-5 space-y-4">
+            <h3 className="font-semibold text-foreground">Sposta appuntamento</h3>
+            <div className="text-sm text-muted-foreground space-y-1">
+              <p>
+                Nuovo orario:{' '}
+                <span className="font-medium text-foreground">
+                  {format(pendingMove.start, 'dd/MM/yyyy HH:mm')} → {format(pendingMove.end, 'HH:mm')}
+                </span>
+              </p>
+              {collabChanged && (
+                <p>
+                  Collaboratore:{' '}
+                  <span className="font-medium text-foreground">
+                    {fromCollab?.first_name ?? '–'} → {toCollab?.first_name ?? '–'}
+                  </span>
+                </p>
+              )}
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                className="btn-secondary text-sm py-1.5"
+                onClick={() => setPendingMove(null)}
+              >
+                Annulla
+              </button>
+              <button
+                className="btn-primary text-sm py-1.5"
+                disabled={moveMut.isPending}
+                onClick={() => {
+                  moveMut.mutate({
+                    id: pendingMove.id,
+                    start_time: pendingMove.start.toISOString(),
+                    end_time: pendingMove.end.toISOString(),
+                    collaborator_id: pendingMove.collaboratorId,
+                  }, { onSuccess: () => setPendingMove(null) })
+                }}
+              >
+                {moveMut.isPending ? 'Salvataggio...' : 'Conferma'}
+              </button>
+            </div>
+          </div>
+        </div>
+        )
+      })()}
     </div>
   )
 }
 
 // ── Day column ────────────────────────────────────────────────────
 
-function DayColumn({ collaborator, date, appointments, timeToY, durationToH, onSlotClick, onAppointmentClick }: {
+function DayColumn({ collaborator, date, appointments, timeToY, durationToH, onSlotClick, onAppointmentClick, dragState, didDrag, onDrop, onDropOnAppointment }: {
   collaborator: Collaborator
   date: Date
   appointments: Appointment[]
@@ -257,6 +367,10 @@ function DayColumn({ collaborator, date, appointments, timeToY, durationToH, onS
   durationToH: (s: Date, e: Date) => number
   onSlotClick: (d: Date) => void
   onAppointmentClick: (a: Appointment) => void
+  dragState: React.MutableRefObject<DragState | null>
+  didDrag: React.MutableRefObject<boolean>
+  onDrop: (relativeY: number) => void
+  onDropOnAppointment: (target: Appointment) => void
 }) {
   return (
     <div className="flex-1 min-w-[120px] border-l border-border">
@@ -272,6 +386,7 @@ function DayColumn({ collaborator, date, appointments, timeToY, durationToH, onS
         className="relative"
         style={{ height: (END_HOUR - START_HOUR) * HOUR_HEIGHT }}
         onClick={(e) => {
+          if (didDrag.current) { didDrag.current = false; return }
           const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
           const y = e.clientY - rect.top
           const totalMin = (y / SLOT_HEIGHT) * 30
@@ -279,6 +394,13 @@ function DayColumn({ collaborator, date, appointments, timeToY, durationToH, onS
           const slotDate = new Date(date)
           slotDate.setHours(START_HOUR + Math.floor(slotMin / 60), slotMin % 60, 0, 0)
           onSlotClick(slotDate)
+        }}
+        onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move' }}
+        onDrop={(e) => {
+          e.preventDefault()
+          const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+          onDrop(e.clientY - rect.top)
+          didDrag.current = true
         }}
       >
         {/* Hour lines */}
@@ -294,15 +416,23 @@ function DayColumn({ collaborator, date, appointments, timeToY, durationToH, onS
           const start = parseISO(appt.start_time)
           const end = parseISO(appt.end_time)
           const top = timeToY(start)
-          const height = Math.max(durationToH(start, end), SLOT_HEIGHT)
+          const height = Math.max(durationToH(start, end), 20)
           return (
             <div
               key={appt.id}
-              className={clsx(
-                'absolute left-1 right-1 rounded border-l-2 px-1.5 py-0.5 cursor-pointer hover:brightness-95 overflow-hidden z-10',
-                STATUS_COLORS[appt.status]
-              )}
-              style={{ top, height }}
+              draggable
+              className="absolute left-1 right-1 rounded border-l-2 px-1.5 py-0.5 cursor-grab active:cursor-grabbing hover:brightness-95 overflow-hidden z-10"
+              style={{ top, height, ...apptCardStyle(collaborator.color, appt.status) }}
+              onDragStart={() => {
+                didDrag.current = false
+                dragState.current = {
+                  id: appt.id,
+                  durationMin: differenceInMinutes(end, start),
+                  collaboratorId: appt.collaborator_id,
+                }
+              }}
+              onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = 'move' }}
+              onDrop={(e) => { e.preventDefault(); e.stopPropagation(); onDropOnAppointment(appt); didDrag.current = true }}
               onClick={(e) => { e.stopPropagation(); onAppointmentClick(appt) }}
             >
               <p className="text-[11px] font-semibold leading-tight truncate">
@@ -321,7 +451,7 @@ function DayColumn({ collaborator, date, appointments, timeToY, durationToH, onS
 
 // ── Week day column ───────────────────────────────────────────────
 
-function WeekDayColumn({ date, collaborators, appointments, timeToY, durationToH, onSlotClick, onAppointmentClick }: {
+function WeekDayColumn({ date, collaborators, appointments, timeToY, durationToH, onSlotClick, onAppointmentClick, dragState, didDrag, onDrop, onDropOnAppointment }: {
   date: Date
   collaborators: Collaborator[]
   appointments: Appointment[]
@@ -329,6 +459,10 @@ function WeekDayColumn({ date, collaborators, appointments, timeToY, durationToH
   durationToH: (s: Date, e: Date) => number
   onSlotClick: (d: Date) => void
   onAppointmentClick: (a: Appointment) => void
+  dragState: React.MutableRefObject<DragState | null>
+  didDrag: React.MutableRefObject<boolean>
+  onDrop: (relativeY: number, collaboratorId: number) => void
+  onDropOnAppointment: (target: Appointment) => void
 }) {
   const isToday = isSameDay(date, new Date())
   return (
@@ -343,6 +477,7 @@ function WeekDayColumn({ date, collaborators, appointments, timeToY, durationToH
         className="relative"
         style={{ height: (END_HOUR - START_HOUR) * HOUR_HEIGHT }}
         onClick={(e) => {
+          if (didDrag.current) { didDrag.current = false; return }
           const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
           const y = e.clientY - rect.top
           const totalMin = (y / SLOT_HEIGHT) * 30
@@ -351,24 +486,41 @@ function WeekDayColumn({ date, collaborators, appointments, timeToY, durationToH
           slotDate.setHours(START_HOUR + Math.floor(slotMin / 60), slotMin % 60, 0, 0)
           onSlotClick(slotDate)
         }}
+        onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move' }}
+        onDrop={(e) => {
+          e.preventDefault()
+          const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+          const collaboratorId = dragState.current?.collaboratorId ?? collaborators[0]?.id ?? 0
+          onDrop(e.clientY - rect.top, collaboratorId)
+          didDrag.current = true
+        }}
       >
         {Array.from({ length: (END_HOUR - START_HOUR) * 2 }, (_, i) => (
           <div key={i} className={clsx('absolute left-0 right-0', i % 2 === 0 ? 'border-t border-border' : 'border-t border-border/40')} style={{ top: i * SLOT_HEIGHT }} />
         ))}
         {appointments.map(appt => {
           const collab = collaborators.find(c => c.id === appt.collaborator_id)
+          const collabColor = collab?.color ?? '#C8A96E'
           const start = parseISO(appt.start_time)
           const end = parseISO(appt.end_time)
           const top = timeToY(start)
-          const height = Math.max(durationToH(start, end), SLOT_HEIGHT)
+          const height = Math.max(durationToH(start, end), 20)
           return (
             <div
               key={appt.id}
-              className={clsx(
-                'absolute left-0.5 right-0.5 rounded border-l-2 px-1 py-0.5 cursor-pointer hover:brightness-95 overflow-hidden z-10',
-                STATUS_COLORS[appt.status]
-              )}
-              style={{ top, height }}
+              draggable
+              className="absolute left-0.5 right-0.5 rounded border-l-2 px-1 py-0.5 cursor-grab active:cursor-grabbing hover:brightness-95 overflow-hidden z-10"
+              style={{ top, height, ...apptCardStyle(collabColor, appt.status) }}
+              onDragStart={() => {
+                didDrag.current = false
+                dragState.current = {
+                  id: appt.id,
+                  durationMin: differenceInMinutes(end, start),
+                  collaboratorId: appt.collaborator_id,
+                }
+              }}
+              onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = 'move' }}
+              onDrop={(e) => { e.preventDefault(); e.stopPropagation(); onDropOnAppointment(appt); didDrag.current = true }}
               onClick={(e) => { e.stopPropagation(); onAppointmentClick(appt) }}
             >
               <p className="text-[10px] font-semibold truncate">{appt.client_name}</p>
@@ -385,15 +537,87 @@ function WeekDayColumn({ date, collaborators, appointments, timeToY, durationToH
 
 // ── Appointment modal ─────────────────────────────────────────────
 
-function AppointmentModal({ appointment, onClose, onConfirm, onReject, onComplete }: {
+function AppointmentModal({ appointment, appointments, onClose, onConfirm, onReject, onComplete, onInvalidate }: {
   appointment: Appointment
+  appointments: Appointment[]
   onClose: () => void
   onConfirm: () => void
   onReject: (reason?: string) => void
   onComplete: () => void
+  onInvalidate: () => void
 }) {
   const [rejectReason, setRejectReason] = useState('')
   const [showRejectForm, setShowRejectForm] = useState(false)
+  const [showEarlyEnd, setShowEarlyEnd] = useState(false)
+  const [earlyHours, setEarlyHours] = useState('')
+  const [earlyMinutes, setEarlyMinutes] = useState('')
+  const [earlyEndError, setEarlyEndError] = useState('')
+  const [showResize, setShowResize] = useState(false)
+  const [resizeHours, setResizeHours] = useState('')
+  const [resizeMinutes, setResizeMinutes] = useState('')
+  const [resizeError, setResizeError] = useState('')
+
+  const apptStart = parseISO(appointment.start_time)
+  const apptEnd = parseISO(appointment.end_time)
+
+  const updateMut = useMutation({
+    mutationFn: (data: Parameters<typeof updateAppointment>[1]) =>
+      updateAppointment(appointment.id, data),
+    onSuccess: () => { onInvalidate(); onClose() },
+  })
+
+  const handleSaveEarlyEnd = () => {
+    setEarlyEndError('')
+    const h = Number(earlyHours)
+    const m = Number(earlyMinutes)
+    if (earlyHours === '' || earlyMinutes === '' || isNaN(h) || isNaN(m)) {
+      setEarlyEndError('Inserisci un orario valido.')
+      return
+    }
+    // Build newEnd in local time using the same calendar day as apptStart
+    const dateStr = format(apptStart, 'yyyy-MM-dd')
+    const newEnd = new Date(`${dateStr}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`)
+    if (newEnd <= apptStart) {
+      setEarlyEndError(`L'orario deve essere dopo ${format(apptStart, 'HH:mm')}.`)
+      return
+    }
+    if (newEnd >= apptEnd) {
+      setEarlyEndError(`L'orario deve essere prima di ${format(apptEnd, 'HH:mm')}.`)
+      return
+    }
+    updateMut.mutate({ end_time: newEnd.toISOString() })
+  }
+
+  const handleSaveResize = () => {
+    setResizeError('')
+    const h = Number(resizeHours)
+    const m = Number(resizeMinutes)
+    if (resizeHours === '' || resizeMinutes === '' || isNaN(h) || isNaN(m)) {
+      setResizeError('Inserisci un orario valido.')
+      return
+    }
+    const dateStr = format(apptStart, 'yyyy-MM-dd')
+    const newEnd = new Date(`${dateStr}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`)
+    if (newEnd <= apptStart) {
+      setResizeError(`L'orario deve essere dopo ${format(apptStart, 'HH:mm')}.`)
+      return
+    }
+    // Check overlaps with other appointments of the same collaborator
+    const conflict = appointments.find(a => {
+      if (a.id === appointment.id) return false
+      if (a.collaborator_id !== appointment.collaborator_id) return false
+      const aStart = parseISO(a.start_time)
+      const aEnd = parseISO(a.end_time)
+      return aStart < newEnd && aEnd > apptStart
+    })
+    if (conflict) {
+      setResizeError(
+        `Sovrapposizione con l'appuntamento di ${conflict.client_name} (${format(parseISO(conflict.start_time), 'HH:mm')}–${format(parseISO(conflict.end_time), 'HH:mm')}).`
+      )
+      return
+    }
+    updateMut.mutate({ end_time: newEnd.toISOString() })
+  }
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
@@ -407,7 +631,7 @@ function AppointmentModal({ appointment, onClose, onConfirm, onReject, onComplet
         <div className="p-4 space-y-3">
           <Row label="Cliente" value={appointment.client_name ?? '–'} />
           <Row label="Collaboratore" value={appointment.collaborator_name ?? '–'} />
-          <Row label="Orario" value={`${format(parseISO(appointment.start_time), 'dd/MM/yyyy HH:mm')} → ${format(parseISO(appointment.end_time), 'HH:mm')}`} />
+          <Row label="Orario" value={`${format(apptStart, 'dd/MM/yyyy HH:mm')} → ${format(apptEnd, 'HH:mm')}`} />
           <Row label="Totale" value={`€${(appointment.total_price ?? 0).toFixed(2)}`} />
           <Row label="Origine" value={appointment.origin === 'online' ? 'Prenotazione online' : 'Inserito dal salone'} />
           <div className="flex items-center gap-2">
@@ -423,43 +647,125 @@ function AppointmentModal({ appointment, onClose, onConfirm, onReject, onComplet
         <div className="p-4 border-t border-border flex flex-wrap gap-2">
           {appointment.status === 'pending' && (
             <>
-              <button
-                onClick={() => { onConfirm(); onClose() }}
-                className="btn-primary flex items-center gap-1.5 text-sm py-1.5"
-              >
+              <button onClick={() => { onConfirm(); onClose() }} className="btn-primary flex items-center gap-1.5 text-sm py-1.5">
                 <Check className="w-4 h-4" /> Conferma
               </button>
-              <button
-                onClick={() => setShowRejectForm(true)}
-                className="btn-danger flex items-center gap-1.5 text-sm py-1.5"
-              >
+              <button onClick={() => setShowRejectForm(true)} className="btn-danger flex items-center gap-1.5 text-sm py-1.5">
                 <X className="w-4 h-4" /> Rifiuta
               </button>
             </>
           )}
           {appointment.status === 'confirmed' && (
-            <button
-              onClick={() => { onComplete(); onClose() }}
-              className="btn-primary flex items-center gap-1.5 text-sm py-1.5"
-            >
+            <button onClick={() => { onComplete(); onClose() }} className="btn-primary flex items-center gap-1.5 text-sm py-1.5">
               <Check className="w-4 h-4" /> Segna completato
             </button>
           )}
+          {!['completed', 'cancelled', 'rejected'].includes(appointment.status) && !showEarlyEnd && !showResize && (
+            <>
+              <button onClick={() => {
+                  const mid = new Date((apptStart.getTime() + apptEnd.getTime()) / 2)
+                  setEarlyHours(String(mid.getHours()))
+                  setEarlyMinutes(String(mid.getMinutes()))
+                  setShowEarlyEnd(true)
+                }} className="btn-secondary text-sm py-1.5">
+                Termina prima
+              </button>
+              <button onClick={() => {
+                  setResizeHours(String(apptEnd.getHours()))
+                  setResizeMinutes(String(apptEnd.getMinutes()))
+                  setShowResize(true)
+                }} className="btn-secondary text-sm py-1.5">
+                Ridimensiona
+              </button>
+            </>
+          )}
         </div>
+
+        {/* Early end input */}
+        {showEarlyEnd && (
+          <div className="px-4 pb-4 border-t border-border pt-3 space-y-2">
+            <p className="text-xs text-muted-foreground">Orario di fine anticipata:</p>
+            <div className="flex items-center gap-1">
+              <input
+                type="number" min="0" max="23" placeholder="HH"
+                className="input w-16 text-center"
+                value={earlyHours}
+                onChange={e => setEarlyHours(e.target.value)}
+              />
+              <span className="text-muted-foreground font-medium">:</span>
+              <input
+                type="number" min="0" max="59" placeholder="MM"
+                className="input w-16 text-center"
+                value={earlyMinutes}
+                onChange={e => setEarlyMinutes(e.target.value)}
+              />
+              <button
+                className="btn-primary text-sm py-1.5 ml-2"
+                disabled={updateMut.isPending}
+                onClick={handleSaveEarlyEnd}
+              >
+                {updateMut.isPending ? '...' : 'Salva'}
+              </button>
+              <button
+                className="btn-secondary text-sm py-1.5"
+                onClick={() => { setShowEarlyEnd(false); setEarlyEndError('') }}
+              >
+                Annulla
+              </button>
+            </div>
+            {earlyEndError && <p className="text-xs text-red-500">{earlyEndError}</p>}
+            {updateMut.isError && <p className="text-xs text-red-500">Errore nel salvataggio. Riprova.</p>}
+          </div>
+        )}
+
+        {/* Resize input */}
+        {showResize && (
+          <div className="px-4 pb-4 border-t border-border pt-3 space-y-2">
+            <p className="text-xs text-muted-foreground">
+              Nuovo orario di fine (attuale: <span className="font-medium">{format(apptEnd, 'HH:mm')}</span>):
+            </p>
+            <div className="flex items-center gap-1">
+              <input
+                type="number" min="0" max="23" placeholder="HH"
+                className="input w-16 text-center"
+                value={resizeHours}
+                onChange={e => setResizeHours(e.target.value)}
+              />
+              <span className="text-muted-foreground font-medium">:</span>
+              <input
+                type="number" min="0" max="59" placeholder="MM"
+                className="input w-16 text-center"
+                value={resizeMinutes}
+                onChange={e => setResizeMinutes(e.target.value)}
+              />
+              <button
+                className="btn-primary text-sm py-1.5 ml-2"
+                disabled={updateMut.isPending}
+                onClick={handleSaveResize}
+              >
+                {updateMut.isPending ? '...' : 'Salva'}
+              </button>
+              <button
+                className="btn-secondary text-sm py-1.5"
+                onClick={() => { setShowResize(false); setResizeError('') }}
+              >
+                Annulla
+              </button>
+            </div>
+            {resizeError && <p className="text-xs text-red-500">{resizeError}</p>}
+            {updateMut.isError && <p className="text-xs text-red-500">Errore nel salvataggio. Riprova.</p>}
+          </div>
+        )}
 
         {showRejectForm && (
           <div className="px-4 pb-4 space-y-2">
             <textarea
-              className="input text-sm"
-              rows={2}
+              className="input text-sm" rows={2}
               placeholder="Motivo rifiuto (opzionale)"
               value={rejectReason}
               onChange={e => setRejectReason(e.target.value)}
             />
-            <button
-              onClick={() => { onReject(rejectReason || undefined) }}
-              className="btn-danger text-sm py-1.5"
-            >
+            <button onClick={() => { onReject(rejectReason || undefined) }} className="btn-danger text-sm py-1.5">
               Conferma rifiuto
             </button>
           </div>
@@ -482,9 +788,19 @@ function CreateAppointmentModal({ initialSlot, collaborators, onClose, onCreated
   const [selectedCollabId, setSelectedCollabId] = useState<number>(
     initialSlot?.collaboratorId ?? collaborators[0]?.id ?? 0
   )
-  const [startTime, setStartTime] = useState(
-    initialSlot ? format(initialSlot.date, "yyyy-MM-dd'T'HH:mm") : ''
-  )
+  const [day, setDay] = useState(initialSlot ? String(initialSlot.date.getDate()) : '')
+  const [month, setMonth] = useState(initialSlot ? String(initialSlot.date.getMonth() + 1) : '')
+  const [year, setYear] = useState(initialSlot ? String(initialSlot.date.getFullYear()) : '')
+  const [hours, setHours] = useState(initialSlot ? String(initialSlot.date.getHours()) : '')
+  const [minutes, setMinutes] = useState(initialSlot ? String(Math.floor(initialSlot.date.getMinutes() / 30) * 30) : '')
+
+  const startDate = day && month && year
+    ? `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`
+    : ''
+  const startHour = hours !== '' && minutes !== ''
+    ? `${String(hours).padStart(2,'0')}:${String(minutes).padStart(2,'0')}`
+    : ''
+  const startTime = startDate && startHour ? `${startDate}T${startHour}` : ''
   const [selectedServiceIds, setSelectedServiceIds] = useState<number[]>([])
   const [notes, setNotes] = useState('')
 
@@ -581,15 +897,55 @@ function CreateAppointmentModal({ initialSlot, collaborators, onClose, onCreated
           </div>
 
           {/* Date/time */}
-          <div>
-            <label className="label block mb-1">Data e ora inizio</label>
-            <input
-              type="datetime-local"
-              className="input"
-              value={startTime}
-              onChange={e => setStartTime(e.target.value)}
-              required
-            />
+          <div className="space-y-2">
+            <div>
+              <label className="label block mb-1">Data inizio</label>
+              <div className="flex gap-1">
+                <input
+                  type="number" min="1" max="31" placeholder="GG"
+                  className="input w-16 text-center"
+                  value={day}
+                  onChange={e => setDay(e.target.value)}
+                  required
+                />
+                <span className="self-center text-muted-foreground">/</span>
+                <input
+                  type="number" min="1" max="12" placeholder="MM"
+                  className="input w-16 text-center"
+                  value={month}
+                  onChange={e => setMonth(e.target.value)}
+                  required
+                />
+                <span className="self-center text-muted-foreground">/</span>
+                <input
+                  type="number" min="2024" max="2099" placeholder="AAAA"
+                  className="input flex-1 text-center"
+                  value={year}
+                  onChange={e => setYear(e.target.value)}
+                  required
+                />
+              </div>
+            </div>
+            <div>
+              <label className="label block mb-1">Ora inizio</label>
+              <div className="flex gap-1 items-center">
+                <input
+                  type="number" min="0" max="23" placeholder="HH"
+                  className="input w-16 text-center"
+                  value={hours}
+                  onChange={e => setHours(e.target.value)}
+                  required
+                />
+                <span className="self-center text-muted-foreground font-medium">:</span>
+                <input
+                  type="number" min="0" max="59" step="30" placeholder="MM"
+                  className="input w-16 text-center"
+                  value={minutes}
+                  onChange={e => setMinutes(e.target.value)}
+                  required
+                />
+              </div>
+            </div>
           </div>
 
           {/* Services */}

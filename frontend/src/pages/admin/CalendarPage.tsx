@@ -46,7 +46,7 @@ export default function CalendarPage() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [newApptSlot, setNewApptSlot] = useState<{ date: Date; collaboratorId: number } | null>(null)
   const [pendingMove, setPendingMove] = useState<{
-    id: number; start: Date; end: Date; collaboratorId: number
+    id: number; start: Date; end: Date; collaboratorId: number; originalCollaboratorId: number
   } | null>(null)
   const dragState = useRef<DragState | null>(null)
   const didDrag = useRef(false)
@@ -98,7 +98,7 @@ export default function CalendarPage() {
     const start = new Date(dropDate)
     start.setHours(START_HOUR + Math.floor(clampedMin / 60), clampedMin % 60, 0, 0)
     const end = addMinutes(start, ds.durationMin)
-    setPendingMove({ id: ds.id, start, end, collaboratorId })
+    setPendingMove({ id: ds.id, start, end, collaboratorId, originalCollaboratorId: ds.collaboratorId })
     dragState.current = null
   }, [])
 
@@ -281,17 +281,30 @@ export default function CalendarPage() {
       )}
 
       {/* Move confirmation modal */}
-      {pendingMove && (
+      {pendingMove && (() => {
+        const fromCollab = collaborators.find(c => c.id === pendingMove.originalCollaboratorId)
+        const toCollab = collaborators.find(c => c.id === pendingMove.collaboratorId)
+        const collabChanged = pendingMove.collaboratorId !== pendingMove.originalCollaboratorId
+        return (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-surface rounded-xl shadow-xl w-full max-w-sm p-5 space-y-4">
             <h3 className="font-semibold text-foreground">Sposta appuntamento</h3>
-            <p className="text-sm text-muted-foreground">
-              Vuoi spostare l'appuntamento a{' '}
-              <span className="font-medium text-foreground">
-                {format(pendingMove.start, 'dd/MM/yyyy HH:mm', )} → {format(pendingMove.end, 'HH:mm')}
-              </span>
-              ?
-            </p>
+            <div className="text-sm text-muted-foreground space-y-1">
+              <p>
+                Nuovo orario:{' '}
+                <span className="font-medium text-foreground">
+                  {format(pendingMove.start, 'dd/MM/yyyy HH:mm')} → {format(pendingMove.end, 'HH:mm')}
+                </span>
+              </p>
+              {collabChanged && (
+                <p>
+                  Collaboratore:{' '}
+                  <span className="font-medium text-foreground">
+                    {fromCollab?.first_name ?? '–'} → {toCollab?.first_name ?? '–'}
+                  </span>
+                </p>
+              )}
+            </div>
             <div className="flex justify-end gap-2">
               <button
                 className="btn-secondary text-sm py-1.5"
@@ -316,7 +329,8 @@ export default function CalendarPage() {
             </div>
           </div>
         </div>
-      )}
+        )
+      })()}
     </div>
   )
 }

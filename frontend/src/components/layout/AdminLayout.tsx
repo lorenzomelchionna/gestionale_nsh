@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import {
   LayoutDashboard, Calendar, Users, Scissors, Package,
   DollarSign, TrendingDown, Settings, LogOut, Bell, Menu, X,
-  UserCircle, Clock, MessageSquare
+  UserCircle, Clock, MessageSquare, Moon, Sun
 } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import { useUIStore } from '@/store/uiStore'
@@ -26,7 +26,7 @@ const navItems = [
 
 export default function AdminLayout() {
   const { user, logout } = useAuthStore()
-  const { sidebarOpen, setSidebarOpen } = useUIStore()
+  const { sidebarOpen, setSidebarOpen, isDark, toggleDark } = useUIStore()
   const navigate = useNavigate()
 
   const { data: pending } = useQuery({
@@ -130,6 +130,13 @@ export default function AdminLayout() {
             {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
           <div className="flex-1" />
+          <button
+            onClick={toggleDark}
+            className="text-muted-foreground hover:text-foreground transition-colors p-1"
+            title={isDark ? 'Passa a tema chiaro' : 'Passa a tema scuro'}
+          >
+            {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+          </button>
           {pendingCount > 0 && (
             <NavLink
               to="/admin/appointments/pending"

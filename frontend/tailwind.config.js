@@ -6,18 +6,18 @@ export default {
     extend: {
       colors: {
         primary: {
-          DEFAULT: '#C8A96E',
-          dark: '#A07840',
-          light: '#E8D5B0',
-          foreground: '#FFFFFF',
+          DEFAULT: 'hsl(var(--primary) / <alpha-value>)',
+          dark: 'hsl(var(--primary-dark) / <alpha-value>)',
+          light: 'hsl(var(--primary-light) / <alpha-value>)',
+          foreground: 'hsl(var(--primary-foreground) / <alpha-value>)',
         },
-        background: '#FAFAF8',
-        surface: '#FFFFFF',
-        border: '#E5E0D8',
-        muted: '#F5F2EE',
-        'muted-foreground': '#8A7968',
-        foreground: '#1A1A1A',
-        // Appointment status colors
+        background: 'hsl(var(--background) / <alpha-value>)',
+        surface: 'hsl(var(--surface) / <alpha-value>)',
+        border: 'hsl(var(--border) / <alpha-value>)',
+        muted: 'hsl(var(--muted) / <alpha-value>)',
+        'muted-foreground': 'hsl(var(--muted-foreground) / <alpha-value>)',
+        foreground: 'hsl(var(--foreground) / <alpha-value>)',
+        // Appointment status colors (fixed, no dark mode variant needed)
         'status-pending': '#F59E0B',
         'status-confirmed': '#10B981',
         'status-completed': '#6B7280',

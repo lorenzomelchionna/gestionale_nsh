@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
 from app.models.collaborator import Collaborator, CollaboratorSchedule
 from app.models.absence import Absence
+from app.models.extra_day import CollaboratorExtraDay
 from app.models.appointment import Appointment, AppointmentStatus
 from app.models.booking_config import BookingConfig
 
@@ -29,20 +30,37 @@ async def get_available_slots(
     slot_minutes = cfg.slot_duration_minutes if cfg else 30
     min_advance_hours = cfg.min_advance_hours if cfg else 2
 
-    # 2. Load collaborator schedule for that weekday (Mon=0)
-    weekday = target_date.weekday()
-    sched_result = await db.execute(
-        select(CollaboratorSchedule).where(
+    # 2. Check for an extra (extraordinary) work day first
+    extra_result = await db.execute(
+        select(CollaboratorExtraDay).where(
             and_(
-                CollaboratorSchedule.collaborator_id == collaborator_id,
-                CollaboratorSchedule.day_of_week == weekday,
-                CollaboratorSchedule.is_working == True,
+                CollaboratorExtraDay.collaborator_id == collaborator_id,
+                CollaboratorExtraDay.date == target_date,
             )
         )
     )
-    schedule = sched_result.scalar_one_or_none()
-    if not schedule or not schedule.start_time or not schedule.end_time:
-        return []  # Not working that day
+    extra_day = extra_result.scalar_one_or_none()
+
+    if extra_day:
+        work_start_time = extra_day.start_time
+        work_end_time = extra_day.end_time
+    else:
+        # Load collaborator schedule for that weekday (Mon=0)
+        weekday = target_date.weekday()
+        sched_result = await db.execute(
+            select(CollaboratorSchedule).where(
+                and_(
+                    CollaboratorSchedule.collaborator_id == collaborator_id,
+                    CollaboratorSchedule.day_of_week == weekday,
+                    CollaboratorSchedule.is_working == True,
+                )
+            )
+        )
+        schedule = sched_result.scalar_one_or_none()
+        if not schedule or not schedule.start_time or not schedule.end_time:
+            return []  # Not working that day
+        work_start_time = schedule.start_time
+        work_end_time = schedule.end_time
 
     # 3. Check absences
     absence_result = await db.execute(
@@ -88,8 +106,8 @@ async def get_available_slots(
             cur += slot_minutes
 
     # 5. Generate all possible start slots within working hours
-    work_start = schedule.start_time.hour * 60 + schedule.start_time.minute
-    work_end = schedule.end_time.hour * 60 + schedule.end_time.minute
+    work_start = work_start_time.hour * 60 + work_start_time.minute
+    work_end = work_end_time.hour * 60 + work_end_time.minute
     now_utc = datetime.now(timezone.utc)
     min_advance_minutes = min_advance_hours * 60
 

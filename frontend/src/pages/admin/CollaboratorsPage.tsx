@@ -1,14 +1,22 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, X, Edit } from 'lucide-react'
+import { Plus, X, Edit, Trash2 } from 'lucide-react'
 import {
   getCollaborators, createCollaborator, updateCollaborator,
-  updateCollaboratorSchedule, updateCollaboratorServices, getServices
+  updateCollaboratorSchedule, updateCollaboratorServices, getServices,
+  getAbsences, createAbsence, deleteAbsence,
 } from '@/services/api'
-import type { Collaborator, CollaboratorSchedule } from '@/types'
+import type { Collaborator, CollaboratorSchedule, Absence, AbsenceType } from '@/types'
 import clsx from 'clsx'
 
 const DAYS = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom']
+
+const ABSENCE_TYPE_LABELS: Record<AbsenceType, string> = {
+  ferie:    'Ferie',
+  permesso: 'Permesso',
+  malattia: 'Malattia',
+  altro:    'Altro',
+}
 
 export default function CollaboratorsPage() {
   const qc = useQueryClient()
@@ -79,7 +87,7 @@ function CollaboratorCard({ collaborator: c, services, onEdit, onUpdateSchedule,
   onUpdateSchedule: (s: Partial<CollaboratorSchedule>[]) => void
   onUpdateServices: (ids: number[]) => void
 }) {
-  const [tab, setTab] = useState<'info' | 'schedule' | 'services'>('info')
+  const [tab, setTab] = useState<'info' | 'schedule' | 'services' | 'vacations'>('info')
   const [schedules, setSchedules] = useState<Record<number, { start: string; end: string; working: boolean }>>(
     Object.fromEntries(
       DAYS.map((_, i) => {
@@ -105,6 +113,8 @@ function CollaboratorCard({ collaborator: c, services, onEdit, onUpdateSchedule,
     )
   }
 
+  const TAB_LABELS = { info: 'Info', schedule: 'Orari', services: 'Servizi', vacations: 'Ferie' }
+
   return (
     <div className="card overflow-hidden">
       <div className="p-4 flex items-center gap-3" style={{ borderLeft: `4px solid ${c.color}` }}>
@@ -129,7 +139,7 @@ function CollaboratorCard({ collaborator: c, services, onEdit, onUpdateSchedule,
 
       {/* Tabs */}
       <div className="flex border-b border-border">
-        {(['info', 'schedule', 'services'] as const).map(t => (
+        {(['info', 'schedule', 'services', 'vacations'] as const).map(t => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -138,7 +148,7 @@ function CollaboratorCard({ collaborator: c, services, onEdit, onUpdateSchedule,
               tab === t ? 'text-primary border-b-2 border-primary' : 'text-muted-foreground hover:text-foreground'
             )}
           >
-            {t === 'info' ? 'Info' : t === 'schedule' ? 'Orari' : 'Servizi'}
+            {TAB_LABELS[t]}
           </button>
         ))}
       </div>
@@ -208,7 +218,156 @@ function CollaboratorCard({ collaborator: c, services, onEdit, onUpdateSchedule,
             </button>
           </div>
         )}
+
+        {tab === 'vacations' && (
+          <VacationsTab collaboratorId={c.id} />
+        )}
       </div>
+    </div>
+  )
+}
+
+function VacationsTab({ collaboratorId }: { collaboratorId: number }) {
+  const qc = useQueryClient()
+  const [showForm, setShowForm] = useState(false)
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
+  const [type, setType] = useState<AbsenceType>('ferie')
+  const [notes, setNotes] = useState('')
+
+  const { data: absences = [], isLoading } = useQuery({
+    queryKey: ['absences', collaboratorId],
+    queryFn: () => getAbsences(collaboratorId),
+  })
+
+  const inv = () => qc.invalidateQueries({ queryKey: ['absences', collaboratorId] })
+
+  const createMut = useMutation({
+    mutationFn: () => createAbsence({
+      collaborator_id: collaboratorId,
+      start_date: startDate,
+      end_date: endDate,
+      type,
+      notes: notes || undefined,
+    }),
+    onSuccess: () => {
+      inv()
+      setShowForm(false)
+      setStartDate('')
+      setEndDate('')
+      setNotes('')
+      setType('ferie')
+    },
+  })
+
+  const deleteMut = useMutation({
+    mutationFn: (id: number) => deleteAbsence(id),
+    onSuccess: inv,
+  })
+
+  const formatDate = (d: string) => {
+    const [y, m, day] = d.split('-')
+    return `${day}/${m}/${y}`
+  }
+
+  return (
+    <div className="space-y-2">
+      {isLoading && <p className="text-xs text-muted-foreground">Caricamento…</p>}
+
+      {/* Lista assenze */}
+      {absences.length === 0 && !isLoading && (
+        <p className="text-xs text-muted-foreground italic">Nessuna assenza registrata.</p>
+      )}
+      <div className="space-y-1.5">
+        {absences.map(a => (
+          <div key={a.id} className="flex items-center justify-between bg-muted rounded px-2 py-1.5 text-xs">
+            <div>
+              <span className="font-medium">{ABSENCE_TYPE_LABELS[a.type]}</span>
+              <span className="text-muted-foreground ml-1.5">
+                {formatDate(a.start_date)} – {formatDate(a.end_date)}
+              </span>
+              {a.notes && <span className="text-muted-foreground ml-1.5 italic">({a.notes})</span>}
+            </div>
+            <button
+              onClick={() => deleteMut.mutate(a.id)}
+              disabled={deleteMut.isPending}
+              className="text-muted-foreground hover:text-red-500 ml-2"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {/* Form nuova assenza */}
+      {showForm ? (
+        <div className="border border-border rounded p-2 space-y-2 mt-2">
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-xs text-muted-foreground block mb-0.5">Dal</label>
+              <input
+                type="date"
+                className="border border-border rounded px-1.5 py-1 text-xs w-full"
+                value={startDate}
+                onChange={e => setStartDate(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground block mb-0.5">Al</label>
+              <input
+                type="date"
+                className="border border-border rounded px-1.5 py-1 text-xs w-full"
+                value={endDate}
+                onChange={e => setEndDate(e.target.value)}
+              />
+            </div>
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground block mb-0.5">Tipo</label>
+            <select
+              className="border border-border rounded px-1.5 py-1 text-xs w-full"
+              value={type}
+              onChange={e => setType(e.target.value as AbsenceType)}
+            >
+              {(Object.entries(ABSENCE_TYPE_LABELS) as [AbsenceType, string][]).map(([v, l]) => (
+                <option key={v} value={v}>{l}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground block mb-0.5">Note (opzionale)</label>
+            <input
+              type="text"
+              className="border border-border rounded px-1.5 py-1 text-xs w-full"
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              placeholder="es. ferie estive"
+            />
+          </div>
+          <div className="flex gap-1.5">
+            <button
+              className="btn-primary text-xs py-1 flex-1"
+              disabled={!startDate || !endDate || createMut.isPending}
+              onClick={() => createMut.mutate()}
+            >
+              {createMut.isPending ? '…' : 'Salva'}
+            </button>
+            <button
+              className="btn-secondary text-xs py-1"
+              onClick={() => setShowForm(false)}
+            >
+              Annulla
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          className="btn-secondary text-xs py-1 w-full mt-1 flex items-center justify-center gap-1"
+          onClick={() => setShowForm(true)}
+        >
+          <Plus className="w-3 h-3" /> Aggiungi assenza
+        </button>
+      )}
     </div>
   )
 }

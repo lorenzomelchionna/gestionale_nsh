@@ -47,6 +47,9 @@ class Collaborator(Base):
     absences: Mapped[List["Absence"]] = relationship(
         "Absence", back_populates="collaborator", cascade="all, delete-orphan"
     )
+    extra_days: Mapped[List["CollaboratorExtraDay"]] = relationship(
+        "CollaboratorExtraDay", back_populates="collaborator", cascade="all, delete-orphan"
+    )
     appointments: Mapped[List["Appointment"]] = relationship(
         "Appointment", back_populates="collaborator"
     )

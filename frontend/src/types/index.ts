@@ -181,6 +181,18 @@ export interface Absence {
   created_at: string
 }
 
+// ── ExtraWorkDay ──────────────────────────────────────────────────
+
+export interface ExtraWorkDay {
+  id: number
+  collaborator_id: number
+  date: string
+  start_time: string
+  end_time: string
+  notes: string | null
+  created_at: string
+}
+
 // ── BookingConfig ─────────────────────────────────────────────────
 
 export interface BookingConfig {

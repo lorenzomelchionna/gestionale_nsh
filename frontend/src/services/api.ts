@@ -2,7 +2,7 @@ import axios from 'axios'
 import type {
   TokenResponse, User, Collaborator, CollaboratorSchedule,
   Client, Service, Appointment, Product, ProductMovement,
-  Payment, Expense, Absence, BookingConfig, DashboardStats,
+  Payment, Expense, Absence, ExtraWorkDay, BookingConfig, DashboardStats,
   PaginatedResponse,
 } from '@/types'
 
@@ -218,6 +218,19 @@ export const createAbsence = (data: Partial<Absence>) =>
 
 export const deleteAbsence = (id: number) =>
   api.delete(`/admin/absences/${id}`)
+
+// ── Extra Work Days ───────────────────────────────────────────────
+
+export const getExtraWorkDays = (collaborator_id: number) =>
+  api.get<ExtraWorkDay[]>(`/admin/extra-days/${collaborator_id}`).then(r => r.data)
+
+export const createExtraWorkDay = (data: {
+  collaborator_id: number; date: string; start_time: string; end_time: string; notes?: string
+}) =>
+  api.post<ExtraWorkDay>('/admin/extra-days', data).then(r => r.data)
+
+export const deleteExtraWorkDay = (id: number) =>
+  api.delete(`/admin/extra-days/${id}`)
 
 // ── Settings ──────────────────────────────────────────────────────
 

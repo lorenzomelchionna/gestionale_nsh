@@ -5,8 +5,9 @@ import {
   getCollaborators, createCollaborator, updateCollaborator,
   updateCollaboratorSchedule, updateCollaboratorServices, getServices,
   getAbsences, createAbsence, deleteAbsence,
+  getExtraWorkDays, createExtraWorkDay, deleteExtraWorkDay,
 } from '@/services/api'
-import type { Collaborator, CollaboratorSchedule, Absence, AbsenceType } from '@/types'
+import type { Collaborator, CollaboratorSchedule, Absence, AbsenceType, ExtraWorkDay } from '@/types'
 import clsx from 'clsx'
 
 const DAYS = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom']
@@ -87,7 +88,7 @@ function CollaboratorCard({ collaborator: c, services, onEdit, onUpdateSchedule,
   onUpdateSchedule: (s: Partial<CollaboratorSchedule>[]) => void
   onUpdateServices: (ids: number[]) => void
 }) {
-  const [tab, setTab] = useState<'info' | 'schedule' | 'services' | 'vacations'>('info')
+  const [tab, setTab] = useState<'info' | 'schedule' | 'services' | 'vacations' | 'extra'>('info')
   const [schedules, setSchedules] = useState<Record<number, { start: string; end: string; working: boolean }>>(
     Object.fromEntries(
       DAYS.map((_, i) => {
@@ -113,7 +114,7 @@ function CollaboratorCard({ collaborator: c, services, onEdit, onUpdateSchedule,
     )
   }
 
-  const TAB_LABELS = { info: 'Info', schedule: 'Orari', services: 'Servizi', vacations: 'Ferie' }
+  const TAB_LABELS = { info: 'Info', schedule: 'Orari', services: 'Servizi', vacations: 'Ferie', extra: 'Straord.' }
 
   return (
     <div className="card overflow-hidden">
@@ -139,7 +140,7 @@ function CollaboratorCard({ collaborator: c, services, onEdit, onUpdateSchedule,
 
       {/* Tabs */}
       <div className="flex border-b border-border">
-        {(['info', 'schedule', 'services', 'vacations'] as const).map(t => (
+        {(['info', 'schedule', 'services', 'vacations', 'extra'] as const).map(t => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -221,6 +222,10 @@ function CollaboratorCard({ collaborator: c, services, onEdit, onUpdateSchedule,
 
         {tab === 'vacations' && (
           <VacationsTab collaboratorId={c.id} />
+        )}
+
+        {tab === 'extra' && (
+          <ExtraDaysTab collaboratorId={c.id} />
         )}
       </div>
     </div>
@@ -366,6 +371,147 @@ function VacationsTab({ collaboratorId }: { collaboratorId: number }) {
           onClick={() => setShowForm(true)}
         >
           <Plus className="w-3 h-3" /> Aggiungi assenza
+        </button>
+      )}
+    </div>
+  )
+}
+
+function ExtraDaysTab({ collaboratorId }: { collaboratorId: number }) {
+  const qc = useQueryClient()
+  const [showForm, setShowForm] = useState(false)
+  const [date, setDate] = useState('')
+  const [startTime, setStartTime] = useState('09:00')
+  const [endTime, setEndTime] = useState('18:00')
+  const [notes, setNotes] = useState('')
+
+  const { data: extraDays = [], isLoading } = useQuery({
+    queryKey: ['extra-days', collaboratorId],
+    queryFn: () => getExtraWorkDays(collaboratorId),
+  })
+
+  const inv = () => qc.invalidateQueries({ queryKey: ['extra-days', collaboratorId] })
+
+  const createMut = useMutation({
+    mutationFn: () => createExtraWorkDay({
+      collaborator_id: collaboratorId,
+      date,
+      start_time: startTime,
+      end_time: endTime,
+      notes: notes || undefined,
+    }),
+    onSuccess: () => {
+      inv()
+      setShowForm(false)
+      setDate('')
+      setStartTime('09:00')
+      setEndTime('18:00')
+      setNotes('')
+    },
+  })
+
+  const deleteMut = useMutation({
+    mutationFn: (id: number) => deleteExtraWorkDay(id),
+    onSuccess: inv,
+  })
+
+  const formatDate = (d: string) => {
+    const [y, m, day] = d.split('-')
+    return `${day}/${m}/${y}`
+  }
+
+  return (
+    <div className="space-y-2">
+      {isLoading && <p className="text-xs text-muted-foreground">Caricamento…</p>}
+
+      {extraDays.length === 0 && !isLoading && (
+        <p className="text-xs text-muted-foreground italic">Nessun giorno straordinario registrato.</p>
+      )}
+
+      <div className="space-y-1.5">
+        {extraDays.map(e => (
+          <div key={e.id} className="flex items-center justify-between bg-muted rounded px-2 py-1.5 text-xs">
+            <div>
+              <span className="font-medium">{formatDate(e.date)}</span>
+              <span className="text-muted-foreground ml-1.5">
+                {e.start_time.slice(0, 5)} – {e.end_time.slice(0, 5)}
+              </span>
+              {e.notes && <span className="text-muted-foreground ml-1.5 italic">({e.notes})</span>}
+            </div>
+            <button
+              onClick={() => deleteMut.mutate(e.id)}
+              disabled={deleteMut.isPending}
+              className="text-muted-foreground hover:text-red-500 ml-2"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {showForm ? (
+        <div className="border border-border rounded p-2 space-y-2 mt-2">
+          <div>
+            <label className="text-xs text-muted-foreground block mb-0.5">Data</label>
+            <input
+              type="date"
+              className="border border-border rounded px-1.5 py-1 text-xs w-full"
+              value={date}
+              onChange={e => setDate(e.target.value)}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-xs text-muted-foreground block mb-0.5">Dalle</label>
+              <input
+                type="time"
+                className="border border-border rounded px-1.5 py-1 text-xs w-full"
+                value={startTime}
+                onChange={e => setStartTime(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground block mb-0.5">Alle</label>
+              <input
+                type="time"
+                className="border border-border rounded px-1.5 py-1 text-xs w-full"
+                value={endTime}
+                onChange={e => setEndTime(e.target.value)}
+              />
+            </div>
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground block mb-0.5">Note (opzionale)</label>
+            <input
+              type="text"
+              className="border border-border rounded px-1.5 py-1 text-xs w-full"
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              placeholder="es. apertura straordinaria"
+            />
+          </div>
+          <div className="flex gap-1.5">
+            <button
+              className="btn-primary text-xs py-1 flex-1"
+              disabled={!date || !startTime || !endTime || createMut.isPending}
+              onClick={() => createMut.mutate()}
+            >
+              {createMut.isPending ? '…' : 'Salva'}
+            </button>
+            <button
+              className="btn-secondary text-xs py-1"
+              onClick={() => setShowForm(false)}
+            >
+              Annulla
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          className="btn-secondary text-xs py-1 w-full mt-1 flex items-center justify-center gap-1"
+          onClick={() => setShowForm(true)}
+        >
+          <Plus className="w-3 h-3" /> Aggiungi giorno straordinario
         </button>
       )}
     </div>

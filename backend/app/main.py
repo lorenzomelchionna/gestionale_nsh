@@ -18,6 +18,8 @@ from app.api.admin.expenses import router as expenses_router
 from app.api.admin.absences import router as absences_router
 from app.api.admin.settings import router as settings_router
 from app.api.admin.dashboard import router as dashboard_router
+from app.api.admin.messaging import router as messaging_router
+from app.api.admin.extra_days import router as extra_days_router
 
 # Public routers
 from app.api.public.auth import router as public_auth_router
@@ -72,6 +74,8 @@ app.include_router(expenses_router, prefix=ADMIN_PREFIX)
 app.include_router(absences_router, prefix=ADMIN_PREFIX)
 app.include_router(settings_router, prefix=ADMIN_PREFIX)
 app.include_router(dashboard_router, prefix=ADMIN_PREFIX)
+app.include_router(messaging_router, prefix=ADMIN_PREFIX)
+app.include_router(extra_days_router, prefix=ADMIN_PREFIX)
 
 # ── Public API (/api/public/...) ──────────────────────────────────
 PUBLIC_PREFIX = "/api/public"

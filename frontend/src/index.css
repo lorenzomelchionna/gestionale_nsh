@@ -5,10 +5,48 @@
 @layer base {
   :root {
     --radius: 0.5rem;
+
+    /* Light theme — warm whites */
+    --background: 40 10% 98%;
+    --surface: 0 0% 100%;
+    --border: 33 17% 87%;
+    --muted: 33 17% 94%;
+    --muted-foreground: 30 13% 48%;
+    --foreground: 0 0% 10%;
+
+    /* Primary — gold/tan */
+    --primary: 38 46% 60%;
+    --primary-dark: 35 42% 44%;
+    --primary-light: 38 46% 80%;
+    --primary-foreground: 0 0% 100%;
+  }
+
+  .dark {
+    /* Dark theme — warm darks */
+    --background: 24 7% 11%;
+    --surface: 24 6% 15%;
+    --border: 24 6% 22%;
+    --muted: 24 7% 13%;
+    --muted-foreground: 30 8% 62%;
+    --foreground: 35 20% 93%;
+
+    /* Primary stays the same in dark mode */
+    --primary: 38 46% 60%;
+    --primary-dark: 38 46% 72%;
+    --primary-light: 35 42% 44%;
+    --primary-foreground: 0 0% 100%;
   }
 
   * {
     box-sizing: border-box;
+  }
+
+  html {
+    color-scheme: light;
+  }
+
+  html.dark {
+    color-scheme: dark;
   }
 
   body {
@@ -51,7 +89,7 @@
   }
 
   .input {
-    @apply w-full border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 bg-surface;
+    @apply w-full border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 bg-surface text-foreground;
   }
 
   .label {
@@ -62,10 +100,10 @@
   .status-badge {
     @apply inline-flex items-center px-2 py-0.5 rounded text-xs font-medium;
   }
-  .status-pending   { @apply bg-amber-100 text-amber-800; }
-  .status-confirmed { @apply bg-emerald-100 text-emerald-800; }
-  .status-completed { @apply bg-gray-100 text-gray-700; }
-  .status-cancelled { @apply bg-red-100 text-red-700; }
-  .status-rejected  { @apply bg-red-200 text-red-900; }
-  .status-rescheduled { @apply bg-blue-100 text-blue-800; }
+  .status-pending   { @apply bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400; }
+  .status-confirmed { @apply bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400; }
+  .status-completed { @apply bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400; }
+  .status-cancelled { @apply bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400; }
+  .status-rejected  { @apply bg-red-200 text-red-900 dark:bg-red-900/40 dark:text-red-300; }
+  .status-rescheduled { @apply bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400; }
 }

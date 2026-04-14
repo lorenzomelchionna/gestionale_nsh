@@ -2,7 +2,7 @@ import axios from 'axios'
 import type {
   TokenResponse, User, Collaborator, CollaboratorSchedule,
   Client, Service, Appointment, Product, ProductMovement,
-  Payment, Expense, Absence, BookingConfig, DashboardStats,
+  Payment, Expense, Absence, ExtraWorkDay, BookingConfig, DashboardStats,
   PaginatedResponse,
 } from '@/types'
 
@@ -169,7 +169,7 @@ export const getAvailability = (params: {
 
 // ── Products ──────────────────────────────────────────────────────
 
-export const getProducts = (params?: { low_stock?: boolean }) =>
+export const getProducts = (params?: { low_stock?: boolean; active_only?: boolean }) =>
   api.get<PaginatedResponse<Product>>('/admin/products', { params }).then(r => r.data)
 
 export const createProduct = (data: Partial<Product>) =>
@@ -219,6 +219,19 @@ export const createAbsence = (data: Partial<Absence>) =>
 export const deleteAbsence = (id: number) =>
   api.delete(`/admin/absences/${id}`)
 
+// ── Extra Work Days ───────────────────────────────────────────────
+
+export const getExtraWorkDays = (collaborator_id: number) =>
+  api.get<ExtraWorkDay[]>(`/admin/extra-days/${collaborator_id}`).then(r => r.data)
+
+export const createExtraWorkDay = (data: {
+  collaborator_id: number; date: string; start_time: string; end_time: string; notes?: string
+}) =>
+  api.post<ExtraWorkDay>('/admin/extra-days', data).then(r => r.data)
+
+export const deleteExtraWorkDay = (id: number) =>
+  api.delete(`/admin/extra-days/${id}`)
+
 // ── Settings ──────────────────────────────────────────────────────
 
 export const getBookingConfig = () =>
@@ -246,5 +259,15 @@ export interface YearlyChartEntry {
 
 export const getYearlyChart = (year?: number) =>
   api.get<YearlyChartEntry[]>('/admin/dashboard/yearly-chart', { params: year ? { year } : {} }).then(r => r.data)
+
+// ── Messaging ─────────────────────────────────────────────────────
+
+import type { SendMessageRequest, PreviewResponse, SendResponse } from '@/types'
+
+export const previewMessage = (data: SendMessageRequest) =>
+  api.post<PreviewResponse>('/admin/messaging/preview', data).then(r => r.data)
+
+export const sendMessage = (data: SendMessageRequest) =>
+  api.post<SendResponse>('/admin/messaging/send', data).then(r => r.data)
 
 export default api

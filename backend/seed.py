@@ -14,6 +14,7 @@ from app.models.product import Product, ProductMovement, MovementType
 from app.models.payment import Payment, PaymentMethod, PaymentType
 from app.models.expense import Expense
 from app.models.booking_config import BookingConfig
+from app.models.extra_day import CollaboratorExtraDay
 from app.utils.auth import hash_password
 
 

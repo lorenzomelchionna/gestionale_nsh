@@ -1,8 +1,7 @@
 """Celery tasks for appointment reminders and booking notifications."""
 import asyncio
 from datetime import datetime, timedelta, timezone
-from sqlalchemy import select, and_
-from sqlalchemy.orm import selectinload
+from sqlalchemy import select, and_, extract
 from app.tasks.celery_app import celery_app
 
 
@@ -57,6 +56,38 @@ async def _async_send_reminders():
                     print(f"Failed to send reminder for appointment {appt.id}: {e}")
 
         await db.commit()
+
+
+@celery_app.task(name="app.tasks.reminders.send_birthday_greetings")
+def send_birthday_greetings():
+    """Send birthday greetings to clients whose birthday is today."""
+    _run_async(_async_send_birthday_greetings())
+
+
+async def _async_send_birthday_greetings():
+    from app.database import AsyncSessionLocal
+    from app.models.client import Client
+    from app.utils.email import send_birthday_greeting
+
+    today = datetime.now(timezone.utc).date()
+
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(
+            select(Client).where(
+                and_(
+                    Client.birth_date.isnot(None),
+                    extract("month", Client.birth_date) == today.month,
+                    extract("day", Client.birth_date) == today.day,
+                )
+            )
+        )
+        clients = result.scalars().all()
+
+        for client in clients:
+            try:
+                await send_birthday_greeting(client)
+            except Exception as e:
+                print(f"Failed to send birthday greeting for client {client.id}: {e}")
 
 
 @celery_app.task(name="app.tasks.reminders.notify_new_booking")

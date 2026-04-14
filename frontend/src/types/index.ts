@@ -181,6 +181,18 @@ export interface Absence {
   created_at: string
 }
 
+// ── ExtraWorkDay ──────────────────────────────────────────────────
+
+export interface ExtraWorkDay {
+  id: number
+  collaborator_id: number
+  date: string
+  start_time: string
+  end_time: string
+  notes: string | null
+  created_at: string
+}
+
 // ── BookingConfig ─────────────────────────────────────────────────
 
 export interface BookingConfig {
@@ -216,4 +228,41 @@ export interface DashboardStats {
   net_margin: number
   appointment_count: number
   pending_appointments: number
+}
+
+
+// ── Messaging ─────────────────────────────────────────────────────
+
+export type FilterType = 'all' | 'product_buyers' | 'inactive' | 'birthday_month'
+
+export interface MessageFilter {
+  type: FilterType
+  product_id?: number
+  inactive_days?: number
+  birthday_month?: number
+}
+
+export interface SendMessageRequest {
+  subject: string
+  body: string
+  filter: MessageFilter
+}
+
+export interface MessageRecipient {
+  id: number
+  first_name: string
+  last_name: string
+  email: string | null
+  phone: string | null
+}
+
+export interface PreviewResponse {
+  count: number
+  recipients: MessageRecipient[]
+}
+
+export interface SendResponse {
+  sent: number
+  skipped: number
+  errors: number
 }

@@ -21,5 +21,10 @@ celery_app.conf.update(
             "task": "app.tasks.reminders.send_appointment_reminders",
             "schedule": crontab(minute="*/15"),
         },
+        # Every day at 09:00 Europe/Rome: send birthday greetings
+        "send-birthday-greetings": {
+            "task": "app.tasks.reminders.send_birthday_greetings",
+            "schedule": crontab(hour=9, minute=0),
+        },
     },
 )

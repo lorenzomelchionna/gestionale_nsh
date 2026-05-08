@@ -66,8 +66,11 @@ new_style_hair/
 │   │   ├── config.py
 │   │   ├── database.py
 │   │   └── main.py
-│   ├── alembic/          # Migrations (versions/ ancora vuota — si usa seed.py)
-│   ├── seed.py           # Drop + ricrea tabelle con dati demo
+│   ├── alembic/          # Migrations (initial schema in versions/)
+│   ├── seed.py           # Drop + ricrea tabelle con dati demo (solo dev)
+│   ├── bootstrap.py      # Bootstrap idempotente per produzione
+│   ├── worker-start.sh   # Entrypoint Celery worker (Railway)
+│   ├── railway.toml      # Config deploy Railway
 │   └── requirements.txt
 ├── frontend/
 │   ├── src/
@@ -85,8 +88,9 @@ new_style_hair/
 
 ## Database
 
-- **Migrations**: Alembic configurato ma `versions/` è vuota. In sviluppo si usa `seed.py` (drop + recreate).
-- **Reset DB**: `cd backend && python seed.py`
+- **Migrations**: Alembic configurato con migration iniziale in `backend/alembic/versions/`. In produzione si usa `alembic upgrade head` (eseguito automaticamente dal startCommand Railway).
+- **Reset DB locale**: `cd backend && python seed.py` (drop + ricrea con dati demo)
+- **Bootstrap produzione**: `python bootstrap.py` crea admin + BookingConfig (idempotente). Se `SEED_DEMO=true` popola anche dati demo.
 - **Nota**: strategia di migrazione produzione da implementare (fase 2 del roadmap).
 
 ## API

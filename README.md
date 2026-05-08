@@ -129,7 +129,51 @@ new_style_hair/
 
 | Variabile | Descrizione |
 |-----------|-------------|
-| `DATABASE_URL` | URL connessione PostgreSQL |
+| `DATABASE_URL` | URL connessione PostgreSQL (`postgresql+asyncpg://...`) |
 | `REDIS_URL` | URL connessione Redis |
-| `SECRET_KEY` | Chiave JWT (cambiare in produzione) |
+| `SECRET_KEY` | Chiave JWT (cambiare in produzione, ≥ 32 char) |
+| `FRONTEND_URL` | URL pubblico del frontend (per CORS) |
+| `VITE_API_URL` | URL pubblico del backend (build-time, frontend) |
+| `ADMIN_EMAIL` | Email admin iniziale (default `admin@newstylair.it`) |
+| `ADMIN_PASSWORD` | Password admin iniziale (default `admin123`) |
+| `SEED_DEMO` | Se `true` popola dati demo al primo boot (idempotente) |
+| `SENTRY_DSN` | DSN Sentry per error monitoring (opzionale) |
 | `SMTP_*` | Configurazione email per notifiche |
+| `APP_ENV` | `development` / `production` |
+
+## Deploy su Railway
+
+Il repo è pronto per deploy su Railway (testato in regione EU Frankfurt).
+
+### Architettura
+
+| Service Railway | Root Directory | Note |
+|---|---|---|
+| `backend` | (vuoto, usa `Dockerfile` root) | FastAPI + Alembic + bootstrap |
+| `frontend` | `frontend` | Vite build + nginx |
+| `worker` (opzionale) | `backend` | `startCommand = sh worker-start.sh` |
+| PostgreSQL plugin | — | DB |
+| Redis plugin | — | Broker Celery + cache |
+
+### Setup iniziale
+
+1. **Crea progetto Railway** → "Deploy from GitHub repo" → seleziona questo repo
+2. **Aggiungi plugin**: PostgreSQL e Redis dallo stesso progetto
+3. **Crea service `backend`** dal repo (no Root Directory — usa `Dockerfile` nella root)
+4. **Crea service `frontend`** dal repo (Root Directory = `frontend`)
+5. **Configura variabili** (vedi sezione sopra). Punti chiave:
+   - `DATABASE_URL`: copia dal plugin Postgres ma sostituisci prefisso → `postgresql+asyncpg://...`
+   - `REDIS_URL`: copia il valore *interno* dal plugin Redis
+   - `FRONTEND_URL` (backend): URL pubblico del service frontend (con `https://`, no slash finale)
+   - `VITE_API_URL` (frontend): URL pubblico del backend (con `https://`)
+6. **Per popolare i dati demo**: imposta `SEED_DEMO=true` sul backend per il primo run (poi rimuovi)
+
+### Migrations
+
+Il `startCommand` del backend esegue automaticamente:
+
+```
+alembic upgrade head && python bootstrap.py && uvicorn ...
+```
+
+`bootstrap.py` è idempotente: crea admin + BookingConfig se mancanti, e (se `SEED_DEMO=true`) popola dati demo solo se la tabella servizi è vuota.

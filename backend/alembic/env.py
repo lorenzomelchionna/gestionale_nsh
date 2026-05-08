@@ -8,10 +8,14 @@ from alembic import context
 # Import all models so Alembic can detect them
 from app.database import Base
 import app.models  # noqa – registers all models
+from app.config import settings
 
 config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
+
+# Override sqlalchemy.url from settings so Railway env vars are respected
+config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
 
 target_metadata = Base.metadata
 

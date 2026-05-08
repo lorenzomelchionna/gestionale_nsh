@@ -9,6 +9,7 @@ from app.models.expense import Expense
 from app.models.communication import Communication
 from app.models.absence import Absence
 from app.models.booking_config import BookingConfig
+from app.models.extra_day import CollaboratorExtraDay
 
 __all__ = [
     "User",
@@ -27,4 +28,5 @@ __all__ = [
     "Communication",
     "Absence",
     "BookingConfig",
+    "CollaboratorExtraDay",
 ]

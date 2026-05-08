@@ -34,3 +34,6 @@ httpx==0.28.1
 # Utilities
 python-dateutil==2.9.0
 pytz==2024.2
+
+# Monitoring
+sentry-sdk[fastapi]==2.19.2

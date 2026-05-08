@@ -1,8 +1,10 @@
 import axios from 'axios'
 import type { Service, Collaborator, Appointment, TokenResponse } from '@/types'
 
+const API_BASE = import.meta.env.VITE_API_URL || ''
+
 const publicApi = axios.create({
-  baseURL: '/api/public',
+  baseURL: `${API_BASE}/api/public`,
   headers: { 'Content-Type': 'application/json' },
 })
 

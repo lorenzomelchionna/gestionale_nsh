@@ -6,8 +6,10 @@ import type {
   PaginatedResponse,
 } from '@/types'
 
+const API_BASE = import.meta.env.VITE_API_URL || ''
+
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: `${API_BASE}/api`,
   headers: { 'Content-Type': 'application/json' },
 })
 
@@ -46,7 +48,7 @@ api.interceptors.response.use(
     if (error.response?.status === 401 && !original._retry && refreshToken) {
       original._retry = true
       try {
-        const { data } = await axios.post<TokenResponse>('/api/admin/auth/refresh', {
+        const { data } = await axios.post<TokenResponse>(`${API_BASE}/api/admin/auth/refresh`, {
           refresh_token: refreshToken,
         })
         setTokens(data)

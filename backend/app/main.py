@@ -5,6 +5,15 @@ from fastapi.responses import JSONResponse
 
 from app.config import settings
 
+# Sentry — init only when SENTRY_DSN is configured
+if settings.SENTRY_DSN:
+    import sentry_sdk
+    sentry_sdk.init(
+        dsn=settings.SENTRY_DSN,
+        environment=settings.APP_ENV,
+        traces_sample_rate=0.2,
+    )
+
 # Admin routers
 from app.api.admin.auth import router as admin_auth_router
 from app.api.admin.collaborators import router as collaborators_router
@@ -40,10 +49,11 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS
+# CORS — FRONTEND_URL drives production origins; localhost:5173 always allowed for dev
+_cors_origins = list({settings.FRONTEND_URL, "http://localhost:5173"})
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.FRONTEND_URL, "http://localhost:5173", "http://localhost:3000"],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

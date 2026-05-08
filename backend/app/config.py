@@ -1,5 +1,7 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field
 from functools import lru_cache
+from typing import Optional
 
 
 class Settings(BaseSettings):
@@ -28,6 +30,9 @@ class Settings(BaseSettings):
     # App
     APP_ENV: str = "development"
     FRONTEND_URL: str = "http://localhost:5173"
+
+    # Sentry (optional)
+    SENTRY_DSN: Optional[str] = Field(default=None)
 
 
 @lru_cache

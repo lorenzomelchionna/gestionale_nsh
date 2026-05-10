@@ -34,6 +34,11 @@ class Settings(BaseSettings):
     # Sentry (optional)
     SENTRY_DSN: Optional[str] = Field(default=None)
 
+    # Twilio WhatsApp (optional — leave empty to disable)
+    TWILIO_ACCOUNT_SID: str = ""
+    TWILIO_AUTH_TOKEN: str = ""
+    TWILIO_WHATSAPP_FROM: str = ""   # e.g. "whatsapp:+14155238886"
+
 
 @lru_cache
 def get_settings() -> Settings:

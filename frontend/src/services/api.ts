@@ -192,7 +192,8 @@ export const getPayments = (params?: { date_from?: string; date_to?: string }) =
 
 export const createPayment = (data: {
   appointment_id?: number; client_id?: number;
-  amount: number; method: string; type: string; notes?: string
+  amount: number; method: string; type: string; notes?: string;
+  cash_amount?: number | null; card_amount?: number | null;
 }) =>
   api.post<Payment>('/admin/payments', data).then(r => r.data)
 

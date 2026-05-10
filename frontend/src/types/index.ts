@@ -153,6 +153,8 @@ export interface Payment {
   type: PaymentType
   date: string
   notes: string | null
+  cash_amount: number | null
+  card_amount: number | null
 }
 
 // ── Expense ───────────────────────────────────────────────────────

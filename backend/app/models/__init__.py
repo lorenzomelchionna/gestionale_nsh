@@ -10,6 +10,7 @@ from app.models.communication import Communication
 from app.models.absence import Absence
 from app.models.booking_config import BookingConfig
 from app.models.extra_day import CollaboratorExtraDay
+from app.models.waitlist import WaitlistEntry, WaitlistStatus
 
 __all__ = [
     "User",
@@ -29,4 +30,6 @@ __all__ = [
     "Absence",
     "BookingConfig",
     "CollaboratorExtraDay",
+    "WaitlistEntry",
+    "WaitlistStatus",
 ]

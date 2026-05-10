@@ -3,17 +3,18 @@ import { useQuery } from '@tanstack/react-query'
 import {
   LayoutDashboard, Calendar, Users, Scissors, Package,
   DollarSign, TrendingDown, Settings, LogOut, Bell, Menu, X,
-  UserCircle, Clock, MessageSquare, Moon, Sun
+  UserCircle, Clock, MessageSquare, Moon, Sun, ClipboardList
 } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import { useUIStore } from '@/store/uiStore'
-import { getPendingAppointments } from '@/services/api'
+import { getPendingAppointments, getWaitlist } from '@/services/api'
 import clsx from 'clsx'
 
 const navItems = [
   { to: '/admin/dashboard',              icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/admin/calendar',               icon: Calendar,        label: 'Calendario' },
-  { to: '/admin/appointments/pending',   icon: Clock,           label: 'In attesa',  badge: true },
+  { to: '/admin/appointments/pending',   icon: Clock,           label: 'In attesa',       badge: 'pending' as const },
+  { to: '/admin/waitlist',               icon: ClipboardList,   label: 'Lista d\'attesa', badge: 'waitlist' as const },
   { to: '/admin/clients',                icon: Users,           label: 'Clienti' },
   { to: '/admin/collaborators',          icon: UserCircle,      label: 'Collaboratori' },
   { to: '/admin/services',               icon: Scissors,        label: 'Servizi' },
@@ -35,6 +36,13 @@ export default function AdminLayout() {
     refetchInterval: 30_000,
   })
   const pendingCount = pending?.length ?? 0
+
+  const { data: waitlistData } = useQuery({
+    queryKey: ['waitlist', 'waiting'],
+    queryFn: () => getWaitlist('waiting'),
+    refetchInterval: 60_000,
+  })
+  const waitlistCount = waitlistData?.length ?? 0
 
   const handleLogout = () => {
     logout()
@@ -64,31 +72,34 @@ export default function AdminLayout() {
 
         {/* Nav */}
         <nav className="flex-1 py-4 px-2 space-y-1 overflow-y-auto">
-          {navItems.map(({ to, icon: Icon, label, badge }) => (
-            <NavLink
-              key={to}
-              to={to}
-              className={({ isActive }) =>
-                clsx(
-                  'flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors relative',
-                  isActive
-                    ? 'bg-primary/10 text-primary'
-                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                )
-              }
-            >
-              <Icon className="w-4 h-4 flex-shrink-0" />
-              {sidebarOpen && <span>{label}</span>}
-              {badge && pendingCount > 0 && (
-                <span className={clsx(
-                  'bg-amber-500 text-white text-xs rounded-full font-bold leading-none flex items-center justify-center',
-                  sidebarOpen ? 'ml-auto w-5 h-5' : 'absolute top-1 right-1 w-4 h-4 text-[10px]'
-                )}>
-                  {pendingCount > 9 ? '9+' : pendingCount}
-                </span>
-              )}
-            </NavLink>
-          ))}
+          {navItems.map(({ to, icon: Icon, label, badge }) => {
+            const count = badge === 'pending' ? pendingCount : badge === 'waitlist' ? waitlistCount : 0
+            return (
+              <NavLink
+                key={to}
+                to={to}
+                className={({ isActive }) =>
+                  clsx(
+                    'flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors relative',
+                    isActive
+                      ? 'bg-primary/10 text-primary'
+                      : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                  )
+                }
+              >
+                <Icon className="w-4 h-4 flex-shrink-0" />
+                {sidebarOpen && <span>{label}</span>}
+                {badge && count > 0 && (
+                  <span className={clsx(
+                    'bg-amber-500 text-white text-xs rounded-full font-bold leading-none flex items-center justify-center',
+                    sidebarOpen ? 'ml-auto w-5 h-5' : 'absolute top-1 right-1 w-4 h-4 text-[10px]'
+                  )}>
+                    {count > 9 ? '9+' : count}
+                  </span>
+                )}
+              </NavLink>
+            )
+          })}
         </nav>
 
         {/* User */}

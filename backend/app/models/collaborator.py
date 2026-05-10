@@ -56,6 +56,9 @@ class Collaborator(Base):
     services: Mapped[List["Service"]] = relationship(
         "Service", secondary="collaborator_services", back_populates="collaborators"
     )
+    waitlist_entries: Mapped[List["WaitlistEntry"]] = relationship(
+        "WaitlistEntry", back_populates="collaborator"
+    )
 
 
 class CollaboratorSchedule(Base):

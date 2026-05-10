@@ -47,6 +47,7 @@ class Appointment(Base):
     alternative_time: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     reminder_sent: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    whatsapp_reminder_sent: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(

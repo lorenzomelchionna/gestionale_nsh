@@ -20,6 +20,15 @@ from app.dependencies import get_current_user
 router = APIRouter(prefix="/appointments", tags=["Appointments"])
 
 
+def _trigger_wa_confirmation(appointment_id: int):
+    """Fire-and-forget WA confirmation (non-blocking)."""
+    try:
+        from app.tasks.reminders import send_whatsapp_confirmation
+        send_whatsapp_confirmation.delay(appointment_id)
+    except Exception as e:
+        print(f"[WA] Could not queue confirmation for appointment {appointment_id}: {e}")
+
+
 async def _load_appointment(db: AsyncSession, appointment_id: int) -> Appointment:
     result = await db.execute(
         select(Appointment)
@@ -130,6 +139,9 @@ async def create_appointment(
         ))
     await db.flush()
 
+    # WA confirmation (admin-created appointments are immediately confirmed)
+    _trigger_wa_confirmation(appt.id)
+
     return _enrich(await _load_appointment(db, appt.id))
 
 
@@ -191,6 +203,7 @@ async def confirm_appointment(
         raise HTTPException(status_code=400, detail="Solo gli appuntamenti 'in attesa' possono essere confermati")
     a.status = AppointmentStatus.confirmed
     await db.flush()
+    _trigger_wa_confirmation(appointment_id)
     return _enrich(await _load_appointment(db, appointment_id))
 
 

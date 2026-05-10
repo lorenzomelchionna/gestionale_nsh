@@ -28,3 +28,6 @@ class Service(Base):
     appointment_services: Mapped[List["AppointmentService"]] = relationship(
         "AppointmentService", back_populates="service"
     )
+    waitlist_entries: Mapped[List["WaitlistEntry"]] = relationship(
+        "WaitlistEntry", back_populates="service"
+    )

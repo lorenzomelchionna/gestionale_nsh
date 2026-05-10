@@ -140,6 +140,10 @@ async def book_appointment(
         ))
     await db.flush()
     await db.refresh(appt, ["appointment_services"])
+
+    # WA confirmation queued (sent only when admin confirms — status is pending here,
+    # so we fire at confirmation time via admin endpoint instead)
+
     return AppointmentOut.model_validate(appt)
 
 

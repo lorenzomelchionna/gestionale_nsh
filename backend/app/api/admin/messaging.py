@@ -17,6 +17,7 @@ router = APIRouter(prefix="/messaging", tags=["messaging"])
 # ── Schemas ───────────────────────────────────────────────────────
 
 FilterType = Literal["all", "product_buyers", "inactive", "birthday_month"]
+ChannelType = Literal["email", "whatsapp", "both"]
 
 
 class MessageFilter(BaseModel):
@@ -30,6 +31,7 @@ class SendMessageRequest(BaseModel):
     subject: str
     body: str
     filter: MessageFilter = MessageFilter()
+    channel: ChannelType = "both"          # email | whatsapp | both
 
 
 class RecipientOut(BaseModel):
@@ -46,9 +48,11 @@ class PreviewResponse(BaseModel):
 
 
 class SendResponse(BaseModel):
-    sent: int
-    skipped: int    # clients without email (stub: would use SMS/WhatsApp)
+    sent: int          # clients reached on at least one channel
+    skipped: int       # clients reached on none (no contacts / channels disabled)
     errors: int
+    sent_email: int = 0
+    sent_whatsapp: int = 0
 
 
 # ── Helpers ───────────────────────────────────────────────────────
@@ -145,22 +149,31 @@ async def send_message(
     db: AsyncSession = Depends(get_db),
     _=Depends(get_current_user),
 ):
-    """Send a custom message to all clients matching the filter."""
-    from app.utils.email import send_custom_message
+    """Send a custom message to all clients matching the filter, on the chosen channel(s)."""
+    from app.utils.notifications import notify_custom
 
     clients = await _resolve_recipients(db, payload.filter)
     sent = skipped = errors = 0
+    sent_email = sent_whatsapp = 0
 
     for client in clients:
-        if not client.email:
-            # TODO: fallback to SMS/WhatsApp when a provider is configured
-            skipped += 1
-            continue
         try:
-            await send_custom_message(client, payload.subject, payload.body)
-            sent += 1
+            email_ok, wa_ok = await notify_custom(
+                db, client, payload.subject, payload.body, channel=payload.channel
+            )
+            if email_ok:
+                sent_email += 1
+            if wa_ok:
+                sent_whatsapp += 1
+            if email_ok or wa_ok:
+                sent += 1
+            else:
+                skipped += 1
         except Exception as e:
             print(f"[MESSAGING] Error sending to client {client.id}: {e}")
             errors += 1
 
-    return SendResponse(sent=sent, skipped=skipped, errors=errors)
+    return SendResponse(
+        sent=sent, skipped=skipped, errors=errors,
+        sent_email=sent_email, sent_whatsapp=sent_whatsapp,
+    )

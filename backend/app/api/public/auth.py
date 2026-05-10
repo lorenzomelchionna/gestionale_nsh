@@ -78,6 +78,9 @@ async def login(payload: ClientLoginRequest, db: Annotated[AsyncSession, Depends
 
 @router.post("/forgot-password", response_model=MessageResponse)
 async def forgot_password(payload: PasswordResetRequest, db: Annotated[AsyncSession, Depends(get_db)]):
+    from app.config import settings
+    from app.utils.notifications import notify_password_reset
+
     result = await db.execute(select(ClientAccount).where(ClientAccount.email == payload.email))
     account = result.scalar_one_or_none()
     if account:
@@ -85,7 +88,12 @@ async def forgot_password(payload: PasswordResetRequest, db: Annotated[AsyncSess
         account.reset_token = token
         account.reset_token_expires = datetime.now(timezone.utc) + timedelta(hours=2)
         await db.flush()
-        # TODO: send email with token
+        # Build the reset URL pointing to the public booking portal
+        reset_url = f"{settings.FRONTEND_URL.rstrip('/')}/booking/reset-password?token={token}"
+        try:
+            await notify_password_reset(db, account, reset_url)
+        except Exception as e:
+            print(f"[NOTIFY:reset] failed to dispatch: {e}")
     return MessageResponse(message="Se l'email è registrata, riceverai le istruzioni per il reset")
 
 

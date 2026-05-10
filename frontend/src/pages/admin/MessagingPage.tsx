@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { Send, Eye, Users } from 'lucide-react'
+import { Send, Eye, Users, Mail, MessageCircle } from 'lucide-react'
 import { getProducts, previewMessage, sendMessage } from '@/services/api'
 import type { MessageFilter, FilterType } from '@/types'
 import clsx from 'clsx'
+
+type Channel = 'email' | 'whatsapp' | 'both'
 
 const FILTER_OPTIONS: { value: FilterType; label: string }[] = [
   { value: 'all',            label: 'Tutti i clienti' },
@@ -21,8 +23,9 @@ export default function MessagingPage() {
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
   const [filter, setFilter] = useState<MessageFilter>({ type: 'all' })
-  const [previewResult, setPreviewResult] = useState<{ count: number; recipients: { id: number; first_name: string; last_name: string; email: string | null }[] } | null>(null)
-  const [sendResult, setSendResult] = useState<{ sent: number; skipped: number; errors: number } | null>(null)
+  const [channel, setChannel] = useState<Channel>('both')
+  const [previewResult, setPreviewResult] = useState<{ count: number; recipients: { id: number; first_name: string; last_name: string; email: string | null; phone: string | null }[] } | null>(null)
+  const [sendResult, setSendResult] = useState<{ sent: number; skipped: number; errors: number; sent_email?: number; sent_whatsapp?: number } | null>(null)
 
   const { data: productsData } = useQuery({
     queryKey: ['products'],
@@ -36,11 +39,12 @@ export default function MessagingPage() {
   })
 
   const sendMut = useMutation({
-    mutationFn: () => sendMessage({ subject, body, filter }),
+    mutationFn: () => sendMessage({ subject, body, filter, channel }),
     onSuccess: (data) => { setSendResult(data); setPreviewResult(null) },
   })
 
-  const canSend = subject.trim() && body.trim()
+  // WA mode: no subject required
+  const canSend = body.trim() && (channel === 'whatsapp' || subject.trim())
 
   return (
     <div className="space-y-6 max-w-2xl">
@@ -113,25 +117,69 @@ export default function MessagingPage() {
       </div>
 
       <div className="card p-5 space-y-4">
-        <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Messaggio</h2>
-        <div>
-          <label className="label block mb-1">Oggetto</label>
-          <input
-            className="input"
-            placeholder="Es. Offerta speciale per te!"
-            value={subject}
-            onChange={e => setSubject(e.target.value)}
-          />
+        <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Canale</h2>
+        <div className="grid grid-cols-3 gap-2">
+          {([
+            { value: 'email',    label: 'Solo email',     icon: Mail },
+            { value: 'whatsapp', label: 'Solo WhatsApp',  icon: MessageCircle },
+            { value: 'both',     label: 'Email + WA',     icon: Send },
+          ] as const).map(opt => {
+            const Icon = opt.icon
+            return (
+              <button
+                key={opt.value}
+                onClick={() => setChannel(opt.value)}
+                className={clsx(
+                  'flex items-center gap-2 px-3 py-2 rounded-lg border text-sm transition-colors',
+                  channel === opt.value
+                    ? 'border-primary bg-primary/10 text-primary font-medium'
+                    : 'border-border hover:bg-muted'
+                )}
+              >
+                <Icon className="w-4 h-4" />
+                {opt.label}
+              </button>
+            )
+          })}
         </div>
+        <p className="text-xs text-muted-foreground">
+          {channel === 'email' && "Solo i clienti con email riceveranno il messaggio."}
+          {channel === 'whatsapp' && "Solo i clienti con telefono riceveranno il messaggio (WhatsApp deve essere abilitato in Impostazioni)."}
+          {channel === 'both' && "Ogni cliente riceverà su entrambi i canali se ha email e telefono."}
+        </p>
+      </div>
+
+      <div className="card p-5 space-y-4">
+        <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Messaggio</h2>
+        {channel !== 'whatsapp' && (
+          <div>
+            <label className="label block mb-1">Oggetto {channel === 'both' && <span className="text-xs text-muted-foreground">(solo email)</span>}</label>
+            <input
+              className="input"
+              placeholder="Es. Offerta speciale per te!"
+              value={subject}
+              onChange={e => setSubject(e.target.value)}
+            />
+          </div>
+        )}
         <div>
           <label className="label block mb-1">Testo</label>
           <textarea
             className="input"
             rows={5}
-            placeholder="Scrivi qui il messaggio…"
+            placeholder={
+              channel === 'whatsapp'
+                ? "Scrivi qui il messaggio (WA, no HTML). Usa {nome} per personalizzare."
+                : "Scrivi qui il messaggio… Usa {nome} per personalizzare."
+            }
             value={body}
             onChange={e => setBody(e.target.value)}
           />
+          {channel === 'whatsapp' && (
+            <p className="text-xs text-muted-foreground mt-1">
+              WA non supporta HTML — il testo viene inviato così com'è.
+            </p>
+          )}
         </div>
       </div>
 
@@ -182,9 +230,14 @@ export default function MessagingPage() {
       {sendResult && (
         <div className="card p-4 space-y-1 text-sm">
           <p className="text-emerald-600 font-medium">Messaggio inviato!</p>
-          <p>Inviati: <span className="font-medium">{sendResult.sent}</span></p>
+          <p>Clienti raggiunti: <span className="font-medium">{sendResult.sent}</span></p>
+          {sendResult.sent_email !== undefined && (
+            <p className="text-xs text-muted-foreground">
+              Email: {sendResult.sent_email} · WhatsApp: {sendResult.sent_whatsapp ?? 0}
+            </p>
+          )}
           {sendResult.skipped > 0 && (
-            <p className="text-amber-600">Saltati (senza email): {sendResult.skipped}</p>
+            <p className="text-amber-600">Saltati (senza contatti validi): {sendResult.skipped}</p>
           )}
           {sendResult.errors > 0 && (
             <p className="text-red-600">Errori: {sendResult.errors}</p>

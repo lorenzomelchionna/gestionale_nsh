@@ -79,6 +79,41 @@ async def send_birthday_greeting(client) -> None:
     await send_email(client.email, subject, body)
 
 
+async def send_booking_confirmation_email(appointment) -> None:
+    """Email confirmation sent immediately when an appointment is confirmed."""
+    client = appointment.client
+    if not client or not client.email:
+        return
+    collab = appointment.collaborator
+    start = appointment.start_time.strftime("%d/%m/%Y alle %H:%M")
+    collab_name = f"{collab.first_name} {collab.last_name}" if collab else "il collaboratore"
+    subject = f"Prenotazione confermata – {start}"
+    body = f"""
+    <h2>New Style Hair</h2>
+    <p>Ciao {client.first_name},</p>
+    <p>La tua prenotazione è <strong>confermata</strong>:</p>
+    <ul>
+      <li>Data: <strong>{start}</strong></li>
+      <li>Con: <strong>{collab_name}</strong></li>
+    </ul>
+    <p>Ti aspettiamo!</p>
+    """
+    await send_email(client.email, subject, body)
+
+
+async def send_password_reset_email(to_email: str, first_name: str, reset_url: str) -> None:
+    """Email containing the password reset link."""
+    subject = "Reset password – New Style Hair"
+    body = f"""
+    <h2>New Style Hair</h2>
+    <p>Ciao {first_name or ''},</p>
+    <p>Hai richiesto il reset della password. Clicca sul link qui sotto per impostarne una nuova:</p>
+    <p><a href="{reset_url}">{reset_url}</a></p>
+    <p>Il link è valido per 2 ore. Se non hai richiesto tu il reset, ignora questa email.</p>
+    """
+    await send_email(to_email, subject, body)
+
+
 async def send_booking_status_email(appointment, status_msg: str) -> None:
     client = appointment.client
     if not client or not client.email:

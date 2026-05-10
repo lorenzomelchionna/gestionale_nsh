@@ -248,10 +248,13 @@ export interface MessageFilter {
   birthday_month?: number
 }
 
+export type MessageChannel = 'email' | 'whatsapp' | 'both'
+
 export interface SendMessageRequest {
   subject: string
   body: string
   filter: MessageFilter
+  channel?: MessageChannel
 }
 
 export interface MessageRecipient {
@@ -271,6 +274,8 @@ export interface SendResponse {
   sent: number
   skipped: number
   errors: number
+  sent_email?: number
+  sent_whatsapp?: number
 }
 
 // ── Waitlist ──────────────────────────────────────────────────────

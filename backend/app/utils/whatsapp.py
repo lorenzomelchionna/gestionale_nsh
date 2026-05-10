@@ -97,3 +97,34 @@ async def send_reminder_message(appointment, cfg) -> None:
         collaboratore=collab_name,
     )
     await send_whatsapp(client.phone, message)
+
+
+async def send_birthday_message(client) -> None:
+    """Send birthday greeting via WhatsApp."""
+    if not client.phone:
+        return
+    message = (
+        f"Ciao {client.first_name}! 🎉 Tutto il team di New Style Hair ti augura "
+        f"un felice compleanno. Passa a trovarci, il tuo giorno speciale "
+        f"merita una coccola in più. 💇"
+    )
+    await send_whatsapp(client.phone, message)
+
+
+async def send_password_reset_message(phone: str, first_name: str, reset_url: str) -> None:
+    """Send password reset link via WhatsApp."""
+    message = (
+        f"Ciao {first_name or ''}! Hai richiesto il reset della password "
+        f"per New Style Hair. Apri questo link per impostarne una nuova "
+        f"(valido 2h): {reset_url}"
+    )
+    await send_whatsapp(phone, message)
+
+
+async def send_custom_message_wa(client, body: str) -> None:
+    """Send a custom WA message — body is plain text (no HTML)."""
+    if not client.phone:
+        return
+    # Personalizza con il nome se possibile (template con {nome})
+    text = body.replace("{nome}", client.first_name)
+    await send_whatsapp(client.phone, text)

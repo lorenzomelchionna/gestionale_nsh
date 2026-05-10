@@ -192,7 +192,8 @@ export const getPayments = (params?: { date_from?: string; date_to?: string }) =
 
 export const createPayment = (data: {
   appointment_id?: number; client_id?: number;
-  amount: number; method: string; type: string; notes?: string
+  amount: number; method: string; type: string; notes?: string;
+  cash_amount?: number | null; card_amount?: number | null;
 }) =>
   api.post<Payment>('/admin/payments', data).then(r => r.data)
 
@@ -271,5 +272,24 @@ export const previewMessage = (data: SendMessageRequest) =>
 
 export const sendMessage = (data: SendMessageRequest) =>
   api.post<SendResponse>('/admin/messaging/send', data).then(r => r.data)
+
+// ── Waitlist ──────────────────────────────────────────────────────
+
+import type { WaitlistEntryWithNames, WaitlistCreate } from '@/types'
+
+export const getWaitlist = (status?: string) =>
+  api.get<WaitlistEntryWithNames[]>('/admin/waitlist', { params: status ? { status } : {} }).then(r => r.data)
+
+export const createWaitlistEntry = (client_id: number, data: WaitlistCreate) =>
+  api.post<WaitlistEntryWithNames>('/admin/waitlist', data, { params: { client_id } }).then(r => r.data)
+
+export const notifyWaitlistEntry = (id: number) =>
+  api.post<WaitlistEntryWithNames>(`/admin/waitlist/${id}/notify`).then(r => r.data)
+
+export const fulfilWaitlistEntry = (id: number) =>
+  api.patch<WaitlistEntryWithNames>(`/admin/waitlist/${id}/fulfil`).then(r => r.data)
+
+export const deleteWaitlistEntry = (id: number) =>
+  api.delete(`/admin/waitlist/${id}`).then(r => r.data)
 
 export default api

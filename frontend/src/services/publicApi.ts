@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { Service, Collaborator, Appointment, TokenResponse } from '@/types'
+import type { Service, Collaborator, Appointment, TokenResponse, WaitlistEntry, WaitlistCreate } from '@/types'
 
 const API_BASE = import.meta.env.VITE_API_URL || ''
 
@@ -54,3 +54,12 @@ export const acceptAlternative = (id: number) =>
 
 export const rejectAlternative = (id: number) =>
   publicApi.post(`/appointments/${id}/reject-alternative`).then(r => r.data)
+
+export const getMyWaitlist = () =>
+  publicApi.get<WaitlistEntry[]>('/waitlist').then(r => r.data)
+
+export const joinWaitlist = (data: WaitlistCreate) =>
+  publicApi.post<WaitlistEntry>('/waitlist', data).then(r => r.data)
+
+export const leaveWaitlist = (id: number) =>
+  publicApi.delete(`/waitlist/${id}`).then(r => r.data)

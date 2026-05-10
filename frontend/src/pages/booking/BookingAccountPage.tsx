@@ -2,11 +2,14 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { format, parseISO } from 'date-fns'
 import { it } from 'date-fns/locale'
 import { Link, useNavigate } from 'react-router-dom'
-import { Calendar, X, Check } from 'lucide-react'
+import { Calendar, X, Check, Clock } from 'lucide-react'
 import { useClientAuth } from '@/components/layout/BookingLayout'
-import { getMyAppointments, cancelMyAppointment, acceptAlternative, rejectAlternative } from '@/services/publicApi'
+import {
+  getMyAppointments, cancelMyAppointment, acceptAlternative, rejectAlternative,
+  getMyWaitlist, leaveWaitlist,
+} from '@/services/publicApi'
 import clsx from 'clsx'
-import type { Appointment } from '@/types'
+import type { Appointment, WaitlistEntry } from '@/types'
 
 const STATUS_LABELS: Record<string, string> = {
   pending: 'In attesa',
@@ -36,6 +39,15 @@ export default function BookingAccountPage() {
   const cancelMut = useMutation({ mutationFn: cancelMyAppointment, onSuccess: inv })
   const acceptMut = useMutation({ mutationFn: acceptAlternative, onSuccess: inv })
   const rejectMut = useMutation({ mutationFn: rejectAlternative, onSuccess: inv })
+
+  const { data: waitlist = [] } = useQuery({
+    queryKey: ['my-waitlist'],
+    queryFn: getMyWaitlist,
+  })
+  const invWaitlist = () => qc.invalidateQueries({ queryKey: ['my-waitlist'] })
+  const leaveMut = useMutation({ mutationFn: leaveWaitlist, onSuccess: invWaitlist })
+
+  const activeWaitlist = waitlist.filter(w => w.status === 'waiting' || w.status === 'notified')
 
   const now = new Date()
   const upcoming = appointments?.filter(a =>
@@ -101,6 +113,24 @@ export default function BookingAccountPage() {
         )}
       </section>
 
+      {/* Waitlist */}
+      {activeWaitlist.length > 0 && (
+        <section>
+          <h3 className="font-semibold mb-3 flex items-center gap-2">
+            <Clock className="w-4 h-4 text-amber-500" /> Lista d'attesa
+          </h3>
+          <div className="space-y-2">
+            {activeWaitlist.map(w => (
+              <WaitlistCard
+                key={w.id}
+                entry={w}
+                onLeave={() => leaveMut.mutate(w.id)}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* Past */}
       {past.length > 0 && (
         <section>
@@ -112,6 +142,37 @@ export default function BookingAccountPage() {
           </div>
         </section>
       )}
+    </div>
+  )
+}
+
+function WaitlistCard({ entry: w, onLeave }: { entry: WaitlistEntry; onLeave: () => void }) {
+  return (
+    <div className={clsx('card p-4 flex items-center justify-between gap-4', w.status === 'notified' && 'border-blue-300 bg-blue-50')}>
+      <div className="space-y-0.5">
+        {w.status === 'notified' && (
+          <p className="text-xs font-semibold text-blue-700 mb-1">
+            🔔 Il salone ha uno slot disponibile per te!
+          </p>
+        )}
+        {w.preferred_date ? (
+          <p className="text-sm font-medium">
+            Data preferita: {format(parseISO(w.preferred_date), 'd MMMM yyyy', { locale: it })}
+          </p>
+        ) : (
+          <p className="text-sm font-medium">Prima disponibilità</p>
+        )}
+        {w.notes && <p className="text-xs text-muted-foreground italic">"{w.notes}"</p>}
+        <p className="text-xs text-muted-foreground">
+          Iscritto il {format(parseISO(w.created_at), 'd MMM yyyy', { locale: it })}
+        </p>
+      </div>
+      <button
+        onClick={onLeave}
+        className="text-xs text-red-500 hover:text-red-700 flex-shrink-0"
+      >
+        Rimuovi
+      </button>
     </div>
   )
 }

@@ -153,6 +153,8 @@ export interface Payment {
   type: PaymentType
   date: string
   notes: string | null
+  cash_amount: number | null
+  card_amount: number | null
 }
 
 // ── Expense ───────────────────────────────────────────────────────
@@ -265,4 +267,33 @@ export interface SendResponse {
   sent: number
   skipped: number
   errors: number
+}
+
+// ── Waitlist ──────────────────────────────────────────────────────
+
+export type WaitlistStatus = 'waiting' | 'notified' | 'fulfilled' | 'cancelled'
+
+export interface WaitlistEntry {
+  id: number
+  client_id: number
+  service_id: number
+  collaborator_id: number | null
+  preferred_date: string | null
+  notes: string | null
+  status: WaitlistStatus
+  notified_at: string | null
+  created_at: string
+}
+
+export interface WaitlistEntryWithNames extends WaitlistEntry {
+  client_name: string
+  service_name: string
+  collaborator_name: string | null
+}
+
+export interface WaitlistCreate {
+  service_id: number
+  collaborator_id?: number | null
+  preferred_date?: string | null
+  notes?: string | null
 }

@@ -51,3 +51,4 @@ class Client(Base):
     appointments: Mapped[List["Appointment"]] = relationship("Appointment", back_populates="client")
     communications: Mapped[List["Communication"]] = relationship("Communication", back_populates="client")
     payments: Mapped[List["Payment"]] = relationship("Payment", back_populates="client")
+    waitlist_entries: Mapped[List["WaitlistEntry"]] = relationship("WaitlistEntry", back_populates="client", cascade="all, delete-orphan")

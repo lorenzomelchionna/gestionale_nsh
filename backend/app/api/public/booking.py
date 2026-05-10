@@ -11,9 +11,11 @@ from app.models.service import Service
 from app.models.collaborator import Collaborator
 from app.models.appointment import Appointment, AppointmentService, AppointmentStatus, AppointmentOrigin
 from app.models.booking_config import BookingConfig
+from app.models.waitlist import WaitlistEntry, WaitlistStatus
 from app.schemas.service import ServiceOut
 from app.schemas.collaborator import CollaboratorOut, CollaboratorScheduleOut
 from app.schemas.appointment import AppointmentOut, AppointmentOutWithNames, AppointmentCreate
+from app.schemas.waitlist import WaitlistCreate, WaitlistOut
 from app.schemas.common import MessageResponse
 from app.dependencies import get_current_client
 from app.services.availability import get_available_slots
@@ -239,6 +241,97 @@ async def accept_alternative(
     appt.alternative_time = None
     appt.status = AppointmentStatus.confirmed
     return MessageResponse(message="Proposta accettata")
+
+
+@router.post("/waitlist", response_model=WaitlistOut, status_code=status.HTTP_201_CREATED)
+async def join_waitlist(
+    payload: WaitlistCreate,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_account: Annotated[ClientAccount, Depends(get_current_client)],
+):
+    """Cliente autenticato si iscrive alla lista d'attesa."""
+    client_result = await db.execute(select(Client).where(Client.account_id == current_account.id))
+    client = client_result.scalar_one_or_none()
+    if not client:
+        raise HTTPException(status_code=400, detail="Profilo cliente non trovato")
+
+    service = await db.get(Service, payload.service_id)
+    if not service or not service.bookable_online:
+        raise HTTPException(status_code=404, detail="Servizio non trovato o non prenotabile online")
+
+    if payload.collaborator_id:
+        collab = await db.get(Collaborator, payload.collaborator_id)
+        if not collab or not collab.is_active:
+            raise HTTPException(status_code=404, detail="Collaboratore non trovato")
+
+    # Evita duplicati attivi per stesso cliente+servizio
+    existing = await db.execute(
+        select(WaitlistEntry).where(
+            WaitlistEntry.client_id == client.id,
+            WaitlistEntry.service_id == payload.service_id,
+            WaitlistEntry.status.in_([WaitlistStatus.waiting, WaitlistStatus.notified]),
+        )
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=409, detail="Sei già in lista d'attesa per questo servizio")
+
+    entry = WaitlistEntry(
+        client_id=client.id,
+        service_id=payload.service_id,
+        collaborator_id=payload.collaborator_id,
+        preferred_date=payload.preferred_date,
+        notes=payload.notes,
+        status=WaitlistStatus.waiting,
+    )
+    db.add(entry)
+    await db.flush()
+    await db.refresh(entry)
+    return WaitlistOut.model_validate(entry)
+
+
+@router.get("/waitlist", response_model=List[WaitlistOut])
+async def my_waitlist(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_account: Annotated[ClientAccount, Depends(get_current_client)],
+):
+    """Cliente vede le proprie iscrizioni alla lista d'attesa."""
+    client_result = await db.execute(select(Client).where(Client.account_id == current_account.id))
+    client = client_result.scalar_one_or_none()
+    if not client:
+        return []
+
+    result = await db.execute(
+        select(WaitlistEntry)
+        .where(WaitlistEntry.client_id == client.id)
+        .order_by(WaitlistEntry.created_at.desc())
+    )
+    return [WaitlistOut.model_validate(e) for e in result.scalars().all()]
+
+
+@router.delete("/waitlist/{entry_id}", response_model=MessageResponse)
+async def leave_waitlist(
+    entry_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_account: Annotated[ClientAccount, Depends(get_current_client)],
+):
+    """Cliente rimuove la propria iscrizione dalla lista d'attesa."""
+    client_result = await db.execute(select(Client).where(Client.account_id == current_account.id))
+    client = client_result.scalar_one_or_none()
+
+    result = await db.execute(
+        select(WaitlistEntry).where(
+            WaitlistEntry.id == entry_id,
+            WaitlistEntry.client_id == (client.id if client else -1),
+        )
+    )
+    entry = result.scalar_one_or_none()
+    if not entry:
+        raise HTTPException(status_code=404, detail="Iscrizione non trovata")
+    if entry.status == WaitlistStatus.fulfilled:
+        raise HTTPException(status_code=400, detail="Iscrizione già soddisfatta")
+
+    entry.status = WaitlistStatus.cancelled
+    return MessageResponse(message="Rimosso dalla lista d'attesa")
 
 
 @router.post("/appointments/{appointment_id}/reject-alternative", response_model=MessageResponse)

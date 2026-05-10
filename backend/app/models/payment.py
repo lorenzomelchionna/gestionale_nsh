@@ -33,5 +33,9 @@ class Payment(Base):
     date: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     notes: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
 
+    # Split payment: valorizzati solo quando method == "misto"
+    cash_amount: Mapped[Optional[float]] = mapped_column(Numeric(10, 2), nullable=True)
+    card_amount: Mapped[Optional[float]] = mapped_column(Numeric(10, 2), nullable=True)
+
     client: Mapped[Optional["Client"]] = relationship("Client", back_populates="payments")
     appointment: Mapped[Optional["Appointment"]] = relationship("Appointment", back_populates="payments")

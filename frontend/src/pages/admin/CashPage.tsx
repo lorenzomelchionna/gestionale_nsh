@@ -8,6 +8,20 @@ import type { Payment } from '@/types'
 const METHOD_LABELS: Record<string, string> = { contanti: 'Contanti', carta: 'Carta', misto: 'Misto' }
 const TYPE_LABELS: Record<string, string> = { servizio: 'Servizio', prodotto: 'Prodotto' }
 
+/** Ricava la quota contanti effettiva di un pagamento (inclusi i misti). */
+function effectiveCash(p: Payment): number {
+  if (p.method === 'contanti') return p.amount
+  if (p.method === 'misto' && p.cash_amount != null) return p.cash_amount
+  return 0
+}
+
+/** Ricava la quota carta effettiva di un pagamento (inclusi i misti). */
+function effectiveCard(p: Payment): number {
+  if (p.method === 'carta') return p.amount
+  if (p.method === 'misto' && p.card_amount != null) return p.card_amount
+  return 0
+}
+
 export default function CashPage() {
   const qc = useQueryClient()
   const today = format(new Date(), 'yyyy-MM-dd')
@@ -25,8 +39,8 @@ export default function CashPage() {
 
   const payments = data?.items ?? []
   const total = payments.reduce((s, p) => s + p.amount, 0)
-  const cash = payments.filter(p => p.method === 'contanti').reduce((s, p) => s + p.amount, 0)
-  const card = payments.filter(p => p.method === 'carta').reduce((s, p) => s + p.amount, 0)
+  const cash  = payments.reduce((s, p) => s + effectiveCash(p), 0)
+  const card  = payments.reduce((s, p) => s + effectiveCard(p), 0)
 
   return (
     <div className="space-y-6">
@@ -57,11 +71,11 @@ export default function CashPage() {
         </div>
         <div className="card p-4 text-center">
           <p className="text-2xl font-bold text-emerald-600">€{cash.toFixed(2)}</p>
-          <p className="text-xs text-muted-foreground mt-1">Contanti</p>
+          <p className="text-xs text-muted-foreground mt-1">Contanti (incl. misto)</p>
         </div>
         <div className="card p-4 text-center">
           <p className="text-2xl font-bold text-blue-600">€{card.toFixed(2)}</p>
-          <p className="text-xs text-muted-foreground mt-1">Carta</p>
+          <p className="text-xs text-muted-foreground mt-1">Carta (incl. misto)</p>
         </div>
       </div>
 
@@ -86,13 +100,20 @@ export default function CashPage() {
                 <td className="px-4 py-2.5">{format(parseISO(p.date), 'dd/MM/yyyy HH:mm')}</td>
                 <td className="px-4 py-2.5">{TYPE_LABELS[p.type]}</td>
                 <td className="px-4 py-2.5">
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                    p.method === 'contanti' ? 'bg-emerald-100 text-emerald-700'
-                    : p.method === 'carta' ? 'bg-blue-100 text-blue-700'
-                    : 'bg-purple-100 text-purple-700'
-                  }`}>
-                    {METHOD_LABELS[p.method]}
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                      p.method === 'contanti' ? 'bg-emerald-100 text-emerald-700'
+                      : p.method === 'carta' ? 'bg-blue-100 text-blue-700'
+                      : 'bg-purple-100 text-purple-700'
+                    }`}>
+                      {METHOD_LABELS[p.method]}
+                    </span>
+                    {p.method === 'misto' && p.cash_amount != null && p.card_amount != null && (
+                      <span className="text-xs text-muted-foreground">
+                        €{p.cash_amount.toFixed(2)} + €{p.card_amount.toFixed(2)}
+                      </span>
+                    )}
+                  </div>
                 </td>
                 <td className="px-4 py-2.5 text-right font-semibold">€{p.amount.toFixed(2)}</td>
                 <td className="px-4 py-2.5 text-muted-foreground">{p.notes ?? '–'}</td>
@@ -107,14 +128,63 @@ export default function CashPage() {
           onClose={() => setShowCreate(false)}
           onSave={(d) => createMut.mutate(d)}
           loading={createMut.isPending}
+          error={createMut.error ? String((createMut.error as any)?.response?.data?.detail ?? 'Errore') : null}
         />
       )}
     </div>
   )
 }
 
-function PaymentFormModal({ onClose, onSave, loading }: any) {
-  const [form, setForm] = useState({ amount: '', method: 'contanti', type: 'servizio', notes: '' })
+interface FormData {
+  amount: string
+  method: string
+  type: string
+  notes: string
+  cashAmount: string
+  cardAmount: string
+}
+
+function PaymentFormModal({ onClose, onSave, loading, error }: {
+  onClose: () => void
+  onSave: (d: any) => void
+  loading: boolean
+  error: string | null
+}) {
+  const [form, setForm] = useState<FormData>({
+    amount: '', method: 'contanti', type: 'servizio', notes: '',
+    cashAmount: '', cardAmount: '',
+  })
+
+  const set = (k: keyof FormData, v: string) => {
+    setForm(prev => {
+      const next = { ...prev, [k]: v }
+      // Se cambia uno dei due sotto-importi, aggiorna il totale automaticamente
+      if ((k === 'cashAmount' || k === 'cardAmount') && next.method === 'misto') {
+        const c = parseFloat(next.cashAmount) || 0
+        const ca = parseFloat(next.cardAmount) || 0
+        next.amount = (c + ca).toFixed(2)
+      }
+      return next
+    })
+  }
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    const payload: any = {
+      amount: Number(form.amount),
+      method: form.method,
+      type: form.type,
+      notes: form.notes || undefined,
+    }
+    if (form.method === 'misto') {
+      payload.cash_amount = Number(form.cashAmount)
+      payload.card_amount = Number(form.cardAmount)
+    }
+    onSave(payload)
+  }
+
+  const isMisto = form.method === 'misto'
+
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
       <div className="bg-surface rounded-xl shadow-xl w-full max-w-sm">
@@ -122,30 +192,72 @@ function PaymentFormModal({ onClose, onSave, loading }: any) {
           <h3 className="font-semibold">Registra incasso</h3>
           <button onClick={onClose}><X className="w-5 h-5" /></button>
         </div>
-        <form onSubmit={(e) => { e.preventDefault(); onSave({ ...form, amount: Number(form.amount) }) }} className="p-4 space-y-3">
-          <div>
-            <label className="label block mb-1">Importo (€) *</label>
-            <input className="input" type="number" step="0.01" min="0.01" required value={form.amount} onChange={e => setForm({...form, amount: e.target.value})} />
-          </div>
+        <form onSubmit={handleSubmit} className="p-4 space-y-3">
           <div>
             <label className="label block mb-1">Metodo</label>
-            <select className="input" value={form.method} onChange={e => setForm({...form, method: e.target.value})}>
+            <select className="input" value={form.method} onChange={e => set('method', e.target.value)}>
               <option value="contanti">Contanti</option>
               <option value="carta">Carta</option>
-              <option value="misto">Misto</option>
+              <option value="misto">Misto (contanti + carta)</option>
             </select>
           </div>
+
+          {isMisto ? (
+            /* Split payment: two sub-amounts, total computed automatically */
+            <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="label block mb-1 text-xs">Contanti (€) *</label>
+                  <input
+                    className="input"
+                    type="number" step="0.01" min="0.01" required
+                    placeholder="0.00"
+                    value={form.cashAmount}
+                    onChange={e => set('cashAmount', e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="label block mb-1 text-xs">Carta (€) *</label>
+                  <input
+                    className="input"
+                    type="number" step="0.01" min="0.01" required
+                    placeholder="0.00"
+                    value={form.cardAmount}
+                    onChange={e => set('cardAmount', e.target.value)}
+                  />
+                </div>
+              </div>
+              {form.amount && (
+                <p className="text-xs text-muted-foreground">
+                  Totale: <span className="font-semibold text-foreground">€{Number(form.amount).toFixed(2)}</span>
+                </p>
+              )}
+            </div>
+          ) : (
+            <div>
+              <label className="label block mb-1">Importo (€) *</label>
+              <input
+                className="input" type="number" step="0.01" min="0.01" required
+                value={form.amount}
+                onChange={e => set('amount', e.target.value)}
+              />
+            </div>
+          )}
+
           <div>
             <label className="label block mb-1">Tipo</label>
-            <select className="input" value={form.type} onChange={e => setForm({...form, type: e.target.value})}>
+            <select className="input" value={form.type} onChange={e => set('type', e.target.value)}>
               <option value="servizio">Servizio</option>
               <option value="prodotto">Prodotto</option>
             </select>
           </div>
           <div>
             <label className="label block mb-1">Note</label>
-            <input className="input" value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} />
+            <input className="input" value={form.notes} onChange={e => set('notes', e.target.value)} />
           </div>
+
+          {error && <p className="text-xs text-red-500">{error}</p>}
+
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={onClose} className="btn-secondary text-sm">Annulla</button>
             <button type="submit" disabled={loading} className="btn-primary text-sm">Salva</button>

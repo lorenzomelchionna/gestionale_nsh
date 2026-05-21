@@ -1,16 +1,17 @@
 import React, { useState, useMemo, useCallback, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  format, addDays, startOfWeek, isSameDay, parseISO, addMinutes, differenceInMinutes
+  format, addDays, startOfWeek, isSameDay, parseISO, addMinutes, differenceInMinutes,
+  startOfMonth, getDaysInMonth, isWithinInterval, startOfDay, endOfDay, addMonths, subMonths
 } from 'date-fns'
 import { it } from 'date-fns/locale'
 import {
-  ChevronLeft, ChevronRight, Plus, Check, X
+  ChevronLeft, ChevronRight, ChevronDown, Plus, Check, X
 } from 'lucide-react'
 import {
   getAppointments, getCollaborators, confirmAppointment,
   rejectAppointment, completeAppointment,
-  createAppointment, getClients, getServices, updateAppointment
+  createAppointment, getClients, getServices, updateAppointment, getAbsences, getBookingConfig
 } from '@/services/api'
 import type { Appointment, Collaborator } from '@/types'
 import clsx from 'clsx'
@@ -27,6 +28,68 @@ const START_HOUR = 8
 const END_HOUR = 20
 
 const TERMINAL_STATUSES = ['completed', 'cancelled', 'rejected']
+
+// Round date up to the next slot boundary (default 30 min).
+function roundUpToSlot(d: Date, slotMin = 30): Date {
+  const r = new Date(d)
+  r.setSeconds(0, 0)
+  const m = r.getMinutes()
+  const remainder = m % slotMin
+  if (remainder !== 0) r.setMinutes(m + (slotMin - remainder))
+  return r
+}
+
+/**
+ * Find the first free slot for a collaborator, starting from `from`.
+ * Skips appointments in non-terminal status. Honors working hours.
+ * If the candidate slot overlaps an existing appt, jumps to its end + round up.
+ * Wraps to next day's START_HOUR if past END_HOUR.
+ */
+function computeFirstAvailableSlot(
+  appointments: Appointment[],
+  collaboratorId: number,
+  from: Date,
+  slotMin = 30,
+): Date {
+  const active = appointments
+    .filter(a =>
+      a.collaborator_id === collaboratorId &&
+      !TERMINAL_STATUSES.includes(a.status)
+    )
+    .sort((a, b) => parseISO(a.start_time).getTime() - parseISO(b.start_time).getTime())
+
+  let candidate = roundUpToSlot(from, slotMin)
+  if (candidate.getHours() < START_HOUR) {
+    candidate.setHours(START_HOUR, 0, 0, 0)
+  }
+  while (candidate.getHours() >= END_HOUR) {
+    candidate = addDays(candidate, 1)
+    candidate.setHours(START_HOUR, 0, 0, 0)
+  }
+
+  // Push past any overlapping appointment
+  let changed = true
+  let safety = 50
+  while (changed && safety-- > 0) {
+    changed = false
+    const slotEnd = addMinutes(candidate, slotMin)
+    for (const a of active) {
+      const aStart = parseISO(a.start_time)
+      const aEnd = parseISO(a.end_time)
+      // Overlap test
+      if (candidate < aEnd && slotEnd > aStart) {
+        candidate = roundUpToSlot(aEnd, slotMin)
+        if (candidate.getHours() >= END_HOUR) {
+          candidate = addDays(candidate, 1)
+          candidate.setHours(START_HOUR, 0, 0, 0)
+        }
+        changed = true
+        break
+      }
+    }
+  }
+  return candidate
+}
 
 function apptCardStyle(color: string, status: string): React.CSSProperties {
   return {
@@ -74,6 +137,11 @@ export default function CalendarPage() {
   const { data: collabsData } = useQuery({
     queryKey: ['collaborators-active'],
     queryFn: () => getCollaborators({ active_only: true }),
+  })
+
+  const { data: bookingConfig } = useQuery({
+    queryKey: ['booking-config'],
+    queryFn: getBookingConfig,
   })
 
   const appointments = apptsData?.items ?? []
@@ -208,7 +276,17 @@ export default function CalendarPage() {
             ))}
           </select>
 
-          <button onClick={() => setShowCreateModal(true)} className="btn-primary flex items-center gap-1.5 py-1.5 text-sm">
+          <button
+            onClick={() => {
+              const collabId = selectedCollaboratorId ?? collaborators[0]?.id
+              if (collabId) {
+                const firstSlot = computeFirstAvailableSlot(appointments, collabId, new Date())
+                setNewApptSlot({ date: firstSlot, collaboratorId: collabId })
+              }
+              setShowCreateModal(true)
+            }}
+            className="btn-primary flex items-center gap-1.5 py-1.5 text-sm"
+          >
             <Plus className="w-4 h-4" />
             Nuovo
           </button>
@@ -297,6 +375,7 @@ export default function CalendarPage() {
         <CreateAppointmentModal
           initialSlot={newApptSlot}
           collaborators={collaborators}
+          closedWeekdays={bookingConfig?.closed_weekdays ?? [0, 1]}
           onClose={() => { setShowCreateModal(false); setNewApptSlot(null) }}
           onCreated={() => { invalidate(); setShowCreateModal(false); setNewApptSlot(null) }}
         />
@@ -777,37 +856,44 @@ function AppointmentModal({ appointment, appointments, onClose, onConfirm, onRej
 
 // ── Create appointment modal ──────────────────────────────────────
 
-function CreateAppointmentModal({ initialSlot, collaborators, onClose, onCreated }: {
+function CreateAppointmentModal({ initialSlot, collaborators, closedWeekdays, onClose, onCreated }: {
   initialSlot: { date: Date; collaboratorId: number } | null
   collaborators: Collaborator[]
+  closedWeekdays: number[]
   onClose: () => void
   onCreated: () => void
 }) {
   const [clientSearch, setClientSearch] = useState('')
+  const [clientDropdownOpen, setClientDropdownOpen] = useState(false)
   const [selectedClientId, setSelectedClientId] = useState<number | null>(null)
   const [selectedCollabId, setSelectedCollabId] = useState<number>(
     initialSlot?.collaboratorId ?? collaborators[0]?.id ?? 0
   )
-  const [day, setDay] = useState(initialSlot ? String(initialSlot.date.getDate()) : '')
-  const [month, setMonth] = useState(initialSlot ? String(initialSlot.date.getMonth() + 1) : '')
-  const [year, setYear] = useState(initialSlot ? String(initialSlot.date.getFullYear()) : '')
-  const [hours, setHours] = useState(initialSlot ? String(initialSlot.date.getHours()) : '')
-  const [minutes, setMinutes] = useState(initialSlot ? String(Math.floor(initialSlot.date.getMinutes() / 30) * 30) : '')
+  const initDate = initialSlot?.date ?? new Date()
+  const [selectedDate, setSelectedDate] = useState<Date>(initDate)
+  const [calMonth, setCalMonth] = useState<Date>(startOfMonth(initDate))
+  const [hours, setHours] = useState(String(initDate.getHours()))
+  const [minutes, setMinutes] = useState(String(Math.floor(initDate.getMinutes() / 30) * 30))
 
-  const startDate = day && month && year
-    ? `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`
-    : ''
-  const startHour = hours !== '' && minutes !== ''
-    ? `${String(hours).padStart(2,'0')}:${String(minutes).padStart(2,'0')}`
-    : ''
-  const startTime = startDate && startHour ? `${startDate}T${startHour}` : ''
+  const startTime = useMemo(() => {
+    const h = hours.padStart(2, '0')
+    const m = String(minutes).padStart(2, '0')
+    return format(selectedDate, `yyyy-MM-dd'T'${h}:${m}`)
+  }, [selectedDate, hours, minutes])
+
   const [selectedServiceIds, setSelectedServiceIds] = useState<number[]>([])
   const [notes, setNotes] = useState('')
+  const [confirmClosed, setConfirmClosed] = useState(false)
 
   const { data: clientsData } = useQuery({
-    queryKey: ['clients-search', clientSearch],
-    queryFn: () => getClients({ search: clientSearch }),
-    enabled: clientSearch.length > 1,
+    queryKey: ['clients-all'],
+    queryFn: () => getClients({ page_size: 500, active_only: true }),
+  })
+
+  const { data: absencesData } = useQuery({
+    queryKey: ['absences', selectedCollabId],
+    queryFn: () => getAbsences(selectedCollabId),
+    enabled: selectedCollabId > 0,
   })
 
   const { data: servicesData } = useQuery({
@@ -834,11 +920,9 @@ function CreateAppointmentModal({ initialSlot, collaborators, onClose, onCreated
     return format(addMinutes(start, totalSlots * 30), "yyyy-MM-dd'T'HH:mm")
   }, [startTime, totalSlots])
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!selectedClientId || !startTime || selectedServiceIds.length === 0) return
+  const doCreate = () => {
     createMut.mutate({
-      client_id: selectedClientId,
+      client_id: selectedClientId!,
       collaborator_id: selectedCollabId,
       start_time: new Date(startTime).toISOString(),
       end_time: new Date(computedEnd).toISOString(),
@@ -847,38 +931,115 @@ function CreateAppointmentModal({ initialSlot, collaborators, onClose, onCreated
     })
   }
 
-  const clients = clientsData?.items ?? []
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedClientId || !startTime || selectedServiceIds.length === 0) return
+    if (isClosedDay(selectedDate) && !confirmClosed) {
+      setConfirmClosed(true)
+      return
+    }
+    doCreate()
+  }
+
+  const allClients = clientsData?.items ?? []
+  const filteredClients = clientSearch.trim().length > 0
+    ? allClients.filter(c => {
+        const q = clientSearch.toLowerCase()
+        return (
+          c.first_name.toLowerCase().includes(q) ||
+          c.last_name.toLowerCase().includes(q) ||
+          (c.phone ?? '').includes(q)
+        )
+      })
+    : allClients
+  const selectedClient = allClients.find(c => c.id === selectedClientId) ?? null
   const services = servicesData?.items ?? []
 
+  // Closed-day logic for mini calendar
+  const selectedCollab = collaborators.find(c => c.id === selectedCollabId)
+  const absences = absencesData ?? []
+
+  const isClosedDay = (d: Date): boolean => {
+    const dow = d.getDay() // 0=Sun … 6=Sat
+    // Salon-wide closed days from config
+    if (closedWeekdays.includes(dow)) return true
+    // Collaborator absences (specific dates off)
+    return absences.some(a =>
+      isWithinInterval(startOfDay(d), {
+        start: startOfDay(parseISO(a.start_date)),
+        end: endOfDay(parseISO(a.end_date)),
+      })
+    )
+  }
+
+  // Build calendar grid for calMonth
+  const calFirstDay = startOfMonth(calMonth)
+  const daysInMonth = getDaysInMonth(calMonth)
+  // Offset: Mon=0 … Sun=6
+  const firstDow = (calFirstDay.getDay() + 6) % 7
+  const calDays: (Date | null)[] = [
+    ...Array(firstDow).fill(null),
+    ...Array.from({ length: daysInMonth }, (_, i) => addDays(calFirstDay, i)),
+  ]
+
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-surface rounded-xl shadow-xl w-full max-w-lg">
-        <div className="flex items-center justify-between p-4 border-b border-border">
+    <div className="fixed inset-0 bg-black/40 flex items-start justify-center z-50 p-4 overflow-y-auto">
+      <div className="bg-surface rounded-xl shadow-xl w-full max-w-lg my-auto">
+        <div className="flex items-center justify-between p-4 border-b border-border sticky top-0 bg-surface rounded-t-xl z-10">
           <h3 className="font-semibold">Nuovo appuntamento</h3>
           <button onClick={onClose}><X className="w-5 h-5" /></button>
         </div>
         <form onSubmit={handleSubmit} className="p-4 space-y-4">
-          {/* Client search */}
-          <div>
+          {/* Client combobox */}
+          <div className="relative">
             <label className="label block mb-1">Cliente</label>
-            <input
-              className="input"
-              placeholder="Cerca per nome o telefono..."
-              value={clientSearch}
-              onChange={e => { setClientSearch(e.target.value); setSelectedClientId(null) }}
-            />
-            {clients.length > 0 && !selectedClientId && (
-              <ul className="border border-border rounded-md mt-1 max-h-36 overflow-y-auto bg-surface shadow-sm">
-                {clients.map(c => (
-                  <li
-                    key={c.id}
-                    className="px-3 py-2 text-sm hover:bg-muted cursor-pointer"
-                    onClick={() => { setSelectedClientId(c.id); setClientSearch(`${c.first_name} ${c.last_name}`) }}
-                  >
-                    {c.first_name} {c.last_name} {c.phone && <span className="text-muted-foreground">– {c.phone}</span>}
-                  </li>
-                ))}
-              </ul>
+            <button
+              type="button"
+              className="input text-left flex items-center justify-between w-full"
+              onClick={() => setClientDropdownOpen(o => !o)}
+            >
+              <span className={selectedClient ? '' : 'text-muted-foreground'}>
+                {selectedClient
+                  ? `${selectedClient.first_name} ${selectedClient.last_name}${selectedClient.phone ? ` – ${selectedClient.phone}` : ''}`
+                  : 'Seleziona cliente…'}
+              </span>
+              <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
+            </button>
+            {clientDropdownOpen && (
+              <div className="absolute z-50 mt-1 w-full bg-surface border border-border rounded-md shadow-lg">
+                <div className="p-2 border-b border-border">
+                  <input
+                    autoFocus
+                    className="input text-sm py-1"
+                    placeholder="Cerca per nome o telefono…"
+                    value={clientSearch}
+                    onChange={e => setClientSearch(e.target.value)}
+                    onClick={e => e.stopPropagation()}
+                  />
+                </div>
+                <ul className="max-h-48 overflow-y-auto">
+                  {filteredClients.length === 0 && (
+                    <li className="px-3 py-2 text-sm text-muted-foreground">Nessun cliente trovato</li>
+                  )}
+                  {filteredClients.map(c => (
+                    <li
+                      key={c.id}
+                      className={clsx(
+                        'px-3 py-2 text-sm cursor-pointer flex items-center justify-between',
+                        c.id === selectedClientId ? 'bg-primary/10 text-primary font-medium' : 'hover:bg-muted'
+                      )}
+                      onClick={() => {
+                        setSelectedClientId(c.id)
+                        setClientDropdownOpen(false)
+                        setClientSearch('')
+                      }}
+                    >
+                      <span>{c.first_name} {c.last_name}</span>
+                      {c.phone && <span className="text-muted-foreground text-xs">{c.phone}</span>}
+                    </li>
+                  ))}
+                </ul>
+              </div>
             )}
           </div>
 
@@ -896,54 +1057,122 @@ function CreateAppointmentModal({ initialSlot, collaborators, onClose, onCreated
             </select>
           </div>
 
-          {/* Date/time */}
-          <div className="space-y-2">
-            <div>
-              <label className="label block mb-1">Data inizio</label>
-              <div className="flex gap-1">
-                <input
-                  type="number" min="1" max="31" placeholder="GG"
-                  className="input w-16 text-center"
-                  value={day}
-                  onChange={e => setDay(e.target.value)}
-                  required
-                />
-                <span className="self-center text-muted-foreground">/</span>
-                <input
-                  type="number" min="1" max="12" placeholder="MM"
-                  className="input w-16 text-center"
-                  value={month}
-                  onChange={e => setMonth(e.target.value)}
-                  required
-                />
-                <span className="self-center text-muted-foreground">/</span>
-                <input
-                  type="number" min="2024" max="2099" placeholder="AAAA"
-                  className="input flex-1 text-center"
-                  value={year}
-                  onChange={e => setYear(e.target.value)}
-                  required
-                />
+          {/* Date picker */}
+          <div>
+            <label className="label block mb-1">Data</label>
+            <div className="border border-border rounded-lg overflow-hidden">
+              {/* Month nav */}
+              <div className="flex items-center justify-between px-3 py-2 bg-muted/40 border-b border-border">
+                <button type="button" onClick={() => setCalMonth(m => subMonths(m, 1))} className="p-1 hover:bg-muted rounded">
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <span className="text-sm font-medium capitalize">
+                  {format(calMonth, 'MMMM yyyy', { locale: it })}
+                </span>
+                <button type="button" onClick={() => setCalMonth(m => addMonths(m, 1))} className="p-1 hover:bg-muted rounded">
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+              {/* Day-of-week headers */}
+              <div className="grid grid-cols-7 text-center text-xs text-muted-foreground py-1 border-b border-border">
+                {['Lu','Ma','Me','Gi','Ve','Sa','Do'].map(d => (
+                  <span key={d}>{d}</span>
+                ))}
+              </div>
+              {/* Days grid */}
+              <div className="grid grid-cols-7 gap-y-0.5 p-1">
+                {calDays.map((d, i) => {
+                  if (!d) return <span key={i} />
+                  const closed = isClosedDay(d)
+                  const selected = isSameDay(d, selectedDate)
+                  const today = isSameDay(d, new Date())
+                  return (
+                    <button
+                      key={i}
+                      type="button"
+                      disabled={closed}
+                      onClick={() => setSelectedDate(d)}
+                      className={clsx(
+                        'h-8 w-full rounded text-sm transition-colors',
+                        closed && 'text-red-400 line-through cursor-not-allowed opacity-60',
+                        !closed && selected && 'bg-primary text-white font-semibold',
+                        !closed && !selected && today && 'border border-primary text-primary',
+                        !closed && !selected && !today && 'hover:bg-muted',
+                      )}
+                    >
+                      {d.getDate()}
+                    </button>
+                  )
+                })}
               </div>
             </div>
-            <div>
-              <label className="label block mb-1">Ora inizio</label>
-              <div className="flex gap-1 items-center">
-                <input
-                  type="number" min="0" max="23" placeholder="HH"
-                  className="input w-16 text-center"
-                  value={hours}
-                  onChange={e => setHours(e.target.value)}
-                  required
-                />
-                <span className="self-center text-muted-foreground font-medium">:</span>
-                <input
-                  type="number" min="0" max="59" step="30" placeholder="MM"
-                  className="input w-16 text-center"
-                  value={minutes}
-                  onChange={e => setMinutes(e.target.value)}
-                  required
-                />
+          </div>
+
+          {/* Clock time picker */}
+          <div>
+            <label className="label block mb-1">Ora</label>
+            <div className="border border-border rounded-lg p-4 flex flex-col items-center gap-3">
+              {/* Selected time display */}
+              <div className="text-2xl font-semibold tabular-nums text-primary">
+                {String(Number(hours)).padStart(2,'0')}:{String(minutes) === '0' ? '00' : '30'}
+              </div>
+              {/* Clock face */}
+              <div className="relative w-48 h-48">
+                {/* Background circle */}
+                <div className="absolute inset-0 rounded-full border border-border bg-muted/20" />
+                {/* SVG hand */}
+                <svg className="absolute inset-0 w-full h-full pointer-events-none">
+                  {(() => {
+                    const idx = Number(hours) - START_HOUR
+                    const angle = (idx * 30 - 90) * (Math.PI / 180)
+                    const x2 = 96 + 54 * Math.cos(angle)
+                    const y2 = 96 + 54 * Math.sin(angle)
+                    return (
+                      <>
+                        <line x1={96} y1={96} x2={x2} y2={y2} stroke="var(--color-primary,#c9a84c)" strokeWidth="2" strokeLinecap="round" />
+                        <circle cx={96} cy={96} r={3} fill="var(--color-primary,#c9a84c)" />
+                        <circle cx={x2} cy={y2} r={4} fill="var(--color-primary,#c9a84c)" />
+                      </>
+                    )
+                  })()}
+                </svg>
+                {/* Hour buttons */}
+                {Array.from({ length: END_HOUR - START_HOUR }, (_, i) => i + START_HOUR).map((h, i) => {
+                  const angle = (i * 30 - 90) * (Math.PI / 180)
+                  const x = 96 + 72 * Math.cos(angle)
+                  const y = 96 + 72 * Math.sin(angle)
+                  const sel = Number(hours) === h
+                  return (
+                    <button
+                      key={h}
+                      type="button"
+                      onClick={() => setHours(String(h))}
+                      className={clsx(
+                        'absolute w-8 h-8 rounded-full text-xs font-medium transition-colors flex items-center justify-center',
+                        sel ? 'bg-primary text-white shadow-sm' : 'hover:bg-muted text-foreground'
+                      )}
+                      style={{ left: x - 16, top: y - 16 }}
+                    >
+                      {String(h).padStart(2,'0')}
+                    </button>
+                  )
+                })}
+              </div>
+              {/* Minute toggle */}
+              <div className="flex gap-2 w-full">
+                {([['0', ':00'], ['30', ':30']] as const).map(([v, label]) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => setMinutes(v)}
+                    className={clsx(
+                      'flex-1 py-2 rounded-lg text-sm font-medium border transition-colors',
+                      minutes === v ? 'bg-primary text-white border-primary' : 'border-border hover:bg-muted'
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
             </div>
           </div>
@@ -981,16 +1210,41 @@ function CreateAppointmentModal({ initialSlot, collaborators, onClose, onCreated
             <textarea className="input" rows={2} value={notes} onChange={e => setNotes(e.target.value)} />
           </div>
 
-          <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={onClose} className="btn-secondary text-sm py-1.5">Annulla</button>
-            <button
-              type="submit"
-              disabled={!selectedClientId || !startTime || selectedServiceIds.length === 0 || createMut.isPending}
-              className="btn-primary text-sm py-1.5 disabled:opacity-60"
-            >
-              {createMut.isPending ? 'Salvataggio...' : 'Crea appuntamento'}
-            </button>
-          </div>
+          {confirmClosed && (
+            <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-400 space-y-2">
+              <p className="font-medium">⚠ Il salone è chiuso in questa data. Vuoi procedere comunque?</p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setConfirmClosed(false)}
+                  className="flex-1 btn-secondary text-sm py-1"
+                >
+                  Annulla
+                </button>
+                <button
+                  type="button"
+                  onClick={doCreate}
+                  disabled={createMut.isPending}
+                  className="flex-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-sm py-1 font-medium transition-colors disabled:opacity-60"
+                >
+                  {createMut.isPending ? 'Salvataggio...' : 'Sì, crea comunque'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {!confirmClosed && (
+            <div className="flex justify-end gap-2 pt-2">
+              <button type="button" onClick={onClose} className="btn-secondary text-sm py-1.5">Annulla</button>
+              <button
+                type="submit"
+                disabled={!selectedClientId || !startTime || selectedServiceIds.length === 0 || createMut.isPending}
+                className="btn-primary text-sm py-1.5 disabled:opacity-60"
+              >
+                {createMut.isPending ? 'Salvataggio...' : 'Crea appuntamento'}
+              </button>
+            </div>
+          )}
         </form>
       </div>
     </div>

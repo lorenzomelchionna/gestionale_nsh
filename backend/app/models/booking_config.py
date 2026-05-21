@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional
-from sqlalchemy import Boolean, Integer, DateTime, Text, func
+from sqlalchemy import Boolean, Integer, DateTime, Text, JSON, func
 from sqlalchemy.orm import Mapped, mapped_column
 from app.database import Base
 
@@ -23,6 +23,9 @@ class BookingConfig(Base):
     max_advance_days: Mapped[int] = mapped_column(Integer, default=30, nullable=False)
     min_cancel_hours: Mapped[int] = mapped_column(Integer, default=24, nullable=False)
     slot_duration_minutes: Mapped[int] = mapped_column(Integer, default=30, nullable=False)
+
+    # Salon closed weekdays: list of JS-convention day numbers (0=Sun, 1=Mon … 6=Sat)
+    closed_weekdays: Mapped[list] = mapped_column(JSON, default=lambda: [0, 1], nullable=False)
 
     # WhatsApp reminders
     whatsapp_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)

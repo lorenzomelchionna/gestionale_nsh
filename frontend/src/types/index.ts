@@ -204,6 +204,7 @@ export interface BookingConfig {
   max_advance_days: number
   min_cancel_hours: number
   slot_duration_minutes: number
+  closed_weekdays: number[]
   whatsapp_enabled: boolean
   whatsapp_reminder_hours: number
   whatsapp_booking_message: string | null

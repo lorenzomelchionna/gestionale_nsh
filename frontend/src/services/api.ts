@@ -96,7 +96,7 @@ export const updateCollaboratorServices = (id: number, service_ids: number[]) =>
 
 // ── Clients ───────────────────────────────────────────────────────
 
-export const getClients = (params?: { page?: number; search?: string }) =>
+export const getClients = (params?: { page?: number; page_size?: number; search?: string; active_only?: boolean }) =>
   api.get<PaginatedResponse<Client>>('/admin/clients', { params }).then(r => r.data)
 
 export const getClient = (id: number) =>

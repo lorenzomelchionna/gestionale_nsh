@@ -21,6 +21,7 @@ export default function SettingsPage() {
     max_advance_days: 30,
     min_cancel_hours: 24,
     slot_duration_minutes: 30,
+    closed_weekdays: [0, 1] as number[],
     whatsapp_enabled: false,
     whatsapp_reminder_hours: 24,
     whatsapp_booking_message: '',
@@ -35,6 +36,7 @@ export default function SettingsPage() {
         max_advance_days: config.max_advance_days,
         min_cancel_hours: config.min_cancel_hours,
         slot_duration_minutes: config.slot_duration_minutes,
+        closed_weekdays: config.closed_weekdays ?? [0, 1],
         whatsapp_enabled: config.whatsapp_enabled,
         whatsapp_reminder_hours: config.whatsapp_reminder_hours,
         whatsapp_booking_message: config.whatsapp_booking_message ?? '',
@@ -121,6 +123,44 @@ export default function SettingsPage() {
                 <option value="60">60 minuti</option>
               </select>
             </div>
+          </div>
+
+          {/* ── Giorni di chiusura ─────────────────────────────── */}
+          <div className="border-t border-border pt-4">
+            <label className="label block mb-2">Giorni di chiusura del salone</label>
+            <div className="flex gap-2 flex-wrap">
+              {[
+                { label: 'Dom', value: 0 },
+                { label: 'Lun', value: 1 },
+                { label: 'Mar', value: 2 },
+                { label: 'Mer', value: 3 },
+                { label: 'Gio', value: 4 },
+                { label: 'Ven', value: 5 },
+                { label: 'Sab', value: 6 },
+              ].map(({ label, value }) => {
+                const active = form.closed_weekdays.includes(value)
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => set(
+                      'closed_weekdays',
+                      active
+                        ? form.closed_weekdays.filter(d => d !== value)
+                        : [...form.closed_weekdays, value]
+                    )}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+                      active
+                        ? 'bg-red-500/15 border-red-500/50 text-red-400'
+                        : 'border-border hover:bg-muted text-foreground'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                )
+              })}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">I giorni selezionati appaiono in rosso nel calendario</p>
           </div>
 
           {/* ── WhatsApp ───────────────────────────────────────── */}

@@ -9,6 +9,7 @@ class BookingConfigUpdate(BaseModel):
     max_advance_days: int | None = None
     min_cancel_hours: int | None = None
     slot_duration_minutes: int | None = None
+    closed_weekdays: list[int] | None = None
     whatsapp_enabled: bool | None = None
     whatsapp_reminder_hours: int | None = None
     whatsapp_booking_message: Optional[str] = None
@@ -24,6 +25,7 @@ class BookingConfigOut(BaseModel):
     max_advance_days: int
     min_cancel_hours: int
     slot_duration_minutes: int
+    closed_weekdays: list[int] = [0, 1]
     whatsapp_enabled: bool
     whatsapp_reminder_hours: int
     whatsapp_booking_message: Optional[str] = None

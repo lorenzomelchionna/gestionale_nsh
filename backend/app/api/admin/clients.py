@@ -20,7 +20,7 @@ async def list_clients(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_user)],
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
+    page_size: int = Query(20, ge=1, le=500),
     search: str = Query(""),
 ):
     q = select(Client).where(Client.is_active == True)

@@ -17,7 +17,7 @@ const STATUS_LABELS: Record<string, string> = {
   rejected: 'Rifiutato',
   rescheduled: 'Proposta alternativa',
   completed: 'Completato',
-  cancelled: 'Cancellato',
+  cancelled: 'Annullato',
 }
 
 export default function BookingAccountPage() {

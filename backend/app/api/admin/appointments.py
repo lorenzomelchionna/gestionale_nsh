@@ -207,6 +207,22 @@ async def confirm_appointment(
     return _enrich(await _load_appointment(db, appointment_id))
 
 
+@router.post("/{appointment_id}/cancel", response_model=AppointmentOutWithNames)
+async def cancel_appointment(
+    appointment_id: int,
+    payload: AppointmentReject,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_user)],
+):
+    a = await _load_appointment(db, appointment_id)
+    if a.status in (AppointmentStatus.completed, AppointmentStatus.cancelled, AppointmentStatus.rejected):
+        raise HTTPException(status_code=400, detail="Appuntamento già terminato")
+    a.status = AppointmentStatus.cancelled
+    a.rejection_reason = payload.reason
+    await db.flush()
+    return _enrich(await _load_appointment(db, appointment_id))
+
+
 @router.post("/{appointment_id}/reject", response_model=AppointmentOutWithNames)
 async def reject_appointment(
     appointment_id: int,

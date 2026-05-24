@@ -10,7 +10,7 @@ import {
 } from 'lucide-react'
 import {
   getAppointments, getCollaborators, confirmAppointment,
-  rejectAppointment, completeAppointment,
+  rejectAppointment, completeAppointment, cancelAppointment,
   createAppointment, getClients, getServices, updateAppointment, getAbsences, getBookingConfig
 } from '@/services/api'
 import type { Appointment, Collaborator } from '@/types'
@@ -28,6 +28,15 @@ const START_HOUR = 8
 const END_HOUR = 20
 
 const TERMINAL_STATUSES = ['completed', 'cancelled', 'rejected']
+
+const STATUS_LABELS: Record<string, string> = {
+  pending:     'In attesa',
+  confirmed:   'Confermato',
+  rejected:    'Rifiutato',
+  rescheduled: 'Riprogrammato',
+  completed:   'Completato',
+  cancelled:   'Annullato',
+}
 
 // Round date up to the next slot boundary (default 30 min).
 function roundUpToSlot(d: Date, slotMin = 30): Date {
@@ -195,6 +204,10 @@ export default function CalendarPage() {
   })
   const completeMut = useMutation({
     mutationFn: completeAppointment,
+    onSuccess: () => { invalidate(); setSelectedAppointment(null) },
+  })
+  const cancelMut = useMutation({
+    mutationFn: ({ id, reason }: { id: number; reason?: string }) => cancelAppointment(id, reason),
     onSuccess: () => { invalidate(); setSelectedAppointment(null) },
   })
 
@@ -366,6 +379,7 @@ export default function CalendarPage() {
           onConfirm={() => confirmMut.mutate(selectedAppointment.id)}
           onReject={(reason) => rejectMut.mutate({ id: selectedAppointment.id, reason })}
           onComplete={() => completeMut.mutate(selectedAppointment.id)}
+          onCancel={(reason) => cancelMut.mutate({ id: selectedAppointment.id, reason })}
           onInvalidate={invalidate}
         />
       )}
@@ -616,17 +630,20 @@ function WeekDayColumn({ date, collaborators, appointments, timeToY, durationToH
 
 // ── Appointment modal ─────────────────────────────────────────────
 
-function AppointmentModal({ appointment, appointments, onClose, onConfirm, onReject, onComplete, onInvalidate }: {
+function AppointmentModal({ appointment, appointments, onClose, onConfirm, onReject, onComplete, onCancel, onInvalidate }: {
   appointment: Appointment
   appointments: Appointment[]
   onClose: () => void
   onConfirm: () => void
   onReject: (reason?: string) => void
   onComplete: () => void
+  onCancel: (reason?: string) => void
   onInvalidate: () => void
 }) {
   const [rejectReason, setRejectReason] = useState('')
   const [showRejectForm, setShowRejectForm] = useState(false)
+  const [showCancelForm, setShowCancelForm] = useState(false)
+  const [cancelReason, setCancelReason] = useState('')
   const [showEarlyEnd, setShowEarlyEnd] = useState(false)
   const [earlyHours, setEarlyHours] = useState('')
   const [earlyMinutes, setEarlyMinutes] = useState('')
@@ -716,7 +733,7 @@ function AppointmentModal({ appointment, appointments, onClose, onConfirm, onRej
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground">Stato:</span>
             <span className={clsx('status-badge', `status-${appointment.status}`)}>
-              {appointment.status}
+              {STATUS_LABELS[appointment.status] ?? appointment.status}
             </span>
           </div>
           {appointment.notes && <Row label="Note" value={appointment.notes} />}
@@ -755,6 +772,9 @@ function AppointmentModal({ appointment, appointments, onClose, onConfirm, onRej
                   setShowResize(true)
                 }} className="btn-secondary text-sm py-1.5">
                 Ridimensiona
+              </button>
+              <button onClick={() => setShowCancelForm(true)} className="btn-danger flex items-center gap-1.5 text-sm py-1.5">
+                <X className="w-4 h-4" /> Annulla appuntamento
               </button>
             </>
           )}
@@ -847,6 +867,28 @@ function AppointmentModal({ appointment, appointments, onClose, onConfirm, onRej
             <button onClick={() => { onReject(rejectReason || undefined) }} className="btn-danger text-sm py-1.5">
               Conferma rifiuto
             </button>
+          </div>
+        )}
+
+        {/* Cancel form */}
+        {showCancelForm && (
+          <div className="px-4 pb-4 border-t border-border pt-3 space-y-2">
+            <p className="text-sm font-medium text-red-500">Annullare questo appuntamento?</p>
+            <textarea
+              className="input text-sm"
+              rows={2}
+              placeholder="Motivo annullamento (opzionale)…"
+              value={cancelReason}
+              onChange={e => setCancelReason(e.target.value)}
+            />
+            <div className="flex gap-2">
+              <button onClick={() => setShowCancelForm(false)} className="btn-secondary text-sm py-1.5 flex-1">
+                Indietro
+              </button>
+              <button onClick={() => { onCancel(cancelReason || undefined); onClose() }} className="btn-danger text-sm py-1.5 flex-1">
+                Conferma annullamento
+              </button>
+            </div>
           </div>
         )}
       </div>

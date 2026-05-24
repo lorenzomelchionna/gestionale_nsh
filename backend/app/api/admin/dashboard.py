@@ -8,7 +8,7 @@ from app.models.appointment import Appointment, AppointmentStatus
 from app.models.payment import Payment, PaymentMethod, PaymentType
 from app.models.expense import Expense
 from app.models.user import User
-from app.dependencies import get_current_user
+from app.dependencies import require_admin
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 
@@ -16,7 +16,7 @@ router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 @router.get("/stats")
 async def get_stats(
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_admin)],
     period: str = Query("today", regex="^(today|week|month|year)$"),
 ):
     now = datetime.now(timezone.utc)
@@ -90,7 +90,7 @@ async def get_stats(
 @router.get("/revenue-chart")
 async def revenue_chart(
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_admin)],
     days: int = Query(30, ge=7, le=365),
 ):
     """Daily revenue for the last N days."""
@@ -113,7 +113,7 @@ async def revenue_chart(
 @router.get("/yearly-chart")
 async def yearly_chart(
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_admin)],
     year: int = Query(default=None),
 ):
     """Monthly revenue, expenses and appointment count for a given year."""

@@ -32,6 +32,12 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
+function RequireAdmin({ children }: { children: React.ReactNode }) {
+  const user = useAuthStore(s => s.user)
+  if (user?.role !== 'admin') return <Navigate to="/admin/calendar" replace />
+  return <>{children}</>
+}
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -39,20 +45,20 @@ export default function App() {
         {/* Admin */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/admin" element={<RequireAuth><AdminLayout /></RequireAuth>}>
-          <Route index element={<Navigate to="dashboard" replace />} />
-          <Route path="dashboard" element={<DashboardPage />} />
-          <Route path="calendar" element={<CalendarPage />} />
+          <Route index element={<Navigate to="calendar" replace />} />
+          <Route path="dashboard"            element={<RequireAdmin><DashboardPage /></RequireAdmin>} />
+          <Route path="calendar"             element={<CalendarPage />} />
           <Route path="appointments/pending" element={<PendingPage />} />
-          <Route path="clients" element={<ClientsPage />} />
-          <Route path="clients/:id" element={<ClientDetailPage />} />
-          <Route path="collaborators" element={<CollaboratorsPage />} />
-          <Route path="services" element={<ServicesPage />} />
-          <Route path="products" element={<ProductsPage />} />
-          <Route path="cash" element={<CashPage />} />
-          <Route path="expenses" element={<ExpensesPage />} />
-          <Route path="settings" element={<SettingsPage />} />
-          <Route path="messaging" element={<MessagingPage />} />
-          <Route path="waitlist" element={<WaitlistPage />} />
+          <Route path="clients"              element={<ClientsPage />} />
+          <Route path="clients/:id"          element={<ClientDetailPage />} />
+          <Route path="collaborators"        element={<RequireAdmin><CollaboratorsPage /></RequireAdmin>} />
+          <Route path="services"             element={<ServicesPage />} />
+          <Route path="products"             element={<RequireAdmin><ProductsPage /></RequireAdmin>} />
+          <Route path="cash"                 element={<RequireAdmin><CashPage /></RequireAdmin>} />
+          <Route path="expenses"             element={<RequireAdmin><ExpensesPage /></RequireAdmin>} />
+          <Route path="settings"             element={<RequireAdmin><SettingsPage /></RequireAdmin>} />
+          <Route path="messaging"            element={<RequireAdmin><MessagingPage /></RequireAdmin>} />
+          <Route path="waitlist"             element={<RequireAdmin><WaitlistPage /></RequireAdmin>} />
         </Route>
 
         {/* Booking portal */}

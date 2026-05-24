@@ -7,7 +7,7 @@ from app.models.service import Service
 from app.models.user import User
 from app.schemas.service import ServiceCreate, ServiceUpdate, ServiceOut
 from app.schemas.common import PaginatedResponse
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, require_admin
 
 router = APIRouter(prefix="/services", tags=["Services"])
 
@@ -35,7 +35,7 @@ async def list_services(
 async def create_service(
     payload: ServiceCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_admin)],
 ):
     service = Service(**payload.model_dump())
     db.add(service)
@@ -62,7 +62,7 @@ async def update_service(
     service_id: int,
     payload: ServiceUpdate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_admin)],
 ):
     result = await db.execute(select(Service).where(Service.id == service_id))
     service = result.scalar_one_or_none()
@@ -78,7 +78,7 @@ async def update_service(
 async def delete_service(
     service_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_admin)],
 ):
     result = await db.execute(select(Service).where(Service.id == service_id))
     service = result.scalar_one_or_none()

@@ -8,7 +8,7 @@ from app.models.expense import Expense
 from app.models.user import User
 from app.schemas.expense import ExpenseCreate, ExpenseUpdate, ExpenseOut
 from app.schemas.common import PaginatedResponse
-from app.dependencies import get_current_user
+from app.dependencies import require_admin
 
 router = APIRouter(prefix="/expenses", tags=["Expenses"])
 
@@ -16,7 +16,7 @@ router = APIRouter(prefix="/expenses", tags=["Expenses"])
 @router.get("", response_model=PaginatedResponse[ExpenseOut])
 async def list_expenses(
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_admin)],
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
     date_from: Optional[date] = Query(None),
@@ -42,7 +42,7 @@ async def list_expenses(
 async def create_expense(
     payload: ExpenseCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_admin)],
 ):
     expense = Expense(**payload.model_dump())
     db.add(expense)
@@ -56,7 +56,7 @@ async def update_expense(
     expense_id: int,
     payload: ExpenseUpdate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_admin)],
 ):
     result = await db.execute(select(Expense).where(Expense.id == expense_id))
     expense = result.scalar_one_or_none()
@@ -72,7 +72,7 @@ async def update_expense(
 async def delete_expense(
     expense_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_admin)],
 ):
     result = await db.execute(select(Expense).where(Expense.id == expense_id))
     expense = result.scalar_one_or_none()

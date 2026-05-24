@@ -8,7 +8,7 @@ from app.models.payment import Payment
 from app.models.user import User
 from app.schemas.payment import PaymentCreate, PaymentOut
 from app.schemas.common import PaginatedResponse
-from app.dependencies import get_current_user
+from app.dependencies import require_admin
 
 router = APIRouter(prefix="/payments", tags=["Payments"])
 
@@ -16,7 +16,7 @@ router = APIRouter(prefix="/payments", tags=["Payments"])
 @router.get("", response_model=PaginatedResponse[PaymentOut])
 async def list_payments(
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_admin)],
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
     date_from: Optional[datetime] = Query(None),
@@ -39,7 +39,7 @@ async def list_payments(
 async def create_payment(
     payload: PaymentCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_admin)],
 ):
     payment = Payment(**payload.model_dump())
     db.add(payment)

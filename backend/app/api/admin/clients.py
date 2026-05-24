@@ -10,7 +10,7 @@ from app.models.user import User
 from app.schemas.client import ClientCreate, ClientUpdate, ClientOut
 from app.schemas.appointment import AppointmentOutWithNames
 from app.schemas.common import PaginatedResponse
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, require_admin
 
 router = APIRouter(prefix="/clients", tags=["Clients"])
 
@@ -50,7 +50,7 @@ async def list_clients(
 async def create_client(
     payload: ClientCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_admin)],
 ):
     client = Client(**payload.model_dump())
     db.add(client)
@@ -77,7 +77,7 @@ async def update_client(
     client_id: int,
     payload: ClientUpdate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_admin)],
 ):
     result = await db.execute(select(Client).where(Client.id == client_id))
     client = result.scalar_one_or_none()
@@ -93,7 +93,7 @@ async def update_client(
 async def delete_client(
     client_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_admin)],
 ):
     result = await db.execute(select(Client).where(Client.id == client_id))
     client = result.scalar_one_or_none()

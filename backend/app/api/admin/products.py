@@ -7,7 +7,7 @@ from app.models.product import Product, ProductMovement
 from app.models.user import User
 from app.schemas.product import ProductCreate, ProductUpdate, ProductOut, ProductMovementCreate, ProductMovementOut
 from app.schemas.common import PaginatedResponse
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, require_admin
 
 router = APIRouter(prefix="/products", tags=["Products"])
 
@@ -35,7 +35,7 @@ async def list_products(
 async def create_product(
     payload: ProductCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_admin)],
 ):
     product = Product(**payload.model_dump())
     db.add(product)
@@ -62,7 +62,7 @@ async def update_product(
     product_id: int,
     payload: ProductUpdate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_admin)],
 ):
     result = await db.execute(select(Product).where(Product.id == product_id))
     product = result.scalar_one_or_none()
@@ -78,7 +78,7 @@ async def update_product(
 async def add_movement(
     payload: ProductMovementCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_admin)],
 ):
     result = await db.execute(select(Product).where(Product.id == payload.product_id))
     product = result.scalar_one_or_none()

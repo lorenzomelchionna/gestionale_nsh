@@ -6,7 +6,7 @@ from app.database import get_db
 from app.models.absence import Absence
 from app.models.user import User
 from app.schemas.absence import AbsenceCreate, AbsenceOut
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, require_admin
 
 router = APIRouter(prefix="/absences", tags=["Absences"])
 
@@ -27,7 +27,7 @@ async def list_absences(
 async def create_absence(
     payload: AbsenceCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_admin)],
 ):
     absence = Absence(**payload.model_dump())
     db.add(absence)
@@ -40,7 +40,7 @@ async def create_absence(
 async def delete_absence(
     absence_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_admin)],
 ):
     result = await db.execute(select(Absence).where(Absence.id == absence_id))
     absence = result.scalar_one_or_none()

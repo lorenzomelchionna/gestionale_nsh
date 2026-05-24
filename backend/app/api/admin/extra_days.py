@@ -6,7 +6,7 @@ from app.database import get_db
 from app.models.extra_day import CollaboratorExtraDay
 from app.models.user import User
 from app.schemas.extra_day import ExtraDayCreate, ExtraDayOut
-from app.dependencies import get_current_user
+from app.dependencies import require_admin
 
 router = APIRouter(prefix="/extra-days", tags=["ExtraDays"])
 
@@ -15,7 +15,7 @@ router = APIRouter(prefix="/extra-days", tags=["ExtraDays"])
 async def list_extra_days(
     collaborator_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_admin)],
 ):
     result = await db.execute(
         select(CollaboratorExtraDay)
@@ -29,7 +29,7 @@ async def list_extra_days(
 async def create_extra_day(
     payload: ExtraDayCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_admin)],
 ):
     extra = CollaboratorExtraDay(**payload.model_dump())
     db.add(extra)
@@ -42,7 +42,7 @@ async def create_extra_day(
 async def delete_extra_day(
     extra_day_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_admin)],
 ):
     result = await db.execute(
         select(CollaboratorExtraDay).where(CollaboratorExtraDay.id == extra_day_id)

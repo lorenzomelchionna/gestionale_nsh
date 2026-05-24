@@ -10,7 +10,7 @@ import { useUIStore } from '@/store/uiStore'
 import { getPendingAppointments, getWaitlist } from '@/services/api'
 import clsx from 'clsx'
 
-const navItems = [
+const adminNavItems = [
   { to: '/admin/dashboard',              icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/admin/calendar',               icon: Calendar,        label: 'Calendario' },
   { to: '/admin/appointments/pending',   icon: Clock,           label: 'In attesa',       badge: 'pending' as const },
@@ -25,10 +25,19 @@ const navItems = [
   { to: '/admin/settings',               icon: Settings,        label: 'Impostazioni' },
 ]
 
+const collaboratorNavItems = [
+  { to: '/admin/calendar',               icon: Calendar,        label: 'Calendario' },
+  { to: '/admin/appointments/pending',   icon: Clock,           label: 'In attesa',       badge: 'pending' as const },
+  { to: '/admin/clients',                icon: Users,           label: 'Clienti' },
+  { to: '/admin/services',               icon: Scissors,        label: 'Servizi' },
+]
+
 export default function AdminLayout() {
   const { user, logout } = useAuthStore()
   const { sidebarOpen, setSidebarOpen, isDark, toggleDark } = useUIStore()
   const navigate = useNavigate()
+  const isAdmin = user?.role === 'admin'
+  const navItems = isAdmin ? adminNavItems : collaboratorNavItems
 
   const { data: pending } = useQuery({
     queryKey: ['pending-appointments'],

@@ -12,7 +12,7 @@ from app.schemas.collaborator import (
     CollaboratorScheduleBase, CollaboratorScheduleOut,
 )
 from app.schemas.common import PaginatedResponse
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, require_admin
 
 router = APIRouter(prefix="/collaborators", tags=["Collaborators"])
 
@@ -66,7 +66,7 @@ async def list_collaborators(
 async def create_collaborator(
     payload: CollaboratorCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_admin)],
 ):
     collab = Collaborator(**payload.model_dump())
     db.add(collab)
@@ -97,7 +97,7 @@ async def update_collaborator(
     collaborator_id: int,
     payload: CollaboratorUpdate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_admin)],
 ):
     result = await db.execute(
         select(Collaborator)
@@ -118,7 +118,7 @@ async def update_collaborator(
 async def delete_collaborator(
     collaborator_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_admin)],
 ):
     result = await db.execute(select(Collaborator).where(Collaborator.id == collaborator_id))
     collab = result.scalar_one_or_none()
@@ -132,7 +132,7 @@ async def update_schedule(
     collaborator_id: int,
     schedules: List[CollaboratorScheduleBase],
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_admin)],
 ):
     result = await db.execute(select(Collaborator).where(Collaborator.id == collaborator_id))
     if not result.scalar_one_or_none():
@@ -159,7 +159,7 @@ async def update_services(
     collaborator_id: int,
     service_ids: List[int],
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_admin)],
 ):
     result = await db.execute(
         select(Collaborator)

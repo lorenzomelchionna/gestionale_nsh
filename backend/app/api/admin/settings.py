@@ -6,7 +6,7 @@ from app.database import get_db
 from app.models.booking_config import BookingConfig
 from app.models.user import User
 from app.schemas.booking_config import BookingConfigUpdate, BookingConfigOut
-from app.dependencies import get_current_user
+from app.dependencies import require_admin
 
 router = APIRouter(prefix="/settings", tags=["Settings"])
 
@@ -14,7 +14,7 @@ router = APIRouter(prefix="/settings", tags=["Settings"])
 @router.get("/booking", response_model=BookingConfigOut)
 async def get_booking_config(
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_admin)],
 ):
     result = await db.execute(select(BookingConfig).limit(1))
     cfg = result.scalar_one_or_none()
@@ -30,7 +30,7 @@ async def get_booking_config(
 async def update_booking_config(
     payload: BookingConfigUpdate,
     db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_admin)],
 ):
     result = await db.execute(select(BookingConfig).limit(1))
     cfg = result.scalar_one_or_none()

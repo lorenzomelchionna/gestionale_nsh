@@ -156,6 +156,9 @@ export const rejectAppointment = (id: number, reason?: string) =>
 export const rescheduleAppointment = (id: number, alternative_time: string) =>
   api.post<Appointment>(`/admin/appointments/${id}/reschedule`, { alternative_time }).then(r => r.data)
 
+export const cancelAppointment = (id: number, reason?: string) =>
+  api.post<Appointment>(`/admin/appointments/${id}/cancel`, { reason }).then(r => r.data)
+
 export const completeAppointment = (id: number) =>
   api.post<Appointment>(`/admin/appointments/${id}/complete`).then(r => r.data)
 

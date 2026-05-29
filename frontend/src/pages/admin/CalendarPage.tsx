@@ -153,7 +153,11 @@ export default function CalendarPage() {
     queryFn: getBookingConfig,
   })
 
-  const appointments = apptsData?.items ?? []
+  // Cancelled/rejected appointments free up their slot: hide them so the
+  // calendar slot becomes clickable again for a new booking.
+  const appointments = (apptsData?.items ?? []).filter(
+    a => a.status !== 'cancelled' && a.status !== 'rejected'
+  )
   const collaborators = collabsData?.items ?? []
   const visibleCollabs = selectedCollaboratorId
     ? collaborators.filter(c => c.id === selectedCollaboratorId)

@@ -1,5 +1,42 @@
 # TODO — Configurazione notifiche (Email + WhatsApp)
 
+## ✅✅ STATO: EMAIL + WHATSAPP FUNZIONANTI IN PRODUZIONE (2026-06-19)
+
+Pipeline completa testata e verificata end-to-end:
+appuntamento confermato → Redis → Celery worker → invio → consegnato.
+
+| Canale | Stato | Provider | Via |
+|--------|-------|----------|-----|
+| **Email** | ✅ Funziona | Brevo | HTTP API (HTTPS) |
+| **WhatsApp** | ✅ Funziona | Twilio | HTTP API — **Sandbox** |
+
+### Perché NON si usa più SMTP per le email
+Railway throttla/blocca l'SMTP in uscita (timeout). Si è passati a **Brevo HTTP API**
+(free tier 300/giorno). `email.py` prova Brevo se `BREVO_API_KEY` è set, altrimenti
+fallback SMTP (solo dev locale). Mittente verificato: `newstylehair2019@gmail.com`.
+
+### Bug risolti (questa sessione)
+1. Servizio Celery worker mancante → creato `celery-worker`
+2. `worker-start.sh` senza beat → aggiunto `--beat`
+3. `Event loop is closed` nei task → engine NullPool per run (`create_task_session_factory`)
+4. SMTP unreachable/timeout su Railway → Brevo HTTP API
+5. PUT /settings/booking 500 (MissingGreenlet) → `db.refresh` prima di model_validate
+
+### Variabili settate in produzione (backend + worker)
+`BREVO_API_KEY`, `EMAILS_FROM_EMAIL=newstylehair2019@gmail.com`,
+`TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM=whatsapp:+14155238886`,
+`SMTP_*` (fallback). `whatsapp_enabled=true` in BookingConfig.
+
+### Restano (NON bloccanti)
+- [ ] **WhatsApp produzione**: ora è Sandbox (solo numeri che fanno `join`, scade 72h).
+  Per clienti reali serve numero WhatsApp Business + template Meta approvati.
+- [ ] `SEED_DEMO=true` sul backend → disattivare prima del go-live reale.
+- [ ] (Opz.) Dominio + branding `noreply@newstylehair.it` (ora From = Gmail).
+
+---
+
+# (storico) — note di setup precedenti
+
 Stato attuale: codice pronto e funzionante. Entrambi i canali in **stub mode**
 (nessun invio reale) finché le credenziali non sono configurate.
 

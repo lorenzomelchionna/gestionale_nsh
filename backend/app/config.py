@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     SMTP_PASSWORD: str = ""
     EMAILS_FROM_EMAIL: str = "noreply@newstylair.it"
     EMAILS_FROM_NAME: str = "New Style Hair"
+    # Brevo HTTP API (preferred on hosts that block outbound SMTP, e.g. Railway).
+    # When set, email is sent via HTTPS instead of SMTP.
+    BREVO_API_KEY: str = ""
 
     # App
     APP_ENV: str = "development"

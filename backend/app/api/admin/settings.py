@@ -43,4 +43,7 @@ async def update_booking_config(
         if value is not None:
             setattr(cfg, field, value)
     await db.flush()
+    # Refresh so all attributes are loaded in this async context; otherwise
+    # model_validate triggers a lazy load outside the greenlet (MissingGreenlet).
+    await db.refresh(cfg)
     return BookingConfigOut.model_validate(cfg)

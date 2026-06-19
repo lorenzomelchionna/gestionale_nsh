@@ -26,47 +26,51 @@ def send_appointment_reminders():
 
 
 async def _async_send_reminders():
-    from app.database import AsyncSessionLocal
+    from app.database import create_task_session_factory
     from app.models.appointment import Appointment, AppointmentStatus
     from app.models.booking_config import BookingConfig
     from app.utils.notifications import notify_appointment_reminder
 
     now = datetime.now(timezone.utc)
 
-    async with AsyncSessionLocal() as db:
-        cfg_result = await db.execute(select(BookingConfig).limit(1))
-        cfg = cfg_result.scalar_one_or_none()
+    task_engine, session_factory = create_task_session_factory()
+    try:
+        async with session_factory() as db:
+            cfg_result = await db.execute(select(BookingConfig).limit(1))
+            cfg = cfg_result.scalar_one_or_none()
 
-        # Single configurable window — used for both channels
-        hours = cfg.whatsapp_reminder_hours if cfg else 24
-        window_start = now + timedelta(hours=hours)
-        window_end   = now + timedelta(hours=hours, minutes=15)
+            # Single configurable window — used for both channels
+            hours = cfg.whatsapp_reminder_hours if cfg else 24
+            window_start = now + timedelta(hours=hours)
+            window_end   = now + timedelta(hours=hours, minutes=15)
 
-        result = await db.execute(
-            select(Appointment)
-            .options(
-                selectinload(Appointment.client),
-                selectinload(Appointment.collaborator),
-                selectinload(Appointment.appointment_services),
-            )
-            .where(
-                and_(
-                    Appointment.start_time >= window_start,
-                    Appointment.start_time <= window_end,
-                    Appointment.status == AppointmentStatus.confirmed,
-                    Appointment.reminder_sent == False,
+            result = await db.execute(
+                select(Appointment)
+                .options(
+                    selectinload(Appointment.client),
+                    selectinload(Appointment.collaborator),
+                    selectinload(Appointment.appointment_services),
+                )
+                .where(
+                    and_(
+                        Appointment.start_time >= window_start,
+                        Appointment.start_time <= window_end,
+                        Appointment.status == AppointmentStatus.confirmed,
+                        Appointment.reminder_sent == False,
+                    )
                 )
             )
-        )
-        for appt in result.scalars().all():
-            try:
-                await notify_appointment_reminder(db, appt)
-                appt.reminder_sent = True
-                appt.whatsapp_reminder_sent = True
-            except Exception as e:
-                print(f"[REMINDER] failed for appointment {appt.id}: {e}")
+            for appt in result.scalars().all():
+                try:
+                    await notify_appointment_reminder(db, appt)
+                    appt.reminder_sent = True
+                    appt.whatsapp_reminder_sent = True
+                except Exception as e:
+                    print(f"[REMINDER] failed for appointment {appt.id}: {e}")
 
-        await db.commit()
+            await db.commit()
+    finally:
+        await task_engine.dispose()
 
 
 # ── Periodic: birthday greetings ─────────────────────────────────
@@ -78,27 +82,31 @@ def send_birthday_greetings():
 
 
 async def _async_send_birthday_greetings():
-    from app.database import AsyncSessionLocal
+    from app.database import create_task_session_factory
     from app.models.client import Client
     from app.utils.notifications import notify_birthday
 
     today = datetime.now(timezone.utc).date()
 
-    async with AsyncSessionLocal() as db:
-        result = await db.execute(
-            select(Client).where(
-                and_(
-                    Client.birth_date.isnot(None),
-                    extract("month", Client.birth_date) == today.month,
-                    extract("day", Client.birth_date) == today.day,
+    task_engine, session_factory = create_task_session_factory()
+    try:
+        async with session_factory() as db:
+            result = await db.execute(
+                select(Client).where(
+                    and_(
+                        Client.birth_date.isnot(None),
+                        extract("month", Client.birth_date) == today.month,
+                        extract("day", Client.birth_date) == today.day,
+                    )
                 )
             )
-        )
-        for client in result.scalars().all():
-            try:
-                await notify_birthday(db, client)
-            except Exception as e:
-                print(f"[BIRTHDAY] failed for client {client.id}: {e}")
+            for client in result.scalars().all():
+                try:
+                    await notify_birthday(db, client)
+                except Exception as e:
+                    print(f"[BIRTHDAY] failed for client {client.id}: {e}")
+    finally:
+        await task_engine.dispose()
 
 
 # ── One-shot: booking confirmation (email + WA) ──────────────────
@@ -110,23 +118,27 @@ def send_booking_confirmation_task(appointment_id: int):
 
 
 async def _async_send_booking_confirmation(appointment_id: int):
-    from app.database import AsyncSessionLocal
+    from app.database import create_task_session_factory
     from app.models.appointment import Appointment
     from app.utils.notifications import notify_booking_confirmation
 
-    async with AsyncSessionLocal() as db:
-        result = await db.execute(
-            select(Appointment)
-            .options(
-                selectinload(Appointment.client),
-                selectinload(Appointment.collaborator),
+    task_engine, session_factory = create_task_session_factory()
+    try:
+        async with session_factory() as db:
+            result = await db.execute(
+                select(Appointment)
+                .options(
+                    selectinload(Appointment.client),
+                    selectinload(Appointment.collaborator),
+                )
+                .where(Appointment.id == appointment_id)
             )
-            .where(Appointment.id == appointment_id)
-        )
-        appt = result.scalar_one_or_none()
-        if not appt:
-            return
-        await notify_booking_confirmation(db, appt)
+            appt = result.scalar_one_or_none()
+            if not appt:
+                return
+            await notify_booking_confirmation(db, appt)
+    finally:
+        await task_engine.dispose()
 
 
 @celery_app.task(name="app.tasks.reminders.notify_new_booking")

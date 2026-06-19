@@ -1,9 +1,12 @@
-"""Email utility using smtplib (simple, no heavy deps)."""
+"""Email utility — Brevo HTTP API (preferred) with SMTP fallback."""
 import smtplib
 import socket
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+import httpx
 from app.config import settings
+
+BREVO_ENDPOINT = "https://api.brevo.com/v3/smtp/email"
 
 
 def _resolve_ipv4(host: str) -> str:
@@ -17,11 +20,27 @@ def _resolve_ipv4(host: str) -> str:
     return socket.getaddrinfo(host, None, socket.AF_INET)[0][4][0]
 
 
-async def send_email(to: str, subject: str, html_body: str) -> None:
-    if not settings.SMTP_USER:
-        print(f"[EMAIL STUB] To: {to} | Subject: {subject}")
-        return
+async def _send_via_brevo(to: str, subject: str, html_body: str) -> None:
+    """Send through Brevo's transactional email HTTP API (works behind SMTP blocks)."""
+    payload = {
+        "sender": {"name": settings.EMAILS_FROM_NAME, "email": settings.EMAILS_FROM_EMAIL},
+        "to": [{"email": to}],
+        "subject": subject,
+        "htmlContent": html_body,
+    }
+    headers = {
+        "api-key": settings.BREVO_API_KEY,
+        "Content-Type": "application/json",
+        "accept": "application/json",
+    }
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        resp = await client.post(BREVO_ENDPOINT, json=payload, headers=headers)
+    if resp.status_code not in (200, 201, 202):
+        raise RuntimeError(f"Brevo error {resp.status_code}: {resp.text}")
 
+
+def _send_via_smtp(to: str, subject: str, html_body: str) -> None:
+    """Fallback SMTP path (used for local dev; cloud hosts often block outbound SMTP)."""
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
     msg["From"] = f"{settings.EMAILS_FROM_NAME} <{settings.EMAILS_FROM_EMAIL}>"
@@ -37,6 +56,18 @@ async def send_email(to: str, subject: str, html_body: str) -> None:
         server.ehlo(settings.SMTP_HOST)
         server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
         server.sendmail(settings.EMAILS_FROM_EMAIL, to, msg.as_string())
+
+
+async def send_email(to: str, subject: str, html_body: str) -> None:
+    # Prefer Brevo HTTP API (HTTPS is not blocked on cloud hosts).
+    if settings.BREVO_API_KEY:
+        await _send_via_brevo(to, subject, html_body)
+        return
+    # Fallback to SMTP (e.g. local dev).
+    if settings.SMTP_USER:
+        _send_via_smtp(to, subject, html_body)
+        return
+    print(f"[EMAIL STUB] To: {to} | Subject: {subject}")
 
 
 async def send_appointment_reminder(appointment) -> None:

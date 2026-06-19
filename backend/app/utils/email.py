@@ -1,8 +1,20 @@
 """Email utility using smtplib (simple, no heavy deps)."""
 import smtplib
+import socket
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from app.config import settings
+
+
+def _resolve_ipv4(host: str) -> str:
+    """
+    Return the IPv4 address for `host`.
+
+    Railway containers resolve smtp.gmail.com to an IPv6 (AAAA) record but have
+    no routable IPv6 egress, so the SMTP connection fails with
+    "[Errno 101] Network is unreachable". Forcing IPv4 avoids this.
+    """
+    return socket.getaddrinfo(host, None, socket.AF_INET)[0][4][0]
 
 
 async def send_email(to: str, subject: str, html_body: str) -> None:
@@ -16,8 +28,13 @@ async def send_email(to: str, subject: str, html_body: str) -> None:
     msg["To"] = to
     msg.attach(MIMEText(html_body, "html"))
 
-    with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT) as server:
+    # Connect over IPv4 explicitly (Railway has no IPv6 egress) but keep the
+    # hostname for TLS certificate verification via starttls.
+    host_ipv4 = _resolve_ipv4(settings.SMTP_HOST)
+    with smtplib.SMTP(host_ipv4, settings.SMTP_PORT, timeout=30) as server:
+        server.ehlo(settings.SMTP_HOST)
         server.starttls()
+        server.ehlo(settings.SMTP_HOST)
         server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
         server.sendmail(settings.EMAILS_FROM_EMAIL, to, msg.as_string())
 

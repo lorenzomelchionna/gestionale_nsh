@@ -35,6 +35,39 @@ fallback SMTP (solo dev locale). Mittente verificato: `newstylehair2019@gmail.co
 
 ---
 
+## Roadmap go-live clienti reali
+
+### WhatsApp produzione — DECISIONE numero (da prendere al go-live)
+Il salone ha GIÀ un numero su WhatsApp Business usato col gestionale attuale.
+Vincolo Meta/Twilio: un numero può stare su WhatsApp Business in UN solo posto.
+
+- **Scenario A — migrare numero esistente su Twilio**: il numero passa all'API,
+  si PERDE l'app WhatsApp Business manuale (niente più chat a mano da quel numero).
+  Richiede port-in Meta.
+- **Scenario B — numero nuovo dedicato (consigliato)**: SIM nuova solo per le
+  notifiche automatiche; il numero attuale resta sull'app per le chat manuali.
+  Nessuna migrazione rischiosa.
+
+→ Quasi sempre i saloni vogliono tenere la chat manuale = **Scenario B**.
+Decisione confermata: sostituzione numero SOLO al momento del go-live effettivo.
+
+Passi WhatsApp produzione (qualunque scenario):
+1. Numero (nuovo per B, o migrazione per A)
+2. Account Meta Business verificato
+3. Registrare numero come WhatsApp Sender su Twilio (verifica SMS/voce)
+4. Template messaggi approvati da Meta (1-2 giorni) — testi in `whatsapp.py`
+5. Aggiornare `TWILIO_WHATSAPP_FROM` (1 variabile, zero codice)
+
+### Altri step go-live
+- [ ] Dati reali: collaboratori (orari, servizi, colori), servizi (prezzi, durate),
+  impostazioni (chiusure, anticipo, finestra reminder)
+- [ ] Telefoni clienti sempre in E.164 (`+39...`)
+- [ ] Cambiare password admin demo (`admin123`)
+- [ ] Verificare `SECRET_KEY` robusta in prod
+- [ ] Disattivare `SEED_DEMO` + svuotare dati demo
+
+---
+
 # (storico) — note di setup precedenti
 
 Stato attuale: codice pronto e funzionante. Entrambi i canali in **stub mode**

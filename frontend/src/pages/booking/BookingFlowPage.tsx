@@ -2,15 +2,24 @@ import { useState } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { format, parseISO, addMinutes } from 'date-fns'
 import { it } from 'date-fns/locale'
-import { Check, ChevronLeft } from 'lucide-react'
+import { Check, ChevronLeft, CalendarX, Loader2 } from 'lucide-react'
 import { useClientAuth } from '@/components/layout/BookingLayout'
 import {
   publicGetServices, publicGetCollaborators, publicGetAvailability, bookAppointment
 } from '@/services/publicApi'
 import { useNavigate } from 'react-router-dom'
 import type { Service, Collaborator } from '@/types'
+import clsx from 'clsx'
 
 type Step = 'service' | 'collaborator' | 'datetime' | 'confirm' | 'done'
+
+const ORDER: Step[] = ['service', 'collaborator', 'datetime', 'confirm']
+const STEP_LABELS: Record<string, string> = {
+  service: 'Servizio',
+  collaborator: 'Con chi',
+  datetime: 'Quando',
+  confirm: 'Conferma',
+}
 
 export default function BookingFlowPage() {
   const [step, setStep] = useState<Step>('service')
@@ -57,7 +66,7 @@ export default function BookingFlowPage() {
     const start = parseISO(selectedSlot)
     const end = addMinutes(start, selectedService.duration_slots * 30)
     bookMut.mutate({
-      client_id: 0, // will be resolved server-side from token
+      client_id: 0, // resolved server-side from the token
       collaborator_id: selectedCollab.id,
       start_time: start.toISOString(),
       end_time: end.toISOString(),
@@ -67,17 +76,27 @@ export default function BookingFlowPage() {
 
   if (step === 'done') {
     return (
-      <div className="text-center space-y-4 py-12">
-        <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto">
-          <Check className="w-8 h-8 text-emerald-600" />
+      <div className="text-center space-y-5 py-10">
+        <div className="w-16 h-16 bg-emerald-500/15 rounded-full flex items-center justify-center mx-auto">
+          <Check className="w-8 h-8 text-emerald-600 dark:text-emerald-400" />
         </div>
-        <h2 className="text-2xl font-bold">Richiesta inviata!</h2>
-        <p className="text-muted-foreground">Il salone confermerà il tuo appuntamento al più presto.</p>
-        <div className="flex gap-3 justify-center">
+        <div>
+          <h2 className="text-title font-bold">Richiesta inviata</h2>
+          <p className="text-muted-foreground mt-2 max-w-xs mx-auto">
+            Il salone confermerà il tuo appuntamento al più presto. Riceverai una notifica.
+          </p>
+        </div>
+        <div className="flex flex-col sm:flex-row gap-2.5 sm:justify-center pt-2">
           <button onClick={() => navigate('/booking/account')} className="btn-primary">
             Vai alla mia area
           </button>
-          <button onClick={() => { setStep('service'); setSelectedService(null); setSelectedCollab(null); setSelectedDate(''); setSelectedSlot('') }} className="btn-secondary">
+          <button
+            onClick={() => {
+              setStep('service'); setSelectedService(null); setSelectedCollab(null)
+              setSelectedDate(''); setSelectedSlot('')
+            }}
+            className="btn-outline"
+          >
             Prenota ancora
           </button>
         </div>
@@ -85,37 +104,52 @@ export default function BookingFlowPage() {
     )
   }
 
+  const currentIndex = ORDER.indexOf(step)
+
   return (
-    <div className="space-y-6">
-      {/* Progress */}
-      <div className="flex items-center gap-2">
-        {(['service', 'collaborator', 'datetime', 'confirm'] as Step[]).map((s, i) => (
-          <div key={s} className="flex items-center gap-2">
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-colors ${
-              step === s ? 'bg-primary text-white'
-              : ['service', 'collaborator', 'datetime', 'confirm'].indexOf(step) > i ? 'bg-primary/20 text-primary' : 'bg-muted text-muted-foreground'
-            }`}>
-              {['service', 'collaborator', 'datetime', 'confirm'].indexOf(step) > i ? <Check className="w-4 h-4" /> : i + 1}
-            </div>
-            {i < 3 && <div className="flex-1 h-0.5 bg-border min-w-[20px]" />}
-          </div>
-        ))}
+    <div className="space-y-5">
+      {/* Progress: a labelled bar reads better on a narrow screen than four
+          numbered circles joined by connectors. */}
+      <div>
+        <div className="flex items-baseline justify-between mb-2">
+          <p className="text-sm font-semibold text-foreground">{STEP_LABELS[step]}</p>
+          <p className="text-xs text-muted-foreground tabular-nums">
+            Passo {currentIndex + 1} di {ORDER.length}
+          </p>
+        </div>
+        <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+          <div
+            className="h-full bg-primary rounded-full transition-all duration-300"
+            style={{ width: `${((currentIndex + 1) / ORDER.length) * 100}%` }}
+          />
+        </div>
       </div>
+
+      {step !== 'service' && (
+        <button
+          onClick={() => setStep(ORDER[currentIndex - 1])}
+          className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground -ml-1"
+        >
+          <ChevronLeft className="w-4 h-4" /> Indietro
+        </button>
+      )}
 
       {/* Step: Service */}
       {step === 'service' && (
-        <div className="space-y-4">
-          <h2 className="text-xl font-bold">Scegli il servizio</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="space-y-3">
+          <h2 className="text-title font-bold">Scegli il servizio</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             {(services ?? []).map(s => (
               <button
                 key={s.id}
                 onClick={() => { setSelectedService(s); setStep('collaborator') }}
-                className="card p-4 text-left hover:border-primary/50 hover:bg-primary/5 transition-colors"
+                className="card-interactive p-4 text-left"
               >
-                <p className="font-semibold">{s.name}</p>
-                <p className="text-sm text-muted-foreground mt-0.5">{s.description}</p>
-                <div className="flex items-center gap-3 mt-2">
+                <p className="font-semibold text-foreground">{s.name}</p>
+                {s.description && (
+                  <p className="text-[13px] text-muted-foreground mt-0.5">{s.description}</p>
+                )}
+                <div className="flex items-baseline gap-3 mt-2.5">
                   <span className="text-primary font-bold">€{s.price.toFixed(2)}</span>
                   <span className="text-xs text-muted-foreground">{s.duration_slots * 30} min</span>
                 </div>
@@ -127,27 +161,24 @@ export default function BookingFlowPage() {
 
       {/* Step: Collaborator */}
       {step === 'collaborator' && (
-        <div className="space-y-4">
-          <button onClick={() => setStep('service')} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-            <ChevronLeft className="w-4 h-4" /> Indietro
-          </button>
-          <h2 className="text-xl font-bold">Scegli il collaboratore</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="space-y-3">
+          <h2 className="text-title font-bold">Con chi preferisci?</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             {availableCollabs.map(c => (
               <button
                 key={c.id}
                 onClick={() => { setSelectedCollab(c); setStep('datetime') }}
-                className="card p-4 flex items-center gap-3 text-left hover:border-primary/50 hover:bg-primary/5 transition-colors"
+                className="card-interactive p-4 flex items-center gap-3 text-left"
               >
                 <div
-                  className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0"
+                  className="w-11 h-11 rounded-full flex items-center justify-center text-white font-bold shrink-0"
                   style={{ backgroundColor: c.color }}
                 >
                   {c.first_name[0]}
                 </div>
-                <div>
-                  <p className="font-semibold">{c.first_name} {c.last_name}</p>
-                </div>
+                <p className="font-semibold text-foreground">
+                  {c.first_name} {c.last_name}
+                </p>
               </button>
             ))}
           </div>
@@ -157,38 +188,47 @@ export default function BookingFlowPage() {
       {/* Step: DateTime */}
       {step === 'datetime' && (
         <div className="space-y-4">
-          <button onClick={() => setStep('collaborator')} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-            <ChevronLeft className="w-4 h-4" /> Indietro
-          </button>
-          <h2 className="text-xl font-bold">Scegli data e orario</h2>
+          <h2 className="text-title font-bold">Data e orario</h2>
           <div>
-            <label className="label block mb-1">Data</label>
+            <label className="label">Data</label>
             <input
               type="date"
-              className="input max-w-xs"
+              className="input sm:max-w-xs"
               min={format(new Date(), 'yyyy-MM-dd')}
               value={selectedDate}
               onChange={e => { setSelectedDate(e.target.value); setSelectedSlot('') }}
             />
           </div>
+
           {selectedDate && (
             slotsLoading ? (
-              <p className="text-muted-foreground text-sm">Caricamento disponibilità...</p>
+              <p className="flex items-center gap-2 text-muted-foreground text-sm">
+                <Loader2 className="w-4 h-4 animate-spin" /> Cerco gli orari liberi...
+              </p>
             ) : !slots?.length ? (
-              <p className="text-muted-foreground text-sm">Nessuno slot disponibile per questa data. Prova un altro giorno.</p>
+              <div className="card p-6 text-center">
+                <CalendarX className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
+                <p className="font-medium text-foreground">Nessun orario disponibile</p>
+                <p className="text-[13px] text-muted-foreground mt-1">
+                  Prova con un altro giorno.
+                </p>
+              </div>
             ) : (
               <div>
-                <p className="text-sm font-medium mb-2">Orari disponibili:</p>
-                <div className="flex flex-wrap gap-2">
+                <p className="text-sm font-medium mb-2.5">Orari disponibili</p>
+                {/* A grid of large targets — wrapped inline chips were only
+                    ~34px tall, below a comfortable tap size. */}
+                <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
                   {slots.map(slot => (
                     <button
                       key={slot}
                       onClick={() => { setSelectedSlot(slot); setStep('confirm') }}
-                      className={`px-3 py-1.5 rounded-md text-sm font-medium border transition-colors ${
+                      className={clsx(
+                        'min-h-touch rounded-lg text-sm font-semibold border transition-colors tabular-nums',
                         selectedSlot === slot
-                          ? 'bg-primary text-white border-primary'
-                          : 'border-border hover:border-primary hover:text-primary'
-                      }`}
+                          ? 'bg-primary text-primary-foreground border-primary'
+                          : 'border-border bg-surface hover:border-primary hover:text-primary'
+                      )}
                     >
                       {format(parseISO(slot), 'HH:mm')}
                     </button>
@@ -203,37 +243,45 @@ export default function BookingFlowPage() {
       {/* Step: Confirm */}
       {step === 'confirm' && selectedService && selectedCollab && selectedSlot && (
         <div className="space-y-4">
-          <button onClick={() => setStep('datetime')} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-            <ChevronLeft className="w-4 h-4" /> Indietro
-          </button>
-          <h2 className="text-xl font-bold">Riepilogo prenotazione</h2>
-          <div className="card p-4 space-y-3">
+          <h2 className="text-title font-bold">Riepilogo</h2>
+          <div className="card divide-y divide-border">
             <Row label="Servizio" value={selectedService.name} />
             <Row label="Con" value={`${selectedCollab.first_name} ${selectedCollab.last_name}`} />
-            <Row label="Data" value={format(parseISO(selectedDate), 'EEEE d MMMM yyyy', { locale: it })} />
-            <Row label="Orario" value={`${format(parseISO(selectedSlot), 'HH:mm')} – ${format(addMinutes(parseISO(selectedSlot), selectedService.duration_slots * 30), 'HH:mm')}`} />
+            <Row
+              label="Data"
+              value={format(parseISO(selectedDate), 'EEEE d MMMM yyyy', { locale: it })}
+            />
+            <Row
+              label="Orario"
+              value={`${format(parseISO(selectedSlot), 'HH:mm')} – ${format(addMinutes(parseISO(selectedSlot), selectedService.duration_slots * 30), 'HH:mm')}`}
+            />
             <Row label="Durata" value={`${selectedService.duration_slots * 30} minuti`} />
-            <Row label="Prezzo" value={`€${selectedService.price.toFixed(2)}`} />
-            <div className="pt-2 border-t border-border">
-              <p className="text-xs text-muted-foreground">
-                La prenotazione verrà confermata dal salone. Riceverai una notifica via email.
-              </p>
-            </div>
+            <Row label="Prezzo" value={`€${selectedService.price.toFixed(2)}`} emphasis />
           </div>
+
+          <p className="text-xs text-muted-foreground">
+            La prenotazione verrà confermata dal salone. Riceverai una notifica.
+          </p>
+
           {!token && (
-            <p className="text-sm text-amber-700 bg-amber-50 px-3 py-2 rounded">
+            <p className="text-[13px] text-warning bg-warning/10 px-3 py-2.5 rounded-lg">
               Devi accedere o registrarti per completare la prenotazione.
             </p>
           )}
-          <button
-            onClick={handleBook}
-            disabled={bookMut.isPending}
-            className="btn-primary w-full py-3 text-base disabled:opacity-60"
-          >
-            {!token ? 'Accedi per prenotare' : bookMut.isPending ? 'Invio richiesta...' : 'Invia richiesta'}
+
+          <button onClick={handleBook} disabled={bookMut.isPending} className="btn-primary w-full">
+            {!token
+              ? 'Accedi per prenotare'
+              : bookMut.isPending
+                ? <><Loader2 className="w-4 h-4 animate-spin" /> Invio richiesta...</>
+                : 'Invia richiesta'}
           </button>
+
           {bookMut.isError && (
-            <p className="text-sm text-red-500">{(bookMut.error as any)?.response?.data?.detail ?? 'Errore durante la prenotazione'}</p>
+            <p role="alert" className="text-[13px] text-danger bg-danger/10 px-3 py-2.5 rounded-lg">
+              {(bookMut.error as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+                ?? 'Errore durante la prenotazione'}
+            </p>
           )}
         </div>
       )}
@@ -241,11 +289,18 @@ export default function BookingFlowPage() {
   )
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+function Row({ label, value, emphasis }: { label: string; value: string; emphasis?: boolean }) {
   return (
-    <div className="flex gap-2 text-sm">
-      <span className="text-muted-foreground w-20 flex-shrink-0">{label}:</span>
-      <span className="font-medium">{value}</span>
+    <div className="flex items-baseline justify-between gap-3 px-4 py-3">
+      <span className="text-[13px] text-muted-foreground shrink-0">{label}</span>
+      <span
+        className={clsx(
+          'text-right',
+          emphasis ? 'font-bold text-primary' : 'font-medium text-foreground text-sm'
+        )}
+      >
+        {value}
+      </span>
     </div>
   )
 }

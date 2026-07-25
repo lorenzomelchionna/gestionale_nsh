@@ -4,37 +4,50 @@
 
 @layer base {
   :root {
-    --radius: 0.5rem;
+    --radius: 0.75rem;
 
     /* Light theme — warm whites */
-    --background: 40 10% 98%;
+    --background: 40 14% 97%;
     --surface: 0 0% 100%;
-    --border: 33 17% 87%;
-    --muted: 33 17% 94%;
-    --muted-foreground: 30 13% 48%;
-    --foreground: 0 0% 10%;
+    --elevated: 0 0% 100%;
+    --border: 33 17% 88%;
+    --muted: 36 20% 95%;
+    --muted-foreground: 30 10% 44%;
+    --foreground: 24 12% 12%;
 
     /* Primary — gold/tan */
-    --primary: 38 46% 60%;
-    --primary-dark: 35 42% 44%;
-    --primary-light: 38 46% 80%;
+    --primary: 36 45% 52%;
+    --primary-dark: 34 44% 42%;
+    --primary-light: 38 46% 84%;
     --primary-foreground: 0 0% 100%;
+
+    /* Semantic */
+    --success: 158 64% 34%;
+    --warning: 32 90% 44%;
+    --danger: 0 68% 50%;
+    --info: 213 80% 50%;
   }
 
   .dark {
     /* Dark theme — warm darks */
-    --background: 24 7% 11%;
-    --surface: 24 6% 15%;
-    --border: 24 6% 22%;
-    --muted: 24 7% 13%;
-    --muted-foreground: 30 8% 62%;
-    --foreground: 35 20% 93%;
+    --background: 24 8% 9%;
+    --surface: 24 7% 13%;
+    --elevated: 24 7% 17%;
+    --border: 24 6% 23%;
+    --muted: 24 7% 18%;
+    --muted-foreground: 30 8% 65%;
+    --foreground: 35 20% 94%;
 
-    /* Primary stays the same in dark mode */
-    --primary: 38 46% 60%;
-    --primary-dark: 38 46% 72%;
-    --primary-light: 35 42% 44%;
-    --primary-foreground: 0 0% 100%;
+    /* Primary lifts slightly in dark for contrast on dark surfaces */
+    --primary: 38 48% 62%;
+    --primary-dark: 38 48% 72%;
+    --primary-light: 35 30% 34%;
+    --primary-foreground: 24 10% 10%;
+
+    --success: 158 58% 48%;
+    --warning: 36 88% 58%;
+    --danger: 0 72% 62%;
+    --info: 213 82% 64%;
   }
 
   * {
@@ -43,6 +56,8 @@
 
   html {
     color-scheme: light;
+    /* Avoid iOS auto-zoom quirks and rubber-band scroll chaining */
+    -webkit-text-size-adjust: 100%;
   }
 
   html.dark {
@@ -53,57 +68,160 @@
     @apply bg-background text-foreground font-sans antialiased;
     margin: 0;
     padding: 0;
+    /* Prevent horizontal scroll on small screens */
+    overflow-x: hidden;
   }
 
-  /* Custom scrollbar */
-  ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+  /* iOS zooms the viewport when focusing an input under 16px. Keep inputs at
+     16px on touch screens, drop to 14px where there is a real pointer. */
+  @media (pointer: coarse) {
+    input,
+    select,
+    textarea {
+      font-size: 16px;
+    }
   }
-  ::-webkit-scrollbar-track {
-    @apply bg-muted;
+
+  /* Visible, consistent keyboard focus. Mouse clicks stay clean. */
+  :focus-visible {
+    @apply outline-none ring-2 ring-primary/60 ring-offset-2 ring-offset-background;
   }
-  ::-webkit-scrollbar-thumb {
-    @apply bg-primary/40 rounded-full;
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
   }
-  ::-webkit-scrollbar-thumb:hover {
-    @apply bg-primary/60;
+
+  /* Custom scrollbar (desktop only — mobile uses native overlay bars) */
+  @media (pointer: fine) {
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      @apply bg-transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      @apply bg-border rounded-full;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      @apply bg-muted-foreground/40;
+    }
   }
 }
 
 @layer components {
+  /* ── Buttons ─────────────────────────────────────────────────────
+     min-h-touch keeps every button at a comfortable tap size on phones. */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 min-h-touch px-4 rounded-lg
+           text-sm font-semibold transition-all active:scale-[0.98]
+           disabled:opacity-50 disabled:pointer-events-none select-none;
+  }
   .btn-primary {
-    @apply bg-primary hover:bg-primary-dark text-white font-medium px-4 py-2 rounded-md transition-colors;
+    @apply btn bg-primary text-primary-foreground hover:bg-primary-dark shadow-sm;
   }
-
   .btn-secondary {
-    @apply bg-muted hover:bg-border text-foreground font-medium px-4 py-2 rounded-md transition-colors;
+    @apply btn bg-muted text-foreground hover:bg-border;
   }
-
+  .btn-outline {
+    @apply btn border border-border bg-surface text-foreground hover:bg-muted;
+  }
+  .btn-ghost {
+    @apply btn text-muted-foreground hover:bg-muted hover:text-foreground;
+  }
   .btn-danger {
-    @apply bg-red-500 hover:bg-red-600 text-white font-medium px-4 py-2 rounded-md transition-colors;
+    @apply btn bg-danger text-white hover:brightness-110 shadow-sm;
+  }
+  /* Compact variant for dense toolbars — still 40px tall, thumb-friendly. */
+  .btn-sm {
+    @apply min-h-[2.5rem] px-3 text-[13px];
+  }
+  /* Square icon-only button */
+  .btn-icon {
+    @apply inline-flex items-center justify-center w-touch h-touch rounded-lg
+           text-muted-foreground hover:bg-muted hover:text-foreground
+           transition-colors active:scale-95 shrink-0;
   }
 
+  /* ── Surfaces ────────────────────────────────────────────────── */
   .card {
-    @apply bg-surface border border-border rounded-lg shadow-sm;
+    @apply bg-surface border border-border rounded-xl shadow-card;
+  }
+  /* Tappable card (list rows on mobile) */
+  .card-interactive {
+    @apply card transition-all hover:border-primary/40 hover:shadow-raised
+           active:scale-[0.99] cursor-pointer;
   }
 
+  /* ── Forms ───────────────────────────────────────────────────── */
   .input {
-    @apply w-full border border-border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 bg-surface text-foreground;
+    @apply w-full min-h-touch border border-border rounded-lg px-3.5 py-2.5 text-sm
+           bg-surface text-foreground placeholder:text-muted-foreground/70
+           transition-colors focus:outline-none focus:border-primary
+           focus:ring-2 focus:ring-primary/25 disabled:opacity-60;
   }
-
+  textarea.input {
+    @apply py-2.5 leading-relaxed;
+  }
   .label {
-    @apply text-sm font-medium text-foreground;
+    @apply block text-[13px] font-medium text-muted-foreground mb-1.5;
+  }
+  /* Segmented control — the mobile-friendly replacement for button rows */
+  .segmented {
+    @apply inline-flex items-center gap-1 p-1 bg-muted rounded-lg;
+  }
+  .segmented-item {
+    @apply px-3 py-1.5 text-[13px] font-medium rounded-md text-muted-foreground
+           transition-colors whitespace-nowrap hover:text-foreground;
+  }
+  .segmented-item-active {
+    @apply bg-surface text-foreground shadow-sm;
   }
 
-  /* Appointment status badges */
-  .status-badge {
-    @apply inline-flex items-center px-2 py-0.5 rounded text-xs font-medium;
+  /* ── Layout helpers ──────────────────────────────────────────── */
+  /* Horizontal scroller for filter chips / toolbars on narrow screens */
+  .scroll-x {
+    @apply flex gap-2 overflow-x-auto -mx-4 px-4 pb-1;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
   }
-  .status-pending   { @apply bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400; }
-  .status-confirmed { @apply bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400; }
-  .status-completed { @apply bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400; }
-  .status-cancelled { @apply bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400; }
-  .status-rejected  { @apply bg-red-200 text-red-900 dark:bg-red-900/40 dark:text-red-300; }
-  .status-rescheduled { @apply bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400; }
+  .scroll-x::-webkit-scrollbar {
+    display: none;
+  }
+  /* Wraps a wide table so it scrolls itself instead of the page */
+  .table-scroll {
+    @apply w-full overflow-x-auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* ── Status badges ───────────────────────────────────────────── */
+  .status-badge {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold;
+  }
+  .status-pending   { @apply bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300; }
+  .status-confirmed { @apply bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300; }
+  .status-completed { @apply bg-gray-100 text-gray-700 dark:bg-gray-500/15 dark:text-gray-300; }
+  .status-cancelled { @apply bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300; }
+  .status-rejected  { @apply bg-red-200 text-red-900 dark:bg-red-500/25 dark:text-red-200; }
+  .status-rescheduled { @apply bg-blue-100 text-blue-800 dark:bg-blue-500/15 dark:text-blue-300; }
+}
+
+@layer utilities {
+  /* Momentum scrolling + snap for carousels */
+  .snap-x-mandatory {
+    scroll-snap-type: x mandatory;
+  }
+  .snap-start {
+    scroll-snap-align: start;
+  }
+  /* Skeleton shimmer */
+  .skeleton {
+    @apply bg-muted rounded-md animate-pulse;
+  }
 }

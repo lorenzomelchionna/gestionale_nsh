@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getBookingConfig, updateBookingConfig } from '@/services/api'
 import { Check, MessageCircle, Info } from 'lucide-react'
+import { PageHeader } from '@/components/ui'
+import { Toggle } from './ServicesPage'
 
 const PLACEHOLDER_VARS = '{nome}, {data}, {ora}, {collaboratore}'
 
@@ -67,29 +69,21 @@ export default function SettingsPage() {
     setForm(prev => ({ ...prev, [k]: v }))
 
   return (
-    <div className="space-y-6 max-w-xl">
-      <h1 className="text-2xl font-bold">Impostazioni</h1>
+    <div className="space-y-5 max-w-xl">
+      <PageHeader title="Impostazioni" />
 
       {/* ── Prenotazione online ─────────────────────────────────── */}
-      <div className="card p-5">
+      <div className="card p-4 sm:p-5">
         <h3 className="font-semibold mb-4">Prenotazione online</h3>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <label className="flex items-center gap-3 cursor-pointer">
-            <div className={`relative w-11 h-6 rounded-full transition-colors ${form.is_enabled ? 'bg-primary' : 'bg-gray-300'}`}>
-              <div className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${form.is_enabled ? 'translate-x-5' : ''}`} />
-            </div>
-            <input
-              type="checkbox" hidden
-              checked={form.is_enabled}
-              onChange={e => set('is_enabled', e.target.checked)}
-            />
-            <div>
-              <span className="text-sm font-medium">Prenotazione online abilitata</span>
-              <p className="text-xs text-muted-foreground">I clienti possono prenotare dal portale pubblico</p>
-            </div>
-          </label>
+          <Toggle
+            label="Prenotazione online abilitata"
+            description="I clienti possono prenotare dal portale pubblico"
+            checked={form.is_enabled}
+            onChange={v => set('is_enabled', v)}
+          />
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4">
             <div>
               <label className="label block mb-1">Anticipo minimo (ore)</label>
               <input className="input" type="number" min="0" max="72"
@@ -170,21 +164,12 @@ export default function SettingsPage() {
               <h4 className="font-medium text-sm">Notifiche WhatsApp</h4>
             </div>
 
-            {/* Toggle */}
-            <label className="flex items-center gap-3 cursor-pointer">
-              <div className={`relative w-11 h-6 rounded-full transition-colors ${form.whatsapp_enabled ? 'bg-emerald-500' : 'bg-gray-300'}`}>
-                <div className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${form.whatsapp_enabled ? 'translate-x-5' : ''}`} />
-              </div>
-              <input type="checkbox" hidden
-                checked={form.whatsapp_enabled}
-                onChange={e => set('whatsapp_enabled', e.target.checked)} />
-              <div>
-                <span className="text-sm font-medium">Abilita notifiche WhatsApp</span>
-                <p className="text-xs text-muted-foreground">
-                  Richiede credenziali Twilio nelle variabili d'ambiente
-                </p>
-              </div>
-            </label>
+            <Toggle
+              label="Abilita notifiche WhatsApp"
+              description="Richiede credenziali Twilio nelle variabili d'ambiente"
+              checked={form.whatsapp_enabled}
+              onChange={v => set('whatsapp_enabled', v)}
+            />
 
             {form.whatsapp_enabled && (
               <div className="space-y-4 pl-1">

@@ -3,6 +3,7 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { Send, Eye, Users, Mail, MessageCircle } from 'lucide-react'
 import { getProducts, previewMessage, sendMessage } from '@/services/api'
 import type { MessageFilter, FilterType } from '@/types'
+import { PageHeader } from '@/components/ui'
 import clsx from 'clsx'
 
 type Channel = 'email' | 'whatsapp' | 'both'
@@ -47,11 +48,11 @@ export default function MessagingPage() {
   const canSend = body.trim() && (channel === 'whatsapp' || subject.trim())
 
   return (
-    <div className="space-y-6 max-w-2xl">
-      <h1 className="text-2xl font-bold">Messaggi ai clienti</h1>
+    <div className="space-y-5 max-w-2xl">
+      <PageHeader title="Messaggi ai clienti" />
 
-      <div className="card p-5 space-y-4">
-        <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Destinatari</h2>
+      <div className="card p-4 sm:p-5 space-y-4">
+        <h2 className="font-semibold text-xs text-muted-foreground uppercase tracking-wider">Destinatari</h2>
 
         {/* Filter type */}
         <div className="grid grid-cols-2 gap-2">
@@ -60,7 +61,7 @@ export default function MessagingPage() {
               key={opt.value}
               onClick={() => setFilter({ type: opt.value })}
               className={clsx(
-                'px-3 py-2 rounded-lg border text-sm text-left transition-colors',
+                'px-3 py-2.5 min-h-touch rounded-lg border text-[13px] text-left transition-colors',
                 filter.type === opt.value
                   ? 'border-primary bg-primary/10 text-primary font-medium'
                   : 'border-border hover:bg-muted'
@@ -116,13 +117,14 @@ export default function MessagingPage() {
         )}
       </div>
 
-      <div className="card p-5 space-y-4">
-        <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Canale</h2>
+      <div className="card p-4 sm:p-5 space-y-4">
+        <h2 className="font-semibold text-xs text-muted-foreground uppercase tracking-wider">Canale</h2>
+        {/* Icon above label so three options fit a 375px row without clipping. */}
         <div className="grid grid-cols-3 gap-2">
           {([
-            { value: 'email',    label: 'Solo email',     icon: Mail },
-            { value: 'whatsapp', label: 'Solo WhatsApp',  icon: MessageCircle },
-            { value: 'both',     label: 'Email + WA',     icon: Send },
+            { value: 'email',    label: 'Email',      icon: Mail },
+            { value: 'whatsapp', label: 'WhatsApp',   icon: MessageCircle },
+            { value: 'both',     label: 'Entrambi',   icon: Send },
           ] as const).map(opt => {
             const Icon = opt.icon
             return (
@@ -130,13 +132,13 @@ export default function MessagingPage() {
                 key={opt.value}
                 onClick={() => setChannel(opt.value)}
                 className={clsx(
-                  'flex items-center gap-2 px-3 py-2 rounded-lg border text-sm transition-colors',
+                  'flex flex-col sm:flex-row items-center justify-center gap-1.5 px-2 py-2.5 min-h-touch rounded-lg border text-[13px] transition-colors',
                   channel === opt.value
                     ? 'border-primary bg-primary/10 text-primary font-medium'
                     : 'border-border hover:bg-muted'
                 )}
               >
-                <Icon className="w-4 h-4" />
+                <Icon className="w-4 h-4 shrink-0" />
                 {opt.label}
               </button>
             )

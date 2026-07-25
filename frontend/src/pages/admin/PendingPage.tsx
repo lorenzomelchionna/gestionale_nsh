@@ -1,17 +1,20 @@
+import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { format, parseISO } from 'date-fns'
 import { it } from 'date-fns/locale'
-import { Check, X, Clock, ArrowRight } from 'lucide-react'
+import { Check, X, Clock, User, CalendarDays } from 'lucide-react'
 import {
-  getPendingAppointments, confirmAppointment,
-  rejectAppointment, rescheduleAppointment
+  getPendingAppointments, confirmAppointment, rejectAppointment,
 } from '@/services/api'
-import { useState } from 'react'
 import type { Appointment } from '@/types'
+import { PageHeader, EmptyState, SkeletonList } from '@/components/ui'
 
 export default function PendingPage() {
   const qc = useQueryClient()
-  const inv = () => qc.invalidateQueries({ queryKey: ['appointments'] })
+  const inv = () => {
+    qc.invalidateQueries({ queryKey: ['appointments'] })
+    qc.invalidateQueries({ queryKey: ['pending-appointments'] })
+  }
 
   const { data: appointments, isLoading } = useQuery({
     queryKey: ['pending-appointments'],
@@ -25,30 +28,32 @@ export default function PendingPage() {
     onSuccess: inv,
   })
 
-  if (isLoading) return <div className="p-8 text-center text-muted-foreground">Caricamento...</div>
+  const count = appointments?.length ?? 0
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <h1 className="text-2xl font-bold text-foreground">Richieste in attesa</h1>
-        {appointments && appointments.length > 0 && (
-          <span className="bg-amber-100 text-amber-800 text-sm font-bold px-2 py-0.5 rounded-full">
-            {appointments.length}
-          </span>
-        )}
-      </div>
+    <div className="space-y-5">
+      <PageHeader
+        title="Richieste in attesa"
+        subtitle={count > 0 ? `${count} da gestire` : undefined}
+      />
 
-      {!appointments?.length ? (
-        <div className="card p-12 text-center text-muted-foreground">
-          <Clock className="w-10 h-10 mx-auto mb-3 opacity-40" />
-          <p>Nessuna richiesta in attesa</p>
+      {isLoading ? (
+        <SkeletonList rows={3} />
+      ) : count === 0 ? (
+        <div className="card">
+          <EmptyState
+            icon={Clock}
+            title="Nessuna richiesta in attesa"
+            description="Le prenotazioni online da confermare compaiono qui."
+          />
         </div>
       ) : (
         <div className="space-y-3">
-          {appointments.map(appt => (
+          {appointments!.map(appt => (
             <PendingCard
               key={appt.id}
               appointment={appt}
+              busy={confirmMut.isPending || rejectMut.isPending}
               onConfirm={() => confirmMut.mutate(appt.id)}
               onReject={(reason) => rejectMut.mutate({ id: appt.id, reason })}
             />
@@ -59,8 +64,9 @@ export default function PendingPage() {
   )
 }
 
-function PendingCard({ appointment: a, onConfirm, onReject }: {
+function PendingCard({ appointment: a, busy, onConfirm, onReject }: {
   appointment: Appointment
+  busy: boolean
   onConfirm: () => void
   onReject: (reason?: string) => void
 }) {
@@ -69,52 +75,85 @@ function PendingCard({ appointment: a, onConfirm, onReject }: {
 
   return (
     <div className="card p-4">
-      <div className="flex items-start justify-between gap-4">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 space-y-1.5">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="font-semibold text-foreground">{a.client_name}</span>
-            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">online</span>
+            <span className="text-[10px] font-semibold bg-info/12 text-info px-1.5 py-0.5 rounded">
+              online
+            </span>
           </div>
-          <p className="text-sm text-muted-foreground">
-            {format(parseISO(a.start_time), 'EEEE d MMMM yyyy', { locale: it })} ·{' '}
-            {format(parseISO(a.start_time), 'HH:mm')} – {format(parseISO(a.end_time), 'HH:mm')}
+          <p className="text-[13px] text-muted-foreground flex items-start gap-1.5">
+            <CalendarDays className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+            <span>
+              {format(parseISO(a.start_time), 'EEEE d MMMM', { locale: it })}
+              <span className="text-foreground font-medium">
+                {' · '}
+                {format(parseISO(a.start_time), 'HH:mm')}–{format(parseISO(a.end_time), 'HH:mm')}
+              </span>
+            </span>
           </p>
-          <p className="text-sm text-muted-foreground">Con: {a.collaborator_name}</p>
-          <p className="text-sm font-medium">€{(a.total_price ?? 0).toFixed(2)}</p>
-          {a.notes && <p className="text-xs text-muted-foreground italic">"{a.notes}"</p>}
+          <p className="text-[13px] text-muted-foreground flex items-center gap-1.5">
+            <User className="w-3.5 h-3.5 shrink-0" />
+            {a.collaborator_name}
+          </p>
+          {a.notes && (
+            <p className="text-xs text-muted-foreground italic border-l-2 border-border pl-2 mt-2">
+              {a.notes}
+            </p>
+          )}
         </div>
-        <div className="flex gap-2 flex-shrink-0">
+        <span className="text-base font-bold text-foreground tabular-nums shrink-0">
+          €{(a.total_price ?? 0).toFixed(2)}
+        </span>
+      </div>
+
+      {/* Actions go full-width side by side on phones — both stay thumb-sized. */}
+      {!showReject && (
+        <div className="flex gap-2 mt-4">
           <button
             onClick={onConfirm}
-            className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-sm px-3 py-1.5 rounded-md"
+            disabled={busy}
+            className="btn-primary btn-sm flex-1 !bg-emerald-600 hover:!bg-emerald-700"
           >
             <Check className="w-4 h-4" /> Conferma
           </button>
           <button
             onClick={() => setShowReject(true)}
-            className="flex items-center gap-1.5 bg-red-500 hover:bg-red-600 text-white text-sm px-3 py-1.5 rounded-md"
+            disabled={busy}
+            className="btn-outline btn-sm flex-1 !text-danger"
           >
             <X className="w-4 h-4" /> Rifiuta
           </button>
         </div>
-      </div>
+      )}
 
       {showReject && (
-        <div className="mt-3 pt-3 border-t border-border space-y-2">
-          <input
-            className="input text-sm"
-            placeholder="Motivo rifiuto (opzionale)"
-            value={reason}
-            onChange={e => setReason(e.target.value)}
-          />
+        <div className="mt-4 pt-4 border-t border-border space-y-3">
+          <div>
+            <label className="label">Motivo del rifiuto (opzionale)</label>
+            <input
+              className="input"
+              placeholder="Es. orario non disponibile"
+              value={reason}
+              onChange={e => setReason(e.target.value)}
+              autoFocus
+            />
+          </div>
           <div className="flex gap-2">
             <button
               onClick={() => { onReject(reason || undefined); setShowReject(false) }}
-              className="btn-danger text-sm py-1"
+              disabled={busy}
+              className="btn-danger btn-sm flex-1"
             >
               Conferma rifiuto
             </button>
-            <button onClick={() => setShowReject(false)} className="btn-secondary text-sm py-1">Annulla</button>
+            <button
+              onClick={() => { setShowReject(false); setReason('') }}
+              className="btn-secondary btn-sm flex-1"
+            >
+              Annulla
+            </button>
           </div>
         </div>
       )}

@@ -6,7 +6,8 @@ import {
 } from 'date-fns'
 import { it } from 'date-fns/locale'
 import {
-  ChevronLeft, ChevronRight, ChevronDown, Plus, Check, X
+  ChevronLeft, ChevronRight, ChevronDown, Plus, Check, X,
+  Calendar as CalendarIcon,
 } from 'lucide-react'
 import {
   getAppointments, getCollaborators, confirmAppointment,
@@ -14,6 +15,8 @@ import {
   createAppointment, getClients, getServices, updateAppointment, getAbsences, getBookingConfig
 } from '@/services/api'
 import type { Appointment, Collaborator } from '@/types'
+import Sheet from '@/components/ui/Sheet'
+import { EmptyState } from '@/components/ui'
 import clsx from 'clsx'
 
 interface DragState {
@@ -242,50 +245,61 @@ export default function CalendarPage() {
     setShowCreateModal(true)
   }
 
+  const openCreate = () => {
+    const collabId = selectedCollaboratorId ?? collaborators[0]?.id
+    if (collabId) {
+      const firstSlot = computeFirstAvailableSlot(appointments, collabId, new Date())
+      setNewApptSlot({ date: firstSlot, collaboratorId: collabId })
+    }
+    setShowCreateModal(true)
+  }
+
   return (
-    <div className="flex flex-col h-full gap-4">
-      {/* Toolbar */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div className="flex items-center gap-2">
-          <button onClick={() => navigate(-1)} className="p-1.5 hover:bg-muted rounded-md">
+    <div className="flex flex-col h-full gap-3 lg:gap-4">
+      {/* Toolbar — stacks into rows on phones so nothing is pushed off-screen. */}
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex items-center gap-1">
+          <button onClick={() => navigate(-1)} className="btn-icon" aria-label="Precedente">
             <ChevronLeft className="w-5 h-5" />
           </button>
-          <h2 className="text-base font-semibold min-w-[180px] text-center">
+          {/* first-letter, not `capitalize`: Italian month names stay lowercase. */}
+          <h2 className="flex-1 lg:flex-none text-[15px] font-semibold lg:min-w-[190px] text-center first-letter:uppercase">
             {viewMode === 'day'
-              ? format(currentDate, 'EEEE d MMMM yyyy', { locale: it })
+              ? format(currentDate, 'EEE d MMMM yyyy', { locale: it })
               : `${format(days[0], 'd MMM', { locale: it })} – ${format(days[days.length - 1], 'd MMM yyyy', { locale: it })}`
             }
           </h2>
-          <button onClick={() => navigate(1)} className="p-1.5 hover:bg-muted rounded-md">
+          <button onClick={() => navigate(1)} className="btn-icon" aria-label="Successivo">
             <ChevronRight className="w-5 h-5" />
           </button>
-          <button onClick={() => setCurrentDate(new Date())} className="text-xs px-2 py-1 bg-muted rounded-md ml-1">
+          <button
+            onClick={() => setCurrentDate(new Date())}
+            className="btn-secondary btn-sm ml-1 shrink-0"
+          >
             Oggi
           </button>
         </div>
 
         <div className="flex items-center gap-2">
-          {/* View toggle */}
-          <div className="flex bg-muted rounded-md p-0.5">
+          {/* Day/week toggle is desktop-only: the mobile agenda is always
+              a single day, and a week of columns is unreadable at 375px. */}
+          <div className="hidden lg:flex segmented">
             {(['day', 'week'] as ViewMode[]).map(v => (
               <button
                 key={v}
                 onClick={() => setViewMode(v)}
-                className={clsx(
-                  'px-3 py-1 text-sm rounded transition-colors',
-                  viewMode === v ? 'bg-surface shadow-sm font-medium' : 'text-muted-foreground'
-                )}
+                className={clsx('segmented-item', viewMode === v && 'segmented-item-active')}
               >
                 {v === 'day' ? 'Giorno' : 'Settimana'}
               </button>
             ))}
           </div>
 
-          {/* Collaborator filter */}
           <select
-            className="input text-sm py-1.5 w-44"
+            className="input !min-h-[2.5rem] text-[13px] py-1.5 flex-1 lg:flex-none lg:w-48"
             value={selectedCollaboratorId ?? ''}
             onChange={e => setSelectedCollaboratorId(e.target.value ? Number(e.target.value) : null)}
+            aria-label="Filtra per collaboratore"
           >
             <option value="">Tutti i collaboratori</option>
             {collaborators.map(c => (
@@ -293,25 +307,24 @@ export default function CalendarPage() {
             ))}
           </select>
 
-          <button
-            onClick={() => {
-              const collabId = selectedCollaboratorId ?? collaborators[0]?.id
-              if (collabId) {
-                const firstSlot = computeFirstAvailableSlot(appointments, collabId, new Date())
-                setNewApptSlot({ date: firstSlot, collaboratorId: collabId })
-              }
-              setShowCreateModal(true)
-            }}
-            className="btn-primary flex items-center gap-1.5 py-1.5 text-sm"
-          >
+          <button onClick={openCreate} className="btn-primary btn-sm shrink-0">
             <Plus className="w-4 h-4" />
-            Nuovo
+            <span className="hidden sm:inline">Nuovo</span>
           </button>
         </div>
       </div>
 
-      {/* Calendar grid */}
-      <div className="card flex-1 overflow-auto">
+      {/* Mobile: chronological agenda instead of a squeezed time grid. */}
+      <AgendaView
+        date={currentDate}
+        appointments={appointments}
+        collaborators={visibleCollabs}
+        onAppointmentClick={setSelectedAppointment}
+        onCreate={openCreate}
+      />
+
+      {/* Desktop: full time grid with drag & drop. */}
+      <div className="card flex-1 overflow-auto hidden lg:block">
         <div className="flex">
           {/* Time gutter */}
           <div className="w-12 flex-shrink-0">
@@ -405,10 +418,33 @@ export default function CalendarPage() {
         const toCollab = collaborators.find(c => c.id === pendingMove.collaboratorId)
         const collabChanged = pendingMove.collaboratorId !== pendingMove.originalCollaboratorId
         return (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-surface rounded-xl shadow-xl w-full max-w-sm p-5 space-y-4">
-            <h3 className="font-semibold text-foreground">Sposta appuntamento</h3>
-            <div className="text-sm text-muted-foreground space-y-1">
+          <Sheet
+            onClose={() => setPendingMove(null)}
+            title="Sposta appuntamento"
+            size="sm"
+            footer={
+              <>
+                <button className="btn-secondary btn-sm" onClick={() => setPendingMove(null)}>
+                  Annulla
+                </button>
+                <button
+                  className="btn-primary btn-sm"
+                  disabled={moveMut.isPending}
+                  onClick={() => {
+                    moveMut.mutate({
+                      id: pendingMove.id,
+                      start_time: pendingMove.start.toISOString(),
+                      end_time: pendingMove.end.toISOString(),
+                      collaborator_id: pendingMove.collaboratorId,
+                    }, { onSuccess: () => setPendingMove(null) })
+                  }}
+                >
+                  {moveMut.isPending ? 'Salvataggio...' : 'Conferma'}
+                </button>
+              </>
+            }
+          >
+            <div className="text-sm text-muted-foreground space-y-2">
               <p>
                 Nuovo orario:{' '}
                 <span className="font-medium text-foreground">
@@ -424,30 +460,7 @@ export default function CalendarPage() {
                 </p>
               )}
             </div>
-            <div className="flex justify-end gap-2">
-              <button
-                className="btn-secondary text-sm py-1.5"
-                onClick={() => setPendingMove(null)}
-              >
-                Annulla
-              </button>
-              <button
-                className="btn-primary text-sm py-1.5"
-                disabled={moveMut.isPending}
-                onClick={() => {
-                  moveMut.mutate({
-                    id: pendingMove.id,
-                    start_time: pendingMove.start.toISOString(),
-                    end_time: pendingMove.end.toISOString(),
-                    collaborator_id: pendingMove.collaboratorId,
-                  }, { onSuccess: () => setPendingMove(null) })
-                }}
-              >
-                {moveMut.isPending ? 'Salvataggio...' : 'Conferma'}
-              </button>
-            </div>
-          </div>
-        </div>
+          </Sheet>
         )
       })()}
     </div>
@@ -542,6 +555,109 @@ function DayColumn({ collaborator, date, appointments, timeToY, durationToH, onS
           )
         })}
       </div>
+    </div>
+  )
+}
+
+// ── Mobile agenda ─────────────────────────────────────────────────
+
+/**
+ * Phone view of a single day: appointments as a chronological list.
+ *
+ * The desktop grid packs one column per collaborator, which at 375px leaves
+ * each column ~80px wide and pushes later collaborators off-screen entirely.
+ * A list keeps every appointment readable and tappable, and shows only the
+ * hours that actually have something in them instead of 12 hours of blank grid.
+ */
+function AgendaView({
+  date, appointments, collaborators, onAppointmentClick, onCreate,
+}: {
+  date: Date
+  appointments: Appointment[]
+  collaborators: Collaborator[]
+  onAppointmentClick: (a: Appointment) => void
+  onCreate: () => void
+}) {
+  const dayAppts = appointments
+    .filter(a => isSameDay(parseISO(a.start_time), date))
+    .sort((a, b) => parseISO(a.start_time).getTime() - parseISO(b.start_time).getTime())
+
+  const collabById = new Map(collaborators.map(c => [c.id, c]))
+
+  return (
+    <div className="lg:hidden flex-1">
+      {dayAppts.length === 0 ? (
+        <div className="card">
+          <EmptyState
+            icon={CalendarIcon}
+            title="Nessun appuntamento"
+            description={`Niente in programma per ${format(date, 'EEEE d MMMM', { locale: it })}.`}
+            action={
+              <button onClick={onCreate} className="btn-primary">
+                <Plus className="w-4 h-4" /> Nuovo appuntamento
+              </button>
+            }
+          />
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {dayAppts.map(appt => {
+            const start = parseISO(appt.start_time)
+            const end = parseISO(appt.end_time)
+            const collab = collabById.get(appt.collaborator_id)
+            const color = collab?.color ?? '#C8A96E'
+            const terminal = TERMINAL_STATUSES.includes(appt.status)
+
+            return (
+              <button
+                key={appt.id}
+                onClick={() => onAppointmentClick(appt)}
+                className={clsx(
+                  'card-interactive w-full text-left p-3.5 flex items-stretch gap-3',
+                  terminal && 'opacity-60'
+                )}
+              >
+                {/* Time rail */}
+                <div className="flex flex-col items-center shrink-0 w-12">
+                  <span className="text-sm font-semibold text-foreground tabular-nums">
+                    {format(start, 'HH:mm')}
+                  </span>
+                  <span className="text-[11px] text-muted-foreground tabular-nums">
+                    {format(end, 'HH:mm')}
+                  </span>
+                </div>
+
+                <span
+                  className="w-1 rounded-full shrink-0"
+                  style={{ backgroundColor: color }}
+                  aria-hidden="true"
+                />
+
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium text-foreground truncate">
+                    {appt.client_name || 'Cliente'}
+                  </p>
+                  {collab && (
+                    <p className="text-[13px] text-muted-foreground truncate mt-0.5">
+                      {collab.first_name} {collab.last_name}
+                    </p>
+                  )}
+                  <div className="flex items-center gap-2 mt-2">
+                    <span className={clsx('status-badge', `status-${appt.status}`)}>
+                      {STATUS_LABELS[appt.status] ?? appt.status}
+                    </span>
+                    {appt.total_price !== undefined && (
+                      <span className="text-[13px] font-medium text-muted-foreground tabular-nums">
+                        €{appt.total_price.toFixed(2)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </button>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }

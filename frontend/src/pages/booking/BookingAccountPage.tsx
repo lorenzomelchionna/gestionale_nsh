@@ -58,34 +58,36 @@ export default function BookingAccountPage() {
   ) ?? []
 
   return (
-    <div className="space-y-8">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold">La mia area</h2>
-        <Link to="/booking/new" className="btn-primary text-sm py-1.5">
+    <div className="space-y-7">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <h2 className="text-title-lg font-bold">La mia area</h2>
+        <Link to="/booking/new" className="btn-primary btn-sm">
           Nuova prenotazione
         </Link>
       </div>
 
       {/* Rescheduled – action required */}
       {upcoming.filter(a => a.status === 'rescheduled').map(a => (
-        <div key={a.id} className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <p className="text-sm font-semibold text-blue-900 mb-1">Il salone ha proposto un orario alternativo</p>
-          <p className="text-sm text-blue-800">
+        <div key={a.id} className="bg-info/10 border border-info/30 rounded-xl p-4">
+          <p className="text-sm font-semibold text-info mb-1">
+            Il salone ha proposto un orario alternativo
+          </p>
+          <p className="text-sm text-foreground">
             <strong>{a.collaborator_name}</strong> –{' '}
             {format(parseISO(a.alternative_time!), 'EEEE d MMMM HH:mm', { locale: it })}
           </p>
           <div className="flex gap-2 mt-3">
             <button
               onClick={() => acceptMut.mutate(a.id)}
-              className="flex items-center gap-1 bg-emerald-500 hover:bg-emerald-600 text-white text-sm px-3 py-1.5 rounded-md"
+              className="btn-primary btn-sm flex-1 !bg-emerald-600 hover:!bg-emerald-700"
             >
-              <Check className="w-3.5 h-3.5" /> Accetta
+              <Check className="w-4 h-4" /> Accetta
             </button>
             <button
               onClick={() => rejectMut.mutate(a.id)}
-              className="flex items-center gap-1 bg-red-500 hover:bg-red-600 text-white text-sm px-3 py-1.5 rounded-md"
+              className="btn-outline btn-sm flex-1 !text-danger"
             >
-              <X className="w-3.5 h-3.5" /> Rifiuta
+              <X className="w-4 h-4" /> Rifiuta
             </button>
           </div>
         </div>
@@ -179,27 +181,33 @@ function WaitlistCard({ entry: w, onLeave }: { entry: WaitlistEntry; onLeave: ()
 
 function AppointmentCard({ appointment: a, onCancel }: { appointment: Appointment; onCancel?: () => void }) {
   const isPast = a.status === 'completed' || a.status === 'cancelled' || a.status === 'rejected'
+  const canCancel = onCancel && a.status === 'confirmed'
   return (
-    <div className={clsx('card p-4 flex items-center justify-between gap-4', isPast && 'opacity-70')}>
-      <div className="space-y-0.5">
-        <p className="font-semibold text-sm">{a.collaborator_name}</p>
-        <p className="text-sm text-muted-foreground">
-          {format(parseISO(a.start_time), 'EEEE d MMMM HH:mm', { locale: it })}
-        </p>
-        {a.total_price !== undefined && (
-          <p className="text-xs text-muted-foreground">€{a.total_price.toFixed(2)}</p>
-        )}
-      </div>
-      <div className="flex items-center gap-3">
-        <span className={clsx('status-badge', `status-${a.status}`)}>
+    <div className={clsx('card p-4', isPast && 'opacity-70')}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="font-medium text-foreground">
+            {format(parseISO(a.start_time), 'EEEE d MMMM', { locale: it })}
+            <span className="text-muted-foreground font-normal">
+              {' · '}{format(parseISO(a.start_time), 'HH:mm')}
+            </span>
+          </p>
+          <p className="text-[13px] text-muted-foreground mt-0.5">{a.collaborator_name}</p>
+          {a.total_price !== undefined && (
+            <p className="text-[13px] font-medium text-foreground mt-1 tabular-nums">
+              €{a.total_price.toFixed(2)}
+            </p>
+          )}
+        </div>
+        <span className={clsx('status-badge shrink-0', `status-${a.status}`)}>
           {STATUS_LABELS[a.status]}
         </span>
-        {onCancel && a.status === 'confirmed' && (
-          <button onClick={onCancel} className="text-xs text-red-500 hover:text-red-700">
-            Cancella
-          </button>
-        )}
       </div>
+      {canCancel && (
+        <button onClick={onCancel} className="btn-outline btn-sm w-full mt-3 !text-danger">
+          Annulla appuntamento
+        </button>
+      )}
     </div>
   )
 }

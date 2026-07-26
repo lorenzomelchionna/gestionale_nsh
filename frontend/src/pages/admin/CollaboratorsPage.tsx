@@ -8,6 +8,9 @@ import {
   getExtraWorkDays, createExtraWorkDay, deleteExtraWorkDay,
 } from '@/services/api'
 import type { Collaborator, CollaboratorSchedule, Absence, AbsenceType, ExtraWorkDay } from '@/types'
+import Sheet from '@/components/ui/Sheet'
+import { PageHeader } from '@/components/ui'
+import { Toggle } from './ServicesPage'
 import clsx from 'clsx'
 
 const DAYS = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom']
@@ -45,15 +48,17 @@ export default function CollaboratorsPage() {
   const services = servicesData?.items ?? []
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Collaboratori</h1>
-        <button onClick={() => { setSelected(null); setShowForm(true) }} className="btn-primary flex items-center gap-1.5">
-          <Plus className="w-4 h-4" /> Nuovo
-        </button>
-      </div>
+    <div className="space-y-5">
+      <PageHeader
+        title="Collaboratori"
+        action={
+          <button onClick={() => { setSelected(null); setShowForm(true) }} className="btn-primary">
+            <Plus className="w-4 h-4" /> Nuovo
+          </button>
+        }
+      />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
         {collaborators.map(c => (
           <CollaboratorCard
             key={c.id}
@@ -535,56 +540,84 @@ function CollaboratorFormModal({ collaborator, onClose, onSave, loading }: {
   })
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-surface rounded-xl shadow-xl w-full max-w-md">
-        <div className="flex items-center justify-between p-4 border-b border-border">
-          <h3 className="font-semibold">{collaborator ? 'Modifica collaboratore' : 'Nuovo collaboratore'}</h3>
-          <button onClick={onClose}><X className="w-5 h-5" /></button>
+    <Sheet
+      onClose={onClose}
+      title={collaborator ? 'Modifica collaboratore' : 'Nuovo collaboratore'}
+      footer={
+        <>
+          <button type="button" onClick={onClose} className="btn-secondary btn-sm">Annulla</button>
+          <button type="submit" form="collab-form" disabled={loading} className="btn-primary btn-sm">
+            {loading ? 'Salvataggio...' : 'Salva'}
+          </button>
+        </>
+      }
+    >
+      <form
+        id="collab-form"
+        onSubmit={(e) => { e.preventDefault(); onSave(form) }}
+        className="space-y-4"
+      >
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="label">Nome *</label>
+            <input
+              className="input" required autoCapitalize="words"
+              value={form.first_name}
+              onChange={e => setForm({ ...form, first_name: e.target.value })}
+            />
+          </div>
+          <div>
+            <label className="label">Cognome *</label>
+            <input
+              className="input" required autoCapitalize="words"
+              value={form.last_name}
+              onChange={e => setForm({ ...form, last_name: e.target.value })}
+            />
+          </div>
         </div>
-        <form onSubmit={(e) => { e.preventDefault(); onSave(form) }} className="p-4 space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="label block mb-1">Nome *</label>
-              <input className="input" required value={form.first_name} onChange={e => setForm({...form, first_name: e.target.value})} />
-            </div>
-            <div>
-              <label className="label block mb-1">Cognome *</label>
-              <input className="input" required value={form.last_name} onChange={e => setForm({...form, last_name: e.target.value})} />
-            </div>
+        <div>
+          <label className="label">Telefono</label>
+          <input
+            className="input" type="tel" inputMode="tel"
+            value={form.phone}
+            onChange={e => setForm({ ...form, phone: e.target.value })}
+          />
+        </div>
+        <div>
+          <label className="label">Email</label>
+          <input
+            className="input" type="email" inputMode="email" autoCapitalize="none"
+            value={form.email}
+            onChange={e => setForm({ ...form, email: e.target.value })}
+          />
+        </div>
+        <div>
+          <label className="label">Colore calendario</label>
+          <div className="flex items-center gap-3">
+            <input
+              type="color"
+              value={form.color}
+              onChange={e => setForm({ ...form, color: e.target.value })}
+              className="h-11 w-14 rounded-lg border border-border cursor-pointer bg-surface"
+            />
+            <span className="text-sm text-muted-foreground font-mono">{form.color}</span>
           </div>
-          <div>
-            <label className="label block mb-1">Telefono</label>
-            <input className="input" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} />
-          </div>
-          <div>
-            <label className="label block mb-1">Email</label>
-            <input className="input" type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} />
-          </div>
-          <div>
-            <label className="label block mb-1">Colore calendario</label>
-            <div className="flex items-center gap-2">
-              <input type="color" value={form.color} onChange={e => setForm({...form, color: e.target.value})} className="h-9 w-12 rounded border border-border cursor-pointer" />
-              <span className="text-sm text-muted-foreground">{form.color}</span>
-            </div>
-          </div>
-          <div className="flex gap-4">
-            <label className="flex items-center gap-2 text-sm cursor-pointer">
-              <input type="checkbox" checked={form.visible_online} onChange={e => setForm({...form, visible_online: e.target.checked})} />
-              Visibile online
-            </label>
-            <label className="flex items-center gap-2 text-sm cursor-pointer">
-              <input type="checkbox" checked={form.is_active} onChange={e => setForm({...form, is_active: e.target.checked})} />
-              Attivo
-            </label>
-          </div>
-          <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={onClose} className="btn-secondary text-sm">Annulla</button>
-            <button type="submit" disabled={loading} className="btn-primary text-sm disabled:opacity-60">
-              {loading ? 'Salvataggio...' : 'Salva'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        </div>
+
+        <div className="space-y-2 pt-1">
+          <Toggle
+            label="Visibile online"
+            description="Selezionabile dai clienti nel portale"
+            checked={form.visible_online}
+            onChange={v => setForm({ ...form, visible_online: v })}
+          />
+          <Toggle
+            label="Attivo"
+            checked={form.is_active}
+            onChange={v => setForm({ ...form, is_active: v })}
+          />
+        </div>
+      </form>
+    </Sheet>
   )
 }

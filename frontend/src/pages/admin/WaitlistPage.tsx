@@ -7,6 +7,7 @@ import {
   getWaitlist, notifyWaitlistEntry, fulfilWaitlistEntry, deleteWaitlistEntry,
 } from '@/services/api'
 import type { WaitlistEntryWithNames, WaitlistStatus } from '@/types'
+import { PageHeader, EmptyState, SkeletonList } from '@/components/ui'
 
 const STATUS_LABEL: Record<WaitlistStatus, string> = {
   waiting: 'In attesa',
@@ -16,10 +17,10 @@ const STATUS_LABEL: Record<WaitlistStatus, string> = {
 }
 
 const STATUS_COLOR: Record<WaitlistStatus, string> = {
-  waiting: 'bg-amber-100 text-amber-800',
-  notified: 'bg-blue-100 text-blue-700',
-  fulfilled: 'bg-emerald-100 text-emerald-700',
-  cancelled: 'bg-gray-100 text-gray-500',
+  waiting: 'bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300',
+  notified: 'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300',
+  fulfilled: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300',
+  cancelled: 'bg-gray-100 text-gray-500 dark:bg-gray-500/15 dark:text-gray-400',
 }
 
 export default function WaitlistPage() {
@@ -40,42 +41,38 @@ export default function WaitlistPage() {
 
   const waitingCount = entries.filter(e => e.status === 'waiting').length
 
-  if (isLoading) return <div className="p-8 text-center text-muted-foreground">Caricamento...</div>
+  if (isLoading) return <SkeletonList rows={3} />
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-bold text-foreground">Lista d'attesa</h1>
-          {waitingCount > 0 && (
-            <span className="bg-amber-100 text-amber-800 text-sm font-bold px-2 py-0.5 rounded-full">
-              {waitingCount}
-            </span>
-          )}
-        </div>
+    <div className="space-y-5">
+      <PageHeader
+        title="Lista d'attesa"
+        subtitle={waitingCount > 0 ? `${waitingCount} in attesa` : undefined}
+      />
 
-        {/* Filter */}
-        <div className="flex items-center gap-2">
-          <Filter className="w-4 h-4 text-muted-foreground" />
-          <select
-            value={statusFilter}
-            onChange={e => setStatusFilter(e.target.value as WaitlistStatus | '')}
-            className="input text-sm py-1.5 pr-8"
-          >
-            <option value="">Tutti</option>
-            <option value="waiting">In attesa</option>
-            <option value="notified">Notificati</option>
-            <option value="fulfilled">Soddisfatti</option>
-            <option value="cancelled">Annullati</option>
-          </select>
-        </div>
+      <div className="flex items-center gap-2">
+        <Filter className="w-4 h-4 text-muted-foreground shrink-0" />
+        <select
+          value={statusFilter}
+          onChange={e => setStatusFilter(e.target.value as WaitlistStatus | '')}
+          className="input !min-h-[2.5rem] text-[13px] py-1.5 flex-1 sm:max-w-xs"
+          aria-label="Filtra per stato"
+        >
+          <option value="">Tutti</option>
+          <option value="waiting">In attesa</option>
+          <option value="notified">Notificati</option>
+          <option value="fulfilled">Soddisfatti</option>
+          <option value="cancelled">Annullati</option>
+        </select>
       </div>
 
       {entries.length === 0 ? (
-        <div className="card p-12 text-center text-muted-foreground">
-          <Clock className="w-10 h-10 mx-auto mb-3 opacity-40" />
-          <p>Nessuna iscrizione in lista d'attesa</p>
+        <div className="card">
+          <EmptyState
+            icon={Clock}
+            title="Lista d'attesa vuota"
+            description="Le iscrizioni dei clienti compaiono qui."
+          />
         </div>
       ) : (
         <div className="space-y-3">
@@ -112,7 +109,7 @@ function WaitlistCard({
 
   return (
     <div className="card p-4">
-      <div className="flex items-start justify-between gap-4 flex-wrap">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div className="space-y-1 min-w-0">
           {/* Client + status */}
           <div className="flex items-center gap-2 flex-wrap">
@@ -156,50 +153,53 @@ function WaitlistCard({
           </p>
         </div>
 
-        {/* Actions */}
-        <div className="flex gap-2 flex-shrink-0 flex-wrap">
-          {e.status === 'waiting' && (
-            <button
-              onClick={onNotify}
-              disabled={isLoading}
-              className="flex items-center gap-1.5 bg-blue-500 hover:bg-blue-600 text-white text-sm px-3 py-1.5 rounded-md disabled:opacity-50"
-            >
-              <Bell className="w-4 h-4" /> Notifica
-            </button>
-          )}
-          {(e.status === 'waiting' || e.status === 'notified') && (
-            <button
-              onClick={onFulfil}
-              disabled={isLoading}
-              className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-sm px-3 py-1.5 rounded-md disabled:opacity-50"
-            >
-              <UserCheck className="w-4 h-4" /> Soddisfatto
-            </button>
-          )}
+        {/* Actions stretch to full width on phones so each stays tappable. */}
+        <div className="flex gap-2 shrink-0 pt-1 sm:pt-0">
           {confirmDelete ? (
-            <div className="flex gap-1.5">
+            <>
               <button
                 onClick={() => { onDelete(); setConfirmDelete(false) }}
                 disabled={isLoading}
-                className="btn-danger text-sm py-1 px-2"
+                className="btn-danger btn-sm flex-1 sm:flex-none"
               >
                 Conferma
               </button>
               <button
                 onClick={() => setConfirmDelete(false)}
-                className="btn-secondary text-sm py-1 px-2"
+                className="btn-secondary btn-sm flex-1 sm:flex-none"
               >
                 Annulla
               </button>
-            </div>
+            </>
           ) : (
-            <button
-              onClick={() => setConfirmDelete(true)}
-              disabled={isLoading}
-              className="flex items-center gap-1.5 text-red-500 hover:text-red-700 text-sm px-2 py-1.5 disabled:opacity-50"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
+            <>
+              {e.status === 'waiting' && (
+                <button
+                  onClick={onNotify}
+                  disabled={isLoading}
+                  className="btn-primary btn-sm flex-1 sm:flex-none !bg-blue-600 hover:!bg-blue-700"
+                >
+                  <Bell className="w-4 h-4" /> Notifica
+                </button>
+              )}
+              {(e.status === 'waiting' || e.status === 'notified') && (
+                <button
+                  onClick={onFulfil}
+                  disabled={isLoading}
+                  className="btn-primary btn-sm flex-1 sm:flex-none !bg-emerald-600 hover:!bg-emerald-700"
+                >
+                  <UserCheck className="w-4 h-4" /> Soddisfatto
+                </button>
+              )}
+              <button
+                onClick={() => setConfirmDelete(true)}
+                disabled={isLoading}
+                className="btn-icon !w-10 !h-10 hover:text-danger shrink-0"
+                aria-label="Rimuovi dalla lista"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </>
           )}
         </div>
       </div>

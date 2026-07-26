@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { format, parseISO } from 'date-fns'
-import { Plus, X } from 'lucide-react'
+import { Plus, X, Wallet } from 'lucide-react'
 import { getPayments, createPayment } from '@/services/api'
 import type { Payment } from '@/types'
+import { PageHeader, EmptyState } from '@/components/ui'
 
 const METHOD_LABELS: Record<string, string> = { contanti: 'Contanti', carta: 'Carta', misto: 'Misto' }
 const TYPE_LABELS: Record<string, string> = { servizio: 'Servizio', prodotto: 'Prodotto' }
@@ -43,44 +44,83 @@ export default function CashPage() {
   const card  = payments.reduce((s, p) => s + effectiveCard(p), 0)
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Cassa</h1>
-        <button onClick={() => setShowCreate(true)} className="btn-primary flex items-center gap-1.5">
-          <Plus className="w-4 h-4" /> Registra incasso
-        </button>
-      </div>
+    <div className="space-y-5">
+      <PageHeader
+        title="Cassa"
+        action={
+          <button onClick={() => setShowCreate(true)} className="btn-primary">
+            <Plus className="w-4 h-4" /> Registra incasso
+          </button>
+        }
+      />
 
       {/* Filters */}
-      <div className="flex gap-3 flex-wrap">
+      <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="label block mb-1 text-xs">Dal</label>
+          <label className="label">Dal</label>
           <input type="date" className="input" value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
         </div>
         <div>
-          <label className="label block mb-1 text-xs">Al</label>
+          <label className="label">Al</label>
           <input type="date" className="input" value={dateTo} onChange={e => setDateTo(e.target.value)} />
         </div>
       </div>
 
-      {/* Summary cards */}
-      <div className="grid grid-cols-3 gap-4">
-        <div className="card p-4 text-center">
-          <p className="text-2xl font-bold text-foreground">€{total.toFixed(2)}</p>
+      {/* Summary — the total spans the row on phones, where three side-by-side
+          euro figures wrap mid-number. */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <div className="card p-4 text-center col-span-2 sm:col-span-1">
+          <p className="text-xl font-bold text-foreground tabular-nums">€{total.toFixed(2)}</p>
           <p className="text-xs text-muted-foreground mt-1">Totale incassato</p>
         </div>
         <div className="card p-4 text-center">
-          <p className="text-2xl font-bold text-emerald-600">€{cash.toFixed(2)}</p>
-          <p className="text-xs text-muted-foreground mt-1">Contanti (incl. misto)</p>
+          <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">€{cash.toFixed(2)}</p>
+          <p className="text-xs text-muted-foreground mt-1">Contanti</p>
         </div>
         <div className="card p-4 text-center">
-          <p className="text-2xl font-bold text-blue-600">€{card.toFixed(2)}</p>
-          <p className="text-xs text-muted-foreground mt-1">Carta (incl. misto)</p>
+          <p className="text-xl font-bold text-blue-600 dark:text-blue-400 tabular-nums">€{card.toFixed(2)}</p>
+          <p className="text-xs text-muted-foreground mt-1">Carta</p>
         </div>
       </div>
 
+      {/* Phones: card rows. The five-column ledger needs real width to read. */}
+      <div className="sm:hidden space-y-2">
+        {payments.length === 0 ? (
+          <div className="card">
+            <EmptyState icon={Wallet} title="Nessun incasso nel periodo" />
+          </div>
+        ) : payments.map(p => (
+          <div key={p.id} className="card p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="font-medium text-foreground">{TYPE_LABELS[p.type]}</p>
+                <p className="text-xs text-muted-foreground tabular-nums mt-0.5">
+                  {format(parseISO(p.date), 'dd/MM/yyyy HH:mm')}
+                </p>
+              </div>
+              <span className="font-semibold tabular-nums shrink-0">€{p.amount.toFixed(2)}</span>
+            </div>
+            <div className="flex items-center gap-2 mt-2.5 flex-wrap">
+              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                p.method === 'contanti' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
+                : p.method === 'carta' ? 'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300'
+                : 'bg-purple-100 text-purple-700 dark:bg-purple-500/15 dark:text-purple-300'
+              }`}>
+                {METHOD_LABELS[p.method]}
+              </span>
+              {p.method === 'misto' && p.cash_amount != null && p.card_amount != null && (
+                <span className="text-xs text-muted-foreground tabular-nums">
+                  €{p.cash_amount.toFixed(2)} + €{p.card_amount.toFixed(2)}
+                </span>
+              )}
+            </div>
+            {p.notes && <p className="text-xs text-muted-foreground mt-2">{p.notes}</p>}
+          </div>
+        ))}
+      </div>
+
       {/* Table */}
-      <div className="card overflow-hidden">
+      <div className="card overflow-hidden hidden sm:block table-scroll">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border bg-muted/50">

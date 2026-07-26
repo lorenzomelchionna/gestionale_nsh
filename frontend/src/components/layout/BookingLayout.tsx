@@ -1,5 +1,6 @@
 import { Outlet, Link, NavLink, useNavigate } from 'react-router-dom'
-import { Scissors, User, LogOut } from 'lucide-react'
+import { Scissors, User, LogOut, Home, CalendarPlus } from 'lucide-react'
+import clsx from 'clsx'
 
 // Simple client auth store (separate from admin)
 import { create } from 'zustand'
@@ -30,48 +31,81 @@ export const useClientAuth = create<ClientAuthState>()(
   )
 )
 
+const clientTabs = [
+  { to: '/booking', end: true, icon: Home, label: 'Home' },
+  { to: '/booking/new', end: false, icon: CalendarPlus, label: 'Prenota' },
+  { to: '/booking/account', end: false, icon: User, label: 'Area mia' },
+]
+
 export default function BookingLayout() {
   const { token, email, logout } = useClientAuth()
   const navigate = useNavigate()
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="bg-surface border-b border-border sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
-          <Link to="/booking" className="flex items-center gap-2">
-            <div className="w-7 h-7 bg-primary rounded-md flex items-center justify-center">
-              <Scissors className="w-4 h-4 text-white" />
+    <div className="min-h-[100dvh] bg-background flex flex-col">
+      <header className="bg-surface/85 backdrop-blur-md border-b border-border sticky top-0 z-30 pt-safe-t">
+        <div className="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between gap-3">
+          <Link to="/booking" className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center shrink-0">
+              <Scissors className="w-4 h-4 text-primary-foreground" />
             </div>
-            <span className="font-semibold text-foreground">New Style Hair</span>
+            <span className="font-semibold text-foreground truncate">New Style Hair</span>
           </Link>
-          <div className="flex items-center gap-3">
-            {token ? (
-              <>
-                <NavLink
-                  to="/booking/account"
-                  className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-                >
-                  <User className="w-4 h-4" />
-                  <span className="hidden sm:inline">{email}</span>
-                </NavLink>
-                <button
-                  onClick={() => { logout(); navigate('/booking') }}
-                  className="text-sm text-muted-foreground hover:text-red-500"
-                >
-                  <LogOut className="w-4 h-4" />
-                </button>
-              </>
-            ) : (
-              <Link to="/booking/login" className="btn-primary text-sm py-1.5">
-                Accedi
-              </Link>
-            )}
-          </div>
+          {token ? (
+            <button
+              onClick={() => { logout(); navigate('/booking') }}
+              className="btn-icon hover:text-danger"
+              aria-label="Esci"
+              title={email ?? 'Esci'}
+            >
+              <LogOut className="w-[18px] h-[18px]" />
+            </button>
+          ) : (
+            <Link to="/booking/login" className="btn-primary btn-sm">
+              Accedi
+            </Link>
+          )}
         </div>
       </header>
-      <main className="max-w-4xl mx-auto px-4 py-8">
+
+      {/* Bottom padding clears the client tab bar when signed in. */}
+      <main
+        className={clsx(
+          'flex-1 w-full max-w-3xl mx-auto px-4 py-6',
+          token && 'pb-[calc(theme(spacing.tabbar)+1rem)]'
+        )}
+      >
         <Outlet />
       </main>
+
+      {/* Signed-in clients get thumb-level navigation; guests only ever see
+          the login/booking funnel, so the bar would be noise. */}
+      {token && (
+        <nav className="fixed bottom-0 inset-x-0 z-30 bg-surface/90 backdrop-blur-md border-t border-border pb-safe-b">
+          <div className="max-w-3xl mx-auto h-[3.75rem] grid grid-cols-3">
+            {clientTabs.map(({ to, end, icon: Icon, label }) => (
+              <NavLink
+                key={to}
+                to={to}
+                end={end}
+                className={({ isActive }) =>
+                  clsx(
+                    'flex flex-col items-center justify-center gap-1 text-[11px] font-medium transition-colors',
+                    isActive ? 'text-primary' : 'text-muted-foreground'
+                  )
+                }
+              >
+                {({ isActive }) => (
+                  <>
+                    <Icon className={clsx('w-[22px] h-[22px]', isActive && 'stroke-[2.4]')} />
+                    <span>{label}</span>
+                  </>
+                )}
+              </NavLink>
+            ))}
+          </div>
+        </nav>
+      )}
     </div>
   )
 }

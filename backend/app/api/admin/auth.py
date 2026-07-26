@@ -32,6 +32,10 @@ async def refresh_token(payload: dict, db: Annotated[AsyncSession, Depends(get_d
     data = decode_token(token)
     if not data or not data.get("refresh"):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token non valido")
+    # A client refresh token carries an id from client_accounts; without this
+    # check it would be exchanged here for a genuine staff access token.
+    if data.get("type") == "client":
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token non valido")
 
     result = await db.execute(select(User).where(User.id == int(data["sub"])))
     user = result.scalar_one_or_none()

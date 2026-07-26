@@ -1,0 +1,17 @@
+# Keep the production image free of anything only needed for development.
+# Railway builds from this context, so excluded paths never reach the deploy.
+tests/
+pytest.ini
+requirements-dev.txt
+scripts/
+
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+.env
+.env.*
+*.log

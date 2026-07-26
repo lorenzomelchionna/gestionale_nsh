@@ -100,6 +100,43 @@ new_style_hair/
 └── ROADMAP.md
 ```
 
+## Test automatici
+
+La suite gira su un **PostgreSQL reale** (non SQLite): l'app usa enum, colonne
+JSON e `extract`, quindi un dialect diverso nasconderebbe bug che la produzione
+avrebbe comunque.
+
+```bash
+docker compose up -d db                                    # serve il DB
+docker compose exec db psql -U nsh -d postgres -c "CREATE DATABASE nsh_test;"
+
+cd backend
+pip install -r requirements-dev.txt
+pytest -q
+```
+
+Il DB di test viene troncato prima di ogni test, quindi non tocca i dati di
+sviluppo. Per puntare altrove: `TEST_DATABASE_URL=postgresql+asyncpg://...`.
+
+### Cosa copre
+
+| File | Cosa garantisce |
+|------|-----------------|
+| `tests/test_auth_boundaries.py` | Confini fra admin, collaboratore e cliente. Regressioni della escalation cliente→admin: un fallimento qui è un problema di sicurezza, non un test instabile. |
+| `tests/test_permissions_matrix.py` | `EXPECTED_GUARDS` fissa il livello di permesso di **ogni** rotta. Aggiungere o cambiare un endpoint fa fallire i test finché la mappa non viene aggiornata di proposito — così nessuna rotta finisce in produzione senza una decisione sui permessi. |
+| `tests/test_appointments.py` | Macchina a stati degli appuntamenti e disponibilità: annullato/rifiutato devono liberare lo slot. |
+
+### CI
+
+`.github/workflows/ci.yml` gira su ogni push (tranne `main`) e su ogni PR:
+test backend, typecheck + build frontend, e `alembic upgrade head` da database
+vuoto — quest'ultimo perché il deploy esegue le migration all'avvio, quindi una
+migration rotta manderebbe giù il servizio al rilascio.
+
+La suite vive su `develop`: non viene portata su `main`, ed è comunque esclusa
+dall'immagine Docker via `.dockerignore` (con le dipendenze in
+`requirements-dev.txt`), quindi non pesa sul deploy.
+
 ## Database
 
 - **Migrations**: Alembic configurato con migration iniziale in `backend/alembic/versions/`. In produzione si usa `alembic upgrade head` (eseguito automaticamente dal startCommand Railway).

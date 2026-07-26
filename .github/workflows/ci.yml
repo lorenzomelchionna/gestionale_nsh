@@ -1,8 +1,9 @@
 name: CI
 
-# Feature branches are verified through their pull request, so `push` is limited
-# to develop: listing every branch here as well made each check run twice on a
-# PR. main only ever receives code that already passed, so it is not triggered.
+# push on develop gives a signal after every local merge there. pull_request
+# covers feature branches and, importantly, the develop -> main release PR:
+# main is the branch that deploys, so its gate is the one that has to hold.
+# Listing feature branches under `push` as well would run every check twice.
 on:
   push:
     branches:
@@ -10,6 +11,7 @@ on:
   pull_request:
     branches:
       - develop
+      - main
   workflow_dispatch:
 
 concurrency:

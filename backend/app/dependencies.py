@@ -10,6 +10,13 @@ from app.utils.auth import decode_token
 
 bearer_scheme = HTTPBearer()
 
+# Staff and client tokens are signed with the same key, and `sub` is an id from
+# a different table in each case (users vs client_accounts). Without checking
+# which audience a token was minted for, a client token whose account id happens
+# to match a staff user id authenticates as that user — so every dependency
+# below must assert the audience, not just the signature.
+CLIENT_TOKEN_TYPE = "client"
+
 
 async def get_current_user(
     credentials: Annotated[HTTPAuthorizationCredentials, Depends(bearer_scheme)],
@@ -18,6 +25,12 @@ async def get_current_user(
     token = credentials.credentials
     payload = decode_token(token)
     if payload is None or payload.get("sub") is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token non valido")
+    # Reject client tokens: their `sub` indexes client_accounts, not users.
+    if payload.get("type") == CLIENT_TOKEN_TYPE:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token non valido")
+    # Refresh tokens may only be exchanged at /auth/refresh, never used as access.
+    if payload.get("refresh"):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token non valido")
 
     user_id: int = int(payload["sub"])
@@ -42,7 +55,9 @@ async def get_current_client(
 ) -> ClientAccount:
     token = credentials.credentials
     payload = decode_token(token)
-    if payload is None or payload.get("sub") is None or payload.get("type") != "client":
+    if payload is None or payload.get("sub") is None or payload.get("type") != CLIENT_TOKEN_TYPE:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token non valido")
+    if payload.get("refresh"):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token non valido")
 
     account_id: int = int(payload["sub"])

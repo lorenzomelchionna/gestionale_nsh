@@ -1,12 +1,15 @@
 name: CI
 
-# The test suite lives on develop and feature branches. main only ever receives
-# code that already passed here, so it is not in the trigger list.
+# Feature branches are verified through their pull request, so `push` is limited
+# to develop: listing every branch here as well made each check run twice on a
+# PR. main only ever receives code that already passed, so it is not triggered.
 on:
   push:
-    branches-ignore:
-      - main
+    branches:
+      - develop
   pull_request:
+    branches:
+      - develop
   workflow_dispatch:
 
 concurrency:

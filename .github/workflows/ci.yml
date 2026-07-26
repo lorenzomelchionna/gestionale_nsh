@@ -1,0 +1,137 @@
+name: CI
+
+# push on develop gives a signal after every local merge there. pull_request
+# covers feature branches and, importantly, the develop -> main release PR:
+# main is the branch that deploys, so its gate is the one that has to hold.
+# Listing feature branches under `push` as well would run every check twice.
+on:
+  push:
+    branches:
+      - develop
+  pull_request:
+    branches:
+      - develop
+      - main
+  workflow_dispatch:
+
+concurrency:
+  # A new push to the same branch cancels the run still in flight.
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (pytest)
+    runs-on: ubuntu-latest
+
+    services:
+      # Tests run against real PostgreSQL: the app uses enums, JSON columns and
+      # `extract`, so a substituted dialect would hide dialect-specific bugs.
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: nsh
+          POSTGRES_PASSWORD: nshpass
+          POSTGRES_DB: nsh_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U nsh"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      TEST_DATABASE_URL: postgresql+asyncpg://nsh:nshpass@localhost:5432/nsh_test
+      SECRET_KEY: ci-secret-key-not-used-outside-ci
+      APP_ENV: test
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: backend/requirements-dev.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Run tests
+        run: pytest -q
+
+  frontend:
+    name: Frontend (typecheck + build)
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Build
+        run: npm run build
+
+  migrations:
+    name: Alembic migrations apply cleanly
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: nsh
+          POSTGRES_PASSWORD: nshpass
+          POSTGRES_DB: nsh_migrations
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U nsh"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql+asyncpg://nsh:nshpass@localhost:5432/nsh_migrations
+      SECRET_KEY: ci-secret-key-not-used-outside-ci
+      APP_ENV: test
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # Production deploys run `alembic upgrade head` on boot, so a migration
+      # that fails to apply from empty takes the service down on release.
+      - name: Upgrade to head
+        run: alembic upgrade head

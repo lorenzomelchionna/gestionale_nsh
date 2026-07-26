@@ -45,11 +45,25 @@ cd backend && python seed.py   # Crea tabelle e dati demo
 ```
 
 ### Credenziali demo
-| Ruolo | Email | Password |
-|-------|-------|----------|
-| Admin | admin@newstylair.it | admin123 |
-| Collaboratore | sofia@newstylair.it | sofia123 |
-| Cliente (portale) | giulia.marino@email.it | giulia123 |
+
+`seed.py` e `bootstrap.py` (con `SEED_DEMO=true`) creano account demo con
+password debolissime. Valgono **solo per lo sviluppo locale** — le trovi nel
+codice dei due script.
+
+⚠️ Non usarli su un ambiente raggiungibile da internet: questo repository è
+pubblico, quindi qualunque password scritta qui è una password nota. In
+produzione tieni `SEED_DEMO=false`, imposta l'admin con `ADMIN_EMAIL` /
+`ADMIN_PASSWORD`, e ruota la password con:
+
+```bash
+DATABASE_URL=... python scripts/set_admin_password.py
+```
+
+Per disattivare eventuali login demo già creati:
+
+```bash
+DATABASE_URL=... python scripts/disable_demo_logins.py
+```
 
 ## Struttura
 

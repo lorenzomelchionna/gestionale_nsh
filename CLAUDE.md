@@ -126,16 +126,49 @@ sviluppo. Per puntare altrove: `TEST_DATABASE_URL=postgresql+asyncpg://...`.
 | `tests/test_permissions_matrix.py` | `EXPECTED_GUARDS` fissa il livello di permesso di **ogni** rotta. Aggiungere o cambiare un endpoint fa fallire i test finché la mappa non viene aggiornata di proposito — così nessuna rotta finisce in produzione senza una decisione sui permessi. |
 | `tests/test_appointments.py` | Macchina a stati degli appuntamenti e disponibilità: annullato/rifiutato devono liberare lo slot. |
 
-### CI
+### CI e flusso di rilascio
 
-`.github/workflows/ci.yml` gira su ogni push (tranne `main`) e su ogni PR:
-test backend, typecheck + build frontend, e `alembic upgrade head` da database
-vuoto — quest'ultimo perché il deploy esegue le migration all'avvio, quindi una
-migration rotta manderebbe giù il servizio al rilascio.
+`.github/workflows/ci.yml` esegue tre job: test backend, typecheck + build
+frontend, e `alembic upgrade head` da database vuoto — l'ultimo perché il deploy
+lancia le migration all'avvio, quindi una migration che non applica manderebbe
+giù il servizio al rilascio.
 
-La suite vive su `develop`: non viene portata su `main`, ed è comunque esclusa
-dall'immagine Docker via `.dockerignore` (con le dipendenze in
-`requirements-dev.txt`), quindi non pesa sul deploy.
+Trigger: push su `develop` (feedback immediato) e pull request verso `develop` o
+`main`.
+
+**`main` è protetto**, `develop` è libero:
+
+| Branch | Protezione |
+|--------|-----------|
+| `develop` | nessuna — push diretto libero |
+| `main` | 3 check obbligatori, validi anche per gli admin. Push diretto impossibile, force push e cancellazione bloccati. Nessuna review richiesta (si può mergiare da soli). |
+
+Il gate sta su `main` perché è il branch che Railway deploya: se `develop` si
+rompe non va offline nulla.
+
+Lavoro quotidiano:
+
+```bash
+git checkout develop && git pull
+# ... modifiche ...
+git push origin develop      # la CI gira e segnala
+```
+
+Rilascio, quando `develop` è verde:
+
+```bash
+gh pr create --base main --head develop --fill
+gh pr merge --merge
+git checkout develop && git merge --ff-only origin/main && git push
+```
+
+L'ultima riga non è opzionale: il merge della PR crea un commit di merge che
+esiste **solo** su `main`, quindi senza allineamento `develop` risulta "N commit
+behind" anche a contenuto identico, e la distanza cresce a ogni rilascio.
+
+La suite finisce anche su `main` (i file tracciati arrivano col merge), ma non
+pesa sul deploy: `.dockerignore` la esclude dall'immagine e le dipendenze di
+test stanno in `requirements-dev.txt`, fuori da `requirements.txt`.
 
 ## Database
 

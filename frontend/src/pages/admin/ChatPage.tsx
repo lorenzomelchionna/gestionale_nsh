@@ -8,8 +8,9 @@ import {
 import { Link } from 'react-router-dom'
 import {
   getConversations, getConversation, replyToConversation, setConversationArchived,
+  getChatStatus,
 } from '@/services/api'
-import type { ChatMessage, Conversation } from '@/types'
+import type { ChatChannelStatus, ChatMessage, Conversation } from '@/types'
 import { PageHeader, EmptyState, SkeletonList } from '@/components/ui'
 import clsx from 'clsx'
 
@@ -22,6 +23,12 @@ export default function ChatPage() {
     queryFn: () => getConversations(false),
     // New messages arrive by webhook, so the list has to poll to notice them.
     refetchInterval: 20_000,
+  })
+
+  const { data: status } = useQuery({
+    queryKey: ['chat-status'],
+    queryFn: getChatStatus,
+    staleTime: 5 * 60_000,
   })
 
   const invalidate = () => {
@@ -39,6 +46,12 @@ export default function ChatPage() {
           subtitle={conversations.length ? `${conversations.length} conversazioni` : undefined}
         />
       </div>
+
+      {status && !status.is_live && (
+        <div className={clsx('mt-4 lg:mt-5', selectedId !== null && 'hidden lg:block')}>
+          <NotLiveBanner mode={status.mode} />
+        </div>
+      )}
 
       <div className="lg:flex lg:flex-1 lg:min-h-0 lg:gap-4 lg:mt-5">
         {/* Conversation list */}
@@ -90,6 +103,33 @@ export default function ChatPage() {
             />
           )}
         </div>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Shown until the salon's own number is registered with Meta.
+ *
+ * Everything on this page works, but messages only travel to and from numbers
+ * that joined the Twilio sandbox — so without this an answered thread would
+ * look delivered when the client never received anything.
+ */
+function NotLiveBanner({ mode }: { mode: ChatChannelStatus['mode'] }) {
+  return (
+    <div className="flex items-start gap-2.5 rounded-xl border border-warning/30 bg-warning/10 px-4 py-3">
+      <AlertTriangle className="w-4 h-4 text-warning shrink-0 mt-0.5" />
+      <div className="min-w-0 text-[13px]">
+        <p className="font-semibold text-warning">
+          Numero WhatsApp da configurare — canale non ancora attivo
+        </p>
+        <p className="text-muted-foreground mt-1">
+          {mode === 'not_configured'
+            ? 'Twilio non è configurato: i messaggi inviati da qui vengono solo registrati, non recapitati.'
+            : 'È in uso il numero di prova Twilio: i messaggi raggiungono solo i telefoni che hanno inviato il codice di adesione, non i clienti reali.'}
+          {' '}La chat resta utilizzabile per le prove; diventerà operativa quando
+          il numero del salone sarà migrato su WhatsApp Business.
+        </p>
       </div>
     </div>
   )

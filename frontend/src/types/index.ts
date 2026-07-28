@@ -342,3 +342,10 @@ export interface Conversation {
 export interface ConversationDetail extends Conversation {
   messages: ChatMessage[]
 }
+
+export interface ChatChannelStatus {
+  mode: 'not_configured' | 'sandbox' | 'production'
+  is_live: boolean
+  from_number?: string | null
+  reply_window_hours: number
+}

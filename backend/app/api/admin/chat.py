@@ -18,8 +18,10 @@ from app.models.user import User
 from app.schemas.chat import (
     ChatMessageOut, ConversationDetail, ConversationOut, ReplyRequest,
 )
+from app.config import settings
 from app.services.chat import (
-    can_reply_freely, mark_read, send_reply, window_expires_at,
+    REPLY_WINDOW_HOURS, can_reply_freely, mark_read, send_reply,
+    whatsapp_mode, window_expires_at,
 )
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
@@ -84,6 +86,26 @@ async def unread_count(
         select(Conversation.unread_count).where(Conversation.is_archived == False)  # noqa: E712
     )).scalars().all()
     return {"unread": sum(total)}
+
+
+@router.get("/status")
+async def channel_status(
+    current_user: Annotated[User, Depends(get_current_user)],
+):
+    """
+    Whether the WhatsApp channel is live.
+
+    Until the salon's number is migrated the deployment runs on Twilio's shared
+    sandbox, which only reaches people who sent the join code. The UI surfaces
+    this so nobody assumes a reply reached a client when it did not.
+    """
+    mode = whatsapp_mode()
+    return {
+        "mode": mode,
+        "is_live": mode == "production",
+        "from_number": settings.TWILIO_WHATSAPP_FROM or None,
+        "reply_window_hours": REPLY_WINDOW_HOURS,
+    }
 
 
 @router.get("/conversations/{conversation_id}", response_model=ConversationDetail)

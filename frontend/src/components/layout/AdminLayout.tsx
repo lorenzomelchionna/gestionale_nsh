@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import {
   LayoutDashboard, Calendar, Users, Scissors, Package,
   DollarSign, TrendingDown, Settings, LogOut, X,
-  UserCircle, Clock, MessageSquare, Moon, Sun, ClipboardList,
+  UserCircle, Clock, MessageSquare, Moon, Sun, ClipboardList, ShieldCheck,
   MoreHorizontal, PanelLeftClose, PanelLeft,
 } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
@@ -33,6 +33,7 @@ const adminNavItems: NavItem[] = [
   { to: '/admin/cash',                 icon: DollarSign,      label: 'Cassa' },
   { to: '/admin/expenses',             icon: TrendingDown,    label: 'Spese' },
   { to: '/admin/messaging',            icon: MessageSquare,   label: 'Messaggi' },
+  { to: '/admin/team',                 icon: ShieldCheck,     label: 'Team e accessi' },
   { to: '/admin/settings',             icon: Settings,        label: 'Impostazioni' },
 ]
 

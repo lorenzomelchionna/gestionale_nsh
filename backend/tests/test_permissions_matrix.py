@@ -89,6 +89,12 @@ EXPECTED_GUARDS = {
     ("DELETE", "/api/admin/services/{service_id}"): "admin",
     ("GET", "/api/admin/services/{service_id}"): "staff",
     ("PUT", "/api/admin/services/{service_id}"): "admin",
+    # Team: admin-only, except changing your own password which any staff does.
+    ("GET", "/api/admin/team"): "admin",
+    ("POST", "/api/admin/team"): "admin",
+    ("PUT", "/api/admin/team/{user_id}"): "admin",
+    ("POST", "/api/admin/team/{user_id}/reset-password"): "admin",
+    ("POST", "/api/admin/team/me/password"): "staff",
     ("GET", "/api/admin/settings/booking"): "admin",
     ("PUT", "/api/admin/settings/booking"): "admin",
     ("GET", "/api/admin/waitlist"): "admin",

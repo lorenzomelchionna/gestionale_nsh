@@ -9,10 +9,10 @@ import {
 } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import { useUIStore } from '@/store/uiStore'
-import { getPendingAppointments, getWaitlist } from '@/services/api'
+import { getPendingAppointments, getWaitlist, getChatUnreadCount } from '@/services/api'
 import clsx from 'clsx'
 
-type Badge = 'pending' | 'waitlist'
+type Badge = 'pending' | 'waitlist' | 'chat'
 interface NavItem {
   to: string
   icon: React.ComponentType<{ className?: string }>
@@ -23,6 +23,7 @@ interface NavItem {
 const adminNavItems: NavItem[] = [
   { to: '/admin/calendar',             icon: Calendar,        label: 'Calendario' },
   { to: '/admin/appointments/pending', icon: Clock,           label: 'In attesa',       badge: 'pending' },
+  { to: '/admin/chat',                 icon: MessageSquare,   label: 'Chat',            badge: 'chat' },
   { to: '/admin/clients',              icon: Users,           label: 'Clienti' },
   { to: '/admin/dashboard',            icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/admin/waitlist',             icon: ClipboardList,   label: "Lista d'attesa",  badge: 'waitlist' },
@@ -38,6 +39,7 @@ const adminNavItems: NavItem[] = [
 const collaboratorNavItems: NavItem[] = [
   { to: '/admin/calendar',             icon: Calendar, label: 'Calendario' },
   { to: '/admin/appointments/pending', icon: Clock,    label: 'In attesa', badge: 'pending' },
+  { to: '/admin/chat',                 icon: MessageSquare, label: 'Chat', badge: 'chat' },
   { to: '/admin/clients',              icon: Users,    label: 'Clienti' },
   { to: '/admin/services',             icon: Scissors, label: 'Servizi' },
 ]
@@ -72,8 +74,18 @@ export default function AdminLayout() {
   })
   const waitlistCount = waitlistData?.length ?? 0
 
+  const { data: chatUnread } = useQuery({
+    queryKey: ['chat-unread'],
+    queryFn: getChatUnreadCount,
+    refetchInterval: 30_000,
+  })
+  const chatCount = chatUnread?.unread ?? 0
+
   const countFor = (badge?: Badge) =>
-    badge === 'pending' ? pendingCount : badge === 'waitlist' ? waitlistCount : 0
+    badge === 'pending' ? pendingCount
+    : badge === 'waitlist' ? waitlistCount
+    : badge === 'chat' ? chatCount
+    : 0
 
   // Close the drawer on navigation, otherwise it stays over the new page.
   useEffect(() => setDrawerOpen(false), [location.pathname])

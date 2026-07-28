@@ -16,6 +16,7 @@ import CashPage from '@/pages/admin/CashPage'
 import ExpensesPage from '@/pages/admin/ExpensesPage'
 import SettingsPage from '@/pages/admin/SettingsPage'
 import MessagingPage from '@/pages/admin/MessagingPage'
+import ChatPage from '@/pages/admin/ChatPage'
 import WaitlistPage from '@/pages/admin/WaitlistPage'
 
 // Booking portal pages
@@ -50,6 +51,7 @@ export default function App() {
           <Route path="calendar"             element={<CalendarPage />} />
           <Route path="appointments/pending" element={<PendingPage />} />
           <Route path="clients"              element={<ClientsPage />} />
+          <Route path="chat"                 element={<ChatPage />} />
           <Route path="clients/:id"          element={<ClientDetailPage />} />
           <Route path="collaborators"        element={<RequireAdmin><CollaboratorsPage /></RequireAdmin>} />
           <Route path="services"             element={<ServicesPage />} />

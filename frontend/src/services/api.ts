@@ -320,4 +320,25 @@ export const setConversationArchived = (id: number, archived: boolean) =>
     params: { archived },
   }).then(r => r.data)
 
+
+// ── Team (accessi staff) ──────────────────────────────────────────
+
+import type { TeamMember, UserRole } from '@/types'
+
+export const getTeam = () =>
+  api.get<TeamMember[]>('/admin/team').then(r => r.data)
+
+export const createTeamMember = (data: {
+  email: string; password: string; role?: UserRole; collaborator_id?: number | null
+}) => api.post<TeamMember>('/admin/team', data).then(r => r.data)
+
+export const updateTeamMember = (id: number, data: Partial<Pick<TeamMember, 'email' | 'is_active' | 'role'>>) =>
+  api.put<TeamMember>(`/admin/team/${id}`, data).then(r => r.data)
+
+export const resetTeamPassword = (id: number, new_password: string) =>
+  api.post(`/admin/team/${id}/reset-password`, { new_password }).then(r => r.data)
+
+export const changeOwnPassword = (current_password: string, new_password: string) =>
+  api.post('/admin/team/me/password', { current_password, new_password }).then(r => r.data)
+
 export default api

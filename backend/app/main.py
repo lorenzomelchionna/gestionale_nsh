@@ -30,10 +30,12 @@ from app.api.admin.dashboard import router as dashboard_router
 from app.api.admin.messaging import router as messaging_router
 from app.api.admin.extra_days import router as extra_days_router
 from app.api.admin.waitlist import router as waitlist_router
+from app.api.admin.chat import router as chat_router
 
 # Public routers
 from app.api.public.auth import router as public_auth_router
 from app.api.public.booking import router as booking_router
+from app.api.public.whatsapp import router as whatsapp_router
 
 
 @asynccontextmanager
@@ -92,8 +94,11 @@ app.include_router(waitlist_router, prefix=ADMIN_PREFIX)
 # ── Public API (/api/public/...) ──────────────────────────────────
 PUBLIC_PREFIX = "/api/public"
 
+app.include_router(chat_router, prefix=ADMIN_PREFIX)
+
 app.include_router(public_auth_router, prefix=PUBLIC_PREFIX)
 app.include_router(booking_router, prefix=PUBLIC_PREFIX)
+app.include_router(whatsapp_router, prefix=PUBLIC_PREFIX)
 
 
 @app.get("/health")

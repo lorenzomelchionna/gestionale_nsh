@@ -307,3 +307,45 @@ export interface WaitlistCreate {
   preferred_date?: string | null
   notes?: string | null
 }
+
+// ── WhatsApp inbox ────────────────────────────────────────────────
+
+export type MessageDirection = 'inbound' | 'outbound'
+export type MessageStatus = 'received' | 'queued' | 'sent' | 'failed'
+
+export interface ChatMessage {
+  id: number
+  direction: MessageDirection
+  body: string
+  status: MessageStatus
+  error?: string | null
+  sent_by_user_id?: number | null
+  created_at: string
+}
+
+export interface Conversation {
+  id: number
+  phone: string
+  client_id?: number | null
+  contact_name?: string | null
+  last_message_at?: string | null
+  last_inbound_at?: string | null
+  unread_count: number
+  is_archived: boolean
+  display_name: string
+  last_message_preview?: string | null
+  /** Meta only allows free text within 24h of the client's last message. */
+  can_reply_freely: boolean
+  window_expires_at?: string | null
+}
+
+export interface ConversationDetail extends Conversation {
+  messages: ChatMessage[]
+}
+
+export interface ChatChannelStatus {
+  mode: 'not_configured' | 'sandbox' | 'production'
+  is_live: boolean
+  from_number?: string | null
+  reply_window_hours: number
+}

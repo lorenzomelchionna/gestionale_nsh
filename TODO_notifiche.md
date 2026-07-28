@@ -62,7 +62,11 @@ Passi WhatsApp produzione (qualunque scenario):
 - [ ] Dati reali: collaboratori (orari, servizi, colori), servizi (prezzi, durate),
   impostazioni (chiusure, anticipo, finestra reminder)
 - [ ] Telefoni clienti sempre in E.164 (`+39...`)
-- [ ] Cambiare password admin demo (`admin123`)
+- [x] Cambiare password admin demo (`admin123`) — 2026-07-28: email → `newstylehair2019@gmail.com`,
+  password ruotata (generata e mostrata una volta in chat, da salvare in un password manager)
+- [ ] **Cambio password dal gestionale** — non esiste ancora un endpoint/pagina per
+  farlo da interfaccia; oggi la password si cambia solo via script sul DB.
+  Serve prima che l'admin possa ruotarla senza intervento manuale.
 - [ ] Verificare `SECRET_KEY` robusta in prod
 - [ ] Disattivare `SEED_DEMO` + svuotare dati demo
 

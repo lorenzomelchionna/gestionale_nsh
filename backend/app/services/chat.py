@@ -22,6 +22,26 @@ from app.models.client import Client
 
 REPLY_WINDOW_HOURS = 24
 
+# Twilio's shared sandbox number. Messages from it only reach people who have
+# sent the join code, so a deployment still pointing here is not live yet.
+TWILIO_SANDBOX_FROM = "whatsapp:+14155238886"
+
+
+def whatsapp_mode() -> str:
+    """
+    How the WhatsApp channel is currently wired.
+
+    `not_configured` — no Twilio credentials: replies are logged, not sent.
+    `sandbox`        — Twilio's shared test number: reaches only joined numbers.
+    `production`     — a dedicated number registered with Meta.
+    """
+    if not (settings.TWILIO_ACCOUNT_SID and settings.TWILIO_AUTH_TOKEN
+            and settings.TWILIO_WHATSAPP_FROM):
+        return "not_configured"
+    if settings.TWILIO_WHATSAPP_FROM.strip() == TWILIO_SANDBOX_FROM:
+        return "sandbox"
+    return "production"
+
 
 def normalise_phone(raw: str) -> str:
     """

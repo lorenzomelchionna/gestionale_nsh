@@ -252,3 +252,42 @@ class TestOutboundRecording:
         )
         assert resp.json()["sent_by_user_id"] == admin_user.id
         assert resp.json()["direction"] == MessageDirection.outbound.value
+
+
+class TestChannelStatus:
+    """The banner that tells the salon whether WhatsApp is actually live."""
+
+    async def test_sandbox_number_is_not_live(self, client, admin_tokens, monkeypatch):
+        from app.config import settings
+        from app.services.chat import TWILIO_SANDBOX_FROM
+
+        monkeypatch.setattr(settings, "TWILIO_ACCOUNT_SID", "AC-test")
+        monkeypatch.setattr(settings, "TWILIO_WHATSAPP_FROM", TWILIO_SANDBOX_FROM)
+
+        body = (await client.get("/api/admin/chat/status", headers=auth(admin_tokens))).json()
+        assert body["mode"] == "sandbox"
+        assert body["is_live"] is False
+
+    async def test_missing_credentials_are_not_live(self, client, admin_tokens, monkeypatch):
+        from app.config import settings
+
+        monkeypatch.setattr(settings, "TWILIO_ACCOUNT_SID", "")
+        monkeypatch.setattr(settings, "TWILIO_WHATSAPP_FROM", "")
+
+        body = (await client.get("/api/admin/chat/status", headers=auth(admin_tokens))).json()
+        assert body["mode"] == "not_configured"
+        assert body["is_live"] is False
+
+    async def test_own_number_is_live(self, client, admin_tokens, monkeypatch):
+        from app.config import settings
+
+        monkeypatch.setattr(settings, "TWILIO_ACCOUNT_SID", "AC-test")
+        monkeypatch.setattr(settings, "TWILIO_WHATSAPP_FROM", "whatsapp:+390123456789")
+
+        body = (await client.get("/api/admin/chat/status", headers=auth(admin_tokens))).json()
+        assert body["mode"] == "production"
+        assert body["is_live"] is True
+
+    async def test_collaborator_can_read_status(self, client, collab_tokens):
+        resp = await client.get("/api/admin/chat/status", headers=auth(collab_tokens))
+        assert resp.status_code == 200

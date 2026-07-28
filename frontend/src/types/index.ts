@@ -349,3 +349,15 @@ export interface ChatChannelStatus {
   from_number?: string | null
   reply_window_hours: number
 }
+
+// ── Team (accessi staff) ──────────────────────────────────────────
+
+export interface TeamMember {
+  id: number
+  email: string
+  role: UserRole
+  is_active: boolean
+  created_at: string
+  collaborator_id?: number | null
+  collaborator_name?: string | null
+}

@@ -17,6 +17,7 @@ import ExpensesPage from '@/pages/admin/ExpensesPage'
 import SettingsPage from '@/pages/admin/SettingsPage'
 import MessagingPage from '@/pages/admin/MessagingPage'
 import ChatPage from '@/pages/admin/ChatPage'
+import TeamPage from '@/pages/admin/TeamPage'
 import WaitlistPage from '@/pages/admin/WaitlistPage'
 
 // Booking portal pages
@@ -59,6 +60,7 @@ export default function App() {
           <Route path="cash"                 element={<RequireAdmin><CashPage /></RequireAdmin>} />
           <Route path="expenses"             element={<RequireAdmin><ExpensesPage /></RequireAdmin>} />
           <Route path="settings"             element={<RequireAdmin><SettingsPage /></RequireAdmin>} />
+          <Route path="team"                 element={<RequireAdmin><TeamPage /></RequireAdmin>} />
           <Route path="messaging"            element={<RequireAdmin><MessagingPage /></RequireAdmin>} />
           <Route path="waitlist"             element={<RequireAdmin><WaitlistPage /></RequireAdmin>} />
         </Route>

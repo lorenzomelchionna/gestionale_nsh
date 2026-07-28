@@ -44,6 +44,13 @@ EXPECTED_GUARDS = {
     ("GET", "/api/admin/auth/me"): "staff",
     ("POST", "/api/admin/auth/refresh"): "public",
     ("GET", "/api/admin/availability"): "staff",
+    # Chat: staff, not admin-only — answering clients is day-to-day work for
+    # collaborators too, and the inbox exposes no financial data.
+    ("GET", "/api/admin/chat/conversations"): "staff",
+    ("GET", "/api/admin/chat/conversations/{conversation_id}"): "staff",
+    ("POST", "/api/admin/chat/conversations/{conversation_id}/reply"): "staff",
+    ("PATCH", "/api/admin/chat/conversations/{conversation_id}/archive"): "staff",
+    ("GET", "/api/admin/chat/unread-count"): "staff",
     ("GET", "/api/admin/clients"): "staff",
     ("POST", "/api/admin/clients"): "admin",
     ("DELETE", "/api/admin/clients/{client_id}"): "admin",
@@ -98,6 +105,9 @@ EXPECTED_GUARDS = {
     ("POST", "/api/public/auth/register"): "public",
     ("POST", "/api/public/auth/reset-password"): "public",
     ("GET", "/api/public/availability"): "public",
+    # Unauthenticated by necessity — Twilio cannot hold our credentials. The
+    # control is the Twilio signature check inside the handler, not a dependency.
+    ("POST", "/api/public/whatsapp/webhook"): "public",
     ("GET", "/api/public/collaborators"): "public",
     ("GET", "/api/public/services"): "public",
     ("GET", "/api/public/waitlist"): "client",

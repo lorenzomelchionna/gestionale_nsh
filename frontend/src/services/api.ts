@@ -295,4 +295,26 @@ export const fulfilWaitlistEntry = (id: number) =>
 export const deleteWaitlistEntry = (id: number) =>
   api.delete(`/admin/waitlist/${id}`).then(r => r.data)
 
+
+// ── WhatsApp inbox ────────────────────────────────────────────────
+
+import type { Conversation, ConversationDetail, ChatMessage } from '@/types'
+
+export const getConversations = (archived = false) =>
+  api.get<Conversation[]>('/admin/chat/conversations', { params: { archived } }).then(r => r.data)
+
+export const getConversation = (id: number) =>
+  api.get<ConversationDetail>(`/admin/chat/conversations/${id}`).then(r => r.data)
+
+export const getChatUnreadCount = () =>
+  api.get<{ unread: number }>('/admin/chat/unread-count').then(r => r.data)
+
+export const replyToConversation = (id: number, body: string) =>
+  api.post<ChatMessage>(`/admin/chat/conversations/${id}/reply`, { body }).then(r => r.data)
+
+export const setConversationArchived = (id: number, archived: boolean) =>
+  api.patch<Conversation>(`/admin/chat/conversations/${id}/archive`, null, {
+    params: { archived },
+  }).then(r => r.data)
+
 export default api

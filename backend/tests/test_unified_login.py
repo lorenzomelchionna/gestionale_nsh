@@ -144,6 +144,7 @@ class TestOneAddressOneAccount:
                 "phone": "3351112233",
                 "email": admin_user.email,
                 "password": GOOD_PASSWORD,
+                "birth_date": "1992-02-20",
             },
         )
         assert resp.status_code == 400

@@ -50,10 +50,13 @@ async def register(payload: ClientRegister, db: Annotated[AsyncSession, Depends(
     await db.flush()
 
     if client:
-        # Link existing client to this account
+        # Link existing client to this account. Only blanks are filled in: the
+        # salon's own record wins over what someone types at sign-up.
         client.account_id = account.id
         if not client.email:
             client.email = payload.email
+        if not client.birth_date:
+            client.birth_date = payload.birth_date
     else:
         # Create new client record
         client = Client(
@@ -61,6 +64,7 @@ async def register(payload: ClientRegister, db: Annotated[AsyncSession, Depends(
             last_name=payload.last_name,
             phone=payload.phone,
             email=payload.email,
+            birth_date=payload.birth_date,
             account_id=account.id,
         )
         db.add(client)

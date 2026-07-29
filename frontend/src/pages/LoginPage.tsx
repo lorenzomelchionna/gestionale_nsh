@@ -181,9 +181,6 @@ export default function LoginPage() {
                     value={form.phone}
                     onChange={e => setForm({ ...form, phone: e.target.value })}
                   />
-                  <p className="text-xs text-muted-foreground mt-1.5">
-                    Serve per confermarti l'appuntamento su WhatsApp.
-                  </p>
                 </div>
                 <div>
                   <label htmlFor="birth_date" className="label">Data di nascita</label>
@@ -197,9 +194,6 @@ export default function LoginPage() {
                     value={form.birth_date}
                     onChange={e => setForm({ ...form, birth_date: e.target.value })}
                   />
-                  <p className="text-xs text-muted-foreground mt-1.5">
-                    Per farti gli auguri il giorno del tuo compleanno.
-                  </p>
                 </div>
               </>
             )}
@@ -247,6 +241,15 @@ export default function LoginPage() {
                 <p className="text-xs text-muted-foreground mt-1.5">Almeno 6 caratteri.</p>
               )}
             </div>
+
+            {/* Placed once, above the button, rather than as a hint under each
+                contact field: it explains what both of them are collected for. */}
+            {mode === 'register' && (
+              <p className="text-xs text-muted-foreground">
+                Riceverai le comunicazioni sui tuoi appuntamenti via email e
+                WhatsApp.
+              </p>
+            )}
 
             {error && (
               <p

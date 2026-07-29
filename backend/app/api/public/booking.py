@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
+from pydantic import BaseModel
 from app.database import get_db
 from app.models.client import ClientAccount, Client
 from app.models.service import Service
@@ -21,6 +22,16 @@ from app.dependencies import get_current_client
 from app.services.availability import get_available_slots
 
 router = APIRouter(prefix="", tags=["Public Booking"])
+
+# One request per visible month is the point of the calendar endpoint; a wider
+# span would run a slot computation per day for no one's benefit.
+MAX_CALENDAR_DAYS = 62
+
+
+class DayAvailability(BaseModel):
+    """Free slots on one day — 0 means closed, fully booked or out of window."""
+    date: date
+    slots: int
 
 
 # ── Public (no auth) ──────────────────────────────────────────────
@@ -126,6 +137,60 @@ async def public_availability(
 
     slots = await get_available_slots(db, collaborator_id, target_date, service.duration_slots)
     return [s.isoformat() for s in slots]
+
+
+@router.get("/availability/calendar", response_model=List[DayAvailability])
+async def public_availability_calendar(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    service_id: int = Query(...),
+    collaborator_id: int = Query(...),
+    start_date: date = Query(...),
+    end_date: date = Query(...),
+):
+    """
+    How many slots each day of a range holds.
+
+    The calendar needs to grey out full and closed days before the client picks
+    one. Asking day by day would be a request per cell, so the whole visible
+    month comes back at once.
+    """
+    if end_date < start_date:
+        raise HTTPException(status_code=400, detail="Intervallo di date non valido")
+    if (end_date - start_date).days > MAX_CALENDAR_DAYS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Intervallo troppo ampio (massimo {MAX_CALENDAR_DAYS} giorni)",
+        )
+
+    cfg_result = await db.execute(select(BookingConfig).limit(1))
+    cfg = cfg_result.scalar_one_or_none()
+    if cfg and not cfg.is_enabled:
+        raise HTTPException(status_code=403, detail="Prenotazione online disabilitata")
+
+    svc_result = await db.execute(select(Service).where(Service.id == service_id))
+    service = svc_result.scalar_one_or_none()
+    if not service or not service.bookable_online:
+        raise HTTPException(status_code=404, detail="Servizio non trovato o non prenotabile online")
+
+    await _bookable_collaborator(db, collaborator_id, [service_id])
+
+    today = date.today()
+    # Booking windows are enforced per-day here rather than by clipping the
+    # range, so the calendar can still render those days as unavailable instead
+    # of the month appearing to end early.
+    min_day = today
+    max_day = today + timedelta(days=cfg.max_advance_days) if cfg else None
+
+    out: List[DayAvailability] = []
+    day = start_date
+    while day <= end_date:
+        if day < min_day or (max_day and day > max_day):
+            out.append(DayAvailability(date=day, slots=0))
+        else:
+            slots = await get_available_slots(db, collaborator_id, day, service.duration_slots)
+            out.append(DayAvailability(date=day, slots=len(slots)))
+        day += timedelta(days=1)
+    return out
 
 
 # ── Authenticated client endpoints ────────────────────────────────

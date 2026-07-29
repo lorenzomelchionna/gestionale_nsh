@@ -34,6 +34,7 @@ from app.api.admin.chat import router as chat_router
 from app.api.admin.team import router as team_router
 
 # Public routers
+from app.api.auth import router as unified_auth_router
 from app.api.public.auth import router as public_auth_router
 from app.api.public.booking import router as booking_router
 from app.api.public.whatsapp import router as whatsapp_router
@@ -97,6 +98,10 @@ PUBLIC_PREFIX = "/api/public"
 
 app.include_router(chat_router, prefix=ADMIN_PREFIX)
 app.include_router(team_router, prefix=ADMIN_PREFIX)
+
+# Shared sign-in, used by the single login screen. Not under /api/admin or
+# /api/public because it serves both and may return either kind of token.
+app.include_router(unified_auth_router, prefix="/api")
 
 app.include_router(public_auth_router, prefix=PUBLIC_PREFIX)
 app.include_router(booking_router, prefix=PUBLIC_PREFIX)

@@ -85,7 +85,14 @@ Passi WhatsApp produzione (qualunque scenario):
   password ruotata (generata e mostrata una volta in chat, da salvare in un password manager)
 - [x] **Cambio password dal gestionale** — 2026-07-29: pagina "Team e accessi" con
   creazione login, reset password da admin e cambio password self-service.
-- [ ] Verificare `SECRET_KEY` robusta in prod
+- [x] `SECRET_KEY` robusta in prod — 2026-07-29: 64 caratteri esadecimali
+  (256 bit), non è il default `changeme` di `config.py`, identica su backend e
+  worker, assente dal servizio frontend. Contava perché firma i token di admin,
+  collaboratori **e** clienti: chi la conosce entra come admin senza password, e
+  il default è leggibile in questo repository pubblico. Verificata per hash,
+  senza esporre il valore. Da ruotare solo se finisce in una chat, in un commit
+  o se si perde un dispositivo con accesso a Railway — la rotazione disconnette
+  tutti, refresh token compresi.
 - [x] Disattivare `SEED_DEMO` + svuotare dati demo — 2026-07-29: clienti, appuntamenti,
   pagamenti, prodotti e spese demo cancellati; collaboratori e servizi demo rimossi.
 

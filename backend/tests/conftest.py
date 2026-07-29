@@ -226,6 +226,44 @@ async def collaborator(db, service) -> Collaborator:
 
 
 @pytest_asyncio.fixture
+async def unoffered_service(db) -> Service:
+    """A bookable service the `collaborator` fixture does not perform."""
+    svc = Service(
+        name="Colore test",
+        price=60.0,
+        duration_slots=2,
+        category="Colore",
+        bookable_online=True,
+        is_active=True,
+    )
+    db.add(svc)
+    await db.commit()
+    return svc
+
+
+@pytest_asyncio.fixture
+async def hidden_collaborator(db, service) -> Collaborator:
+    """Performs the service, but is not published on the portal."""
+    collab = Collaborator(
+        first_name="Nascosta",
+        last_name="Test",
+        color="#888888",
+        visible_online=False,
+        is_active=True,
+    )
+    db.add(collab)
+    await db.flush()
+    for day in range(6):
+        db.add(CollaboratorSchedule(
+            collaborator_id=collab.id, day_of_week=day,
+            start_time=time(9, 0), end_time=time(19, 0), is_working=True,
+        ))
+    db.add(CollaboratorService(collaborator_id=collab.id, service_id=service.id))
+    await db.commit()
+    return collab
+
+
+@pytest_asyncio.fixture
 async def client_account(db) -> ClientAccount:
     """A portal account with its linked Client record."""
     account = ClientAccount(

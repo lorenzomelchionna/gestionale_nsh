@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_current_user, require_admin
+from app.models.client import ClientAccount
 from app.models.collaborator import Collaborator
 from app.models.user import User, UserRole
 from app.schemas.user import (
@@ -76,6 +77,17 @@ async def create_member(
     )).scalar_one_or_none()
     if existing:
         raise HTTPException(status_code=400, detail="Email già usata da un altro account")
+
+    # Staff and clients sign in from the same screen, so one address cannot
+    # mean two accounts — the login would have to guess which one was meant.
+    portal_account = (await db.execute(
+        select(ClientAccount).where(ClientAccount.email == payload.email)
+    )).scalar_one_or_none()
+    if portal_account:
+        raise HTTPException(
+            status_code=400,
+            detail="Email già usata da un account cliente del portale prenotazioni",
+        )
 
     user = User(
         email=payload.email,

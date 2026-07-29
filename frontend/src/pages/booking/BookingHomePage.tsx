@@ -30,9 +30,16 @@ export default function BookingHomePage() {
           Prenota ora <ArrowRight className="w-4 h-4" />
         </Link>
         {!token && (
-          <Link to="/booking/login" className="btn-outline w-full">
-            Accedi all'area personale
-          </Link>
+          <>
+            <Link to="/login" className="btn-outline w-full">
+              Accedi all'area personale
+            </Link>
+            {/* Said up front, because "Prenota ora" leads to the sign-in
+                screen and an unexplained redirect reads as a dead end. */}
+            <p className="text-xs text-muted-foreground text-center pt-1">
+              Per prenotare serve un account: bastano nome, telefono ed email.
+            </p>
+          </>
         )}
         {token && (
           <Link to="/booking/account" className="btn-outline w-full">

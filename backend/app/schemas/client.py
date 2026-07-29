@@ -45,6 +45,10 @@ class ClientRegister(BaseModel):
     phone: str
     email: EmailStr
     password: str
+    # Asked for at sign-up rather than left to be filled in later: the birthday
+    # greeting only reaches people whose date is on file, and a field the form
+    # never asks about stays empty.
+    birth_date: date
 
     @field_validator("phone")
     @classmethod
@@ -55,6 +59,17 @@ class ClientRegister(BaseModel):
         if normalised is None:
             raise ValueError("Il numero di telefono è obbligatorio")
         return normalised
+
+    @field_validator("birth_date")
+    @classmethod
+    def must_be_a_plausible_birthday(cls, value: date) -> date:
+        """Catches the two typos a date field invites: the wrong year, and today."""
+        today = date.today()
+        if value >= today:
+            raise ValueError("La data di nascita deve essere nel passato")
+        if value < today.replace(year=today.year - 120):
+            raise ValueError("Data di nascita non valida")
+        return value
 
 
 class ClientAccountOut(BaseModel):

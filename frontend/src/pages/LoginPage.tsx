@@ -9,6 +9,10 @@ import { signIn, clientRegister } from '@/services/publicApi'
 
 type Mode = 'signin' | 'register'
 
+// Caps the date picker so a future birthday cannot be chosen at all, rather
+// than being rejected only once the form is submitted.
+const TODAY = new Date().toISOString().slice(0, 10)
+
 /**
  * One door for staff and clients.
  *
@@ -27,7 +31,9 @@ export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
-  const [form, setForm] = useState({ first_name: '', last_name: '', phone: '' })
+  const [form, setForm] = useState({
+    first_name: '', last_name: '', phone: '', birth_date: '',
+  })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -177,6 +183,22 @@ export default function LoginPage() {
                   />
                   <p className="text-xs text-muted-foreground mt-1.5">
                     Serve per confermarti l'appuntamento su WhatsApp.
+                  </p>
+                </div>
+                <div>
+                  <label htmlFor="birth_date" className="label">Data di nascita</label>
+                  <input
+                    id="birth_date"
+                    className="input"
+                    type="date"
+                    autoComplete="bday"
+                    required
+                    max={TODAY}
+                    value={form.birth_date}
+                    onChange={e => setForm({ ...form, birth_date: e.target.value })}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1.5">
+                    Per farti gli auguri il giorno del tuo compleanno.
                   </p>
                 </div>
               </>

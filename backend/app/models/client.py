@@ -1,6 +1,6 @@
 from datetime import datetime, date
 from typing import Optional, List  # List kept for relationships
-from sqlalchemy import String, Boolean, DateTime, Date, Text, ForeignKey, func
+from sqlalchemy import String, Boolean, DateTime, Date, Text, Integer, ForeignKey, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
 
@@ -15,6 +15,16 @@ class ClientAccount(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     reset_token: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     reset_token_expires: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # Email ownership. Until this is true the account holds no session: the
+    # address was typed by someone, not yet shown to belong to them.
+    email_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Hashed like a password — short-lived, but it is a credential while it lives.
+    verification_code_hash: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    verification_expires: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Guessing budget for the current code; a 6-digit code is only safe with one.
+    verification_attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     # One ClientAccount -> one Client

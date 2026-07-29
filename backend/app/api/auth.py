@@ -67,6 +67,13 @@ async def login(payload: UserLogin, db: Annotated[AsyncSession, Depends(get_db)]
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN, detail="Account disabilitato"
             )
+        if not account.email_verified:
+            # The portal's own login refuses these; this screen has to agree, or
+            # it becomes the way around email verification.
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Indirizzo email non ancora verificato. Inserisci il codice che ti abbiamo inviato.",
+            )
         return SignInResponse(
             # `type` is what keeps this token off the staff routes.
             access_token=create_access_token(account.id, {"type": CLIENT_TOKEN_TYPE}),

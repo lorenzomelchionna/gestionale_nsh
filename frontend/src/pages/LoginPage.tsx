@@ -87,10 +87,20 @@ export default function LoginPage() {
     setError('')
     setLoading(true)
     try {
-      await clientRegister({ ...form, email, password })
+      const result = await clientRegister({ ...form, email, password })
       // No session yet: the account exists but the address is unproven.
       setMode('verify')
-      setNotice(`Abbiamo inviato un codice a ${email}.`)
+      if (result.email_sent) {
+        setNotice(`Abbiamo inviato un codice a ${email}.`)
+      } else {
+        // The account was created but the mail did not leave. Saying "check
+        // your inbox" here would send someone to wait for nothing.
+        setNotice('')
+        setError(
+          'Il tuo account è stato creato, ma non siamo riusciti a inviare il codice. ' +
+          'Riprova fra poco con "Invia un nuovo codice", oppure contatta il salone.'
+        )
+      }
     } catch (err) {
       const detail = (err as { response?: { data?: { detail?: string } } })
         ?.response?.data?.detail
@@ -121,9 +131,16 @@ export default function LoginPage() {
     setError('')
     setLoading(true)
     try {
-      await resendVerificationCode(email)
+      const result = await resendVerificationCode(email)
       setCode('')
-      setNotice('Ti abbiamo inviato un nuovo codice.')
+      if (result.email_sent) {
+        setNotice('Ti abbiamo inviato un nuovo codice.')
+      } else {
+        setNotice('')
+        setError(
+          'Non siamo riusciti a inviare il codice. Riprova fra poco o contatta il salone.'
+        )
+      }
     } catch {
       setError('Non siamo riusciti a inviare il codice. Riprova fra poco.')
     } finally {
@@ -383,9 +400,11 @@ function VerifyCard({
   return (
     <div className="card p-5 sm:p-6">
       <form onSubmit={onSubmit} className="space-y-4">
-        <p className="text-[13px] text-muted-foreground">
-          {notice || `Abbiamo inviato un codice a ${email}.`}
-        </p>
+        {/* Only what the caller set: when a send failed there is an error to
+            show instead, and claiming a code is on its way would contradict it. */}
+        {notice && (
+          <p className="text-[13px] text-muted-foreground">{notice}</p>
+        )}
 
         <div>
           <label htmlFor="code" className="label">Codice di verifica</label>

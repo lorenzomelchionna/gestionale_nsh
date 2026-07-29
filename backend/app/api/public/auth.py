@@ -9,7 +9,7 @@ from app.models.client import Client, ClientAccount
 from app.models.user import User
 from app.schemas.client import (
     ClientRegister, ClientLoginRequest, PasswordResetRequest, PasswordReset,
-    EmailVerification, VerificationRequired,
+    EmailVerification, ResendResult, VerificationRequired,
 )
 from app.schemas.common import TokenResponse, MessageResponse
 from app.services.email_verification import (
@@ -21,18 +21,25 @@ from app.utils.email import send_verification_code_email
 router = APIRouter(prefix="/auth", tags=["Client Auth"])
 
 
-async def _send_code(db: AsyncSession, account: ClientAccount, first_name: str) -> None:
-    """Issue a fresh code and mail it. Delivery failures are not fatal."""
+async def _send_code(db: AsyncSession, account: ClientAccount, first_name: str) -> bool:
+    """
+    Issue a fresh code and mail it. Returns whether the mail actually left.
+
+    Delivery failure is not fatal — the code is stored, so a later resend can
+    recover the account rather than losing it to a transient mail error. But it
+    is reported: telling someone a code is on its way when the send failed
+    leaves them waiting for an email that will never arrive.
+    """
     code = issue_code(account)
     await db.flush()
     try:
         await send_verification_code_email(
             account.email, first_name, code, CODE_TTL_MINUTES
         )
+        return True
     except Exception as e:
-        # The code is already stored, so "resend" can recover. Failing the whole
-        # registration here would lose the account over a transient mail error.
         print(f"[VERIFY] failed to send code to account={account.id}: {e}")
+        return False
 
 
 @router.post("/register", response_model=VerificationRequired, status_code=status.HTTP_201_CREATED)
@@ -58,8 +65,8 @@ async def register(payload: ClientRegister, db: Annotated[AsyncSession, Depends(
         # must not be able to hold it hostage: whoever registers next takes it
         # over and gets the new code. Only the mailbox owner can finish.
         existing.password_hash = hash_password(payload.password)
-        await _send_code(db, existing, payload.first_name)
-        return VerificationRequired(email=existing.email)
+        sent = await _send_code(db, existing, payload.first_name)
+        return VerificationRequired(email=existing.email, email_sent=sent)
 
     # Try to link to existing client (match phone or email)
     client_result = await db.execute(
@@ -100,8 +107,8 @@ async def register(payload: ClientRegister, db: Annotated[AsyncSession, Depends(
         )
         db.add(client)
 
-    await _send_code(db, account, payload.first_name)
-    return VerificationRequired(email=account.email)
+    sent = await _send_code(db, account, payload.first_name)
+    return VerificationRequired(email=account.email, email_sent=sent)
 
 
 @router.post("/verify-email", response_model=TokenResponse)
@@ -128,22 +135,26 @@ async def verify_email(payload: EmailVerification, db: Annotated[AsyncSession, D
     return TokenResponse(access_token=access, refresh_token=refresh)
 
 
-@router.post("/resend-code", response_model=MessageResponse)
+@router.post("/resend-code", response_model=ResendResult)
 async def resend_code(payload: PasswordResetRequest, db: Annotated[AsyncSession, Depends(get_db)]):
     """Issue a new code, replacing any outstanding one."""
     account = (await db.execute(
         select(ClientAccount).where(ClientAccount.email == payload.email)
     )).scalar_one_or_none()
 
+    sent = True
     if account and not account.email_verified:
         client = (await db.execute(
             select(Client).where(Client.account_id == account.id)
         )).scalar_one_or_none()
-        await _send_code(db, account, client.first_name if client else "")
+        sent = await _send_code(db, account, client.first_name if client else "")
 
-    # Same answer either way: this endpoint must not reveal which addresses are
-    # registered, or who is still pending.
-    return MessageResponse(message="Se l'indirizzo è in attesa di verifica, riceverai un nuovo codice")
+    # The message is the same for every address; only a genuine send failure
+    # changes the answer. See ResendResult for why that trade is worth making.
+    return ResendResult(
+        message="Se l'indirizzo è in attesa di verifica, riceverai un nuovo codice",
+        email_sent=sent,
+    )
 
 
 @router.post("/login", response_model=TokenResponse)

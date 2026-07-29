@@ -90,11 +90,29 @@ class VerificationRequired(BaseModel):
     """Registration's answer: an account exists, but it has no session yet."""
     email: EmailStr
     verification_required: bool = True
+    # False when the code could not be mailed. The account still exists and a
+    # resend can recover it, but the caller must not be told to check an inbox
+    # that will stay empty.
+    email_sent: bool = True
 
 
 class EmailVerification(BaseModel):
     email: EmailStr
     code: str
+
+
+class ResendResult(BaseModel):
+    """
+    Deliberately the same message whatever the address, so the endpoint cannot
+    be used to find out who is registered.
+
+    `email_sent` is the one exception: it goes false only when a send genuinely
+    failed, which does reveal that the address was pending. That is a fair
+    trade — it only happens while our own mail is broken, and the alternative
+    is telling someone to watch an inbox nothing was sent to.
+    """
+    message: str
+    email_sent: bool = True
 
 
 class PasswordResetRequest(BaseModel):

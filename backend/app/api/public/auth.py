@@ -7,18 +7,41 @@ from sqlalchemy import select, or_
 from app.database import get_db
 from app.models.client import Client, ClientAccount
 from app.models.user import User
-from app.schemas.client import ClientRegister, ClientLoginRequest, PasswordResetRequest, PasswordReset
+from app.schemas.client import (
+    ClientRegister, ClientLoginRequest, PasswordResetRequest, PasswordReset,
+    EmailVerification, VerificationRequired,
+)
 from app.schemas.common import TokenResponse, MessageResponse
+from app.services.email_verification import (
+    CODE_TTL_MINUTES, VerificationError, check_code, issue_code,
+)
 from app.utils.auth import hash_password, verify_password, create_access_token, create_refresh_token
+from app.utils.email import send_verification_code_email
 
 router = APIRouter(prefix="/auth", tags=["Client Auth"])
 
 
-@router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
+async def _send_code(db: AsyncSession, account: ClientAccount, first_name: str) -> None:
+    """Issue a fresh code and mail it. Delivery failures are not fatal."""
+    code = issue_code(account)
+    await db.flush()
+    try:
+        await send_verification_code_email(
+            account.email, first_name, code, CODE_TTL_MINUTES
+        )
+    except Exception as e:
+        # The code is already stored, so "resend" can recover. Failing the whole
+        # registration here would lose the account over a transient mail error.
+        print(f"[VERIFY] failed to send code to account={account.id}: {e}")
+
+
+@router.post("/register", response_model=VerificationRequired, status_code=status.HTTP_201_CREATED)
 async def register(payload: ClientRegister, db: Annotated[AsyncSession, Depends(get_db)]):
-    # Check email not already used
-    existing = await db.execute(select(ClientAccount).where(ClientAccount.email == payload.email))
-    if existing.scalar_one_or_none():
+    existing = (await db.execute(
+        select(ClientAccount).where(ClientAccount.email == payload.email)
+    )).scalar_one_or_none()
+
+    if existing and existing.email_verified:
         raise HTTPException(status_code=400, detail="Email già registrata")
 
     # Staff and clients share one sign-in screen, so an address can only mean
@@ -29,6 +52,14 @@ async def register(payload: ClientRegister, db: Annotated[AsyncSession, Depends(
             status_code=400,
             detail="Questa email è già usata dallo staff del salone. Usane un'altra.",
         )
+
+    if existing:
+        # An unverified account proves nothing about who owns the address, so it
+        # must not be able to hold it hostage: whoever registers next takes it
+        # over and gets the new code. Only the mailbox owner can finish.
+        existing.password_hash = hash_password(payload.password)
+        await _send_code(db, existing, payload.first_name)
+        return VerificationRequired(email=existing.email)
 
     # Try to link to existing client (match phone or email)
     client_result = await db.execute(
@@ -41,10 +72,10 @@ async def register(payload: ClientRegister, db: Annotated[AsyncSession, Depends(
     )
     client = client_result.scalar_one_or_none()
 
-    # Create account
     account = ClientAccount(
         email=payload.email,
         password_hash=hash_password(payload.password),
+        email_verified=False,
     )
     db.add(account)
     await db.flush()
@@ -69,11 +100,50 @@ async def register(payload: ClientRegister, db: Annotated[AsyncSession, Depends(
         )
         db.add(client)
 
-    await db.flush()
+    await _send_code(db, account, payload.first_name)
+    return VerificationRequired(email=account.email)
 
+
+@router.post("/verify-email", response_model=TokenResponse)
+async def verify_email(payload: EmailVerification, db: Annotated[AsyncSession, Depends(get_db)]):
+    """Exchange the emailed code for a session. This is where the account starts."""
+    account = (await db.execute(
+        select(ClientAccount).where(ClientAccount.email == payload.email)
+    )).scalar_one_or_none()
+    if not account:
+        raise HTTPException(status_code=400, detail="Codice o indirizzo non validi")
+
+    try:
+        check_code(account, payload.code)
+    except VerificationError as e:
+        # Committed, not flushed: get_db rolls back on any exception, so a
+        # flush here would be undone by the raise below and every wrong guess
+        # would be free. The attempt budget only exists if this survives.
+        await db.commit()
+        raise HTTPException(status_code=400, detail=e.detail)
+
+    await db.flush()
     access = create_access_token(account.id, {"type": "client"})
     refresh = create_refresh_token(account.id, {"type": "client"})
     return TokenResponse(access_token=access, refresh_token=refresh)
+
+
+@router.post("/resend-code", response_model=MessageResponse)
+async def resend_code(payload: PasswordResetRequest, db: Annotated[AsyncSession, Depends(get_db)]):
+    """Issue a new code, replacing any outstanding one."""
+    account = (await db.execute(
+        select(ClientAccount).where(ClientAccount.email == payload.email)
+    )).scalar_one_or_none()
+
+    if account and not account.email_verified:
+        client = (await db.execute(
+            select(Client).where(Client.account_id == account.id)
+        )).scalar_one_or_none()
+        await _send_code(db, account, client.first_name if client else "")
+
+    # Same answer either way: this endpoint must not reveal which addresses are
+    # registered, or who is still pending.
+    return MessageResponse(message="Se l'indirizzo è in attesa di verifica, riceverai un nuovo codice")
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -84,6 +154,14 @@ async def login(payload: ClientLoginRequest, db: Annotated[AsyncSession, Depends
         raise HTTPException(status_code=401, detail="Credenziali non valide")
     if not account.is_active:
         raise HTTPException(status_code=403, detail="Account disabilitato")
+    if not account.email_verified:
+        # Distinct from bad credentials on purpose: the password was right, and
+        # the caller needs to be sent to the code screen rather than told to
+        # try again. Only reachable by someone who already knows the password.
+        raise HTTPException(
+            status_code=403,
+            detail="Indirizzo email non ancora verificato. Inserisci il codice che ti abbiamo inviato.",
+        )
 
     access = create_access_token(account.id, {"type": "client"})
     refresh = create_refresh_token(account.id, {"type": "client"})

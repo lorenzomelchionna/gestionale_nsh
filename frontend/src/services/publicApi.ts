@@ -52,11 +52,23 @@ export const publicGetAvailability = (params: {
 }) =>
   publicApi.get<string[]>('/availability', { params }).then(r => r.data)
 
+export interface VerificationRequired {
+  email: string
+  verification_required: boolean
+}
+
+/** Creates the account but grants no session — the emailed code does that. */
 export const clientRegister = (data: {
   first_name: string; last_name: string; phone: string; email: string
   password: string; birth_date: string
 }) =>
-  publicApi.post<TokenResponse>('/auth/register', data).then(r => r.data)
+  publicApi.post<VerificationRequired>('/auth/register', data).then(r => r.data)
+
+export const verifyEmail = (email: string, code: string) =>
+  publicApi.post<TokenResponse>('/auth/verify-email', { email, code }).then(r => r.data)
+
+export const resendVerificationCode = (email: string) =>
+  publicApi.post('/auth/resend-code', { email }).then(r => r.data)
 
 export const clientLogin = (email: string, password: string) =>
   publicApi.post<TokenResponse>('/auth/login', { email, password }).then(r => r.data)

@@ -86,6 +86,17 @@ class ClientLoginRequest(BaseModel):
     password: str
 
 
+class VerificationRequired(BaseModel):
+    """Registration's answer: an account exists, but it has no session yet."""
+    email: EmailStr
+    verification_required: bool = True
+
+
+class EmailVerification(BaseModel):
+    email: EmailStr
+    code: str
+
+
 class PasswordResetRequest(BaseModel):
     email: EmailStr
 

@@ -1,9 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { format, parseISO } from 'date-fns'
 import { it } from 'date-fns/locale'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { Calendar, X, Check, Clock } from 'lucide-react'
-import { useClientAuth } from '@/components/layout/BookingLayout'
 import {
   getMyAppointments, cancelMyAppointment, acceptAlternative, rejectAlternative,
   getMyWaitlist, leaveWaitlist,
@@ -21,14 +20,9 @@ const STATUS_LABELS: Record<string, string> = {
 }
 
 export default function BookingAccountPage() {
-  const { token } = useClientAuth()
-  const navigate = useNavigate()
+  // Signed-in state is guaranteed by RequireClient on the route; the old
+  // in-render redirect also broke the rules-of-hooks order below it.
   const qc = useQueryClient()
-
-  if (!token) {
-    navigate('/booking/login')
-    return null
-  }
 
   const { data: appointments, isLoading } = useQuery({
     queryKey: ['my-appointments'],

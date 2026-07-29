@@ -40,6 +40,10 @@ EXPECTED_GUARDS = {
     ("POST", "/api/admin/appointments/{appointment_id}/confirm"): "staff",
     ("POST", "/api/admin/appointments/{appointment_id}/reject"): "staff",
     ("POST", "/api/admin/appointments/{appointment_id}/reschedule"): "staff",
+    # The shared sign-in screen. Public by necessity — it is where a session
+    # begins — and it may return either a staff or a client token, so what it
+    # hands out matters more than what guards it. See tests/test_unified_login.
+    ("POST", "/api/auth/login"): "public",
     ("POST", "/api/admin/auth/login"): "public",
     ("GET", "/api/admin/auth/me"): "staff",
     ("POST", "/api/admin/auth/refresh"): "public",
@@ -112,6 +116,7 @@ EXPECTED_GUARDS = {
     ("POST", "/api/public/auth/register"): "public",
     ("POST", "/api/public/auth/reset-password"): "public",
     ("GET", "/api/public/availability"): "public",
+    ("GET", "/api/public/availability/calendar"): "public",
     # Unauthenticated by necessity — Twilio cannot hold our credentials. The
     # control is the Twilio signature check inside the handler, not a dependency.
     ("POST", "/api/public/whatsapp/webhook"): "public",

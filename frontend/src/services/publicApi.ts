@@ -8,6 +8,32 @@ const publicApi = axios.create({
   headers: { 'Content-Type': 'application/json' },
 })
 
+// The shared sign-in lives outside /api/public: it serves staff too, and may
+// return either kind of token.
+const rootApi = axios.create({
+  baseURL: `${API_BASE}/api`,
+  headers: { 'Content-Type': 'application/json' },
+})
+
+export interface SignInResponse extends TokenResponse {
+  audience: 'staff' | 'client'
+  role?: string
+}
+
+/** One sign-in for everyone; `audience` says where the person belongs. */
+export const signIn = (email: string, password: string) =>
+  rootApi.post<SignInResponse>('/auth/login', { email, password }).then(r => r.data)
+
+export interface DayAvailability {
+  date: string
+  slots: number
+}
+
+export const publicGetAvailabilityCalendar = (params: {
+  service_id: number; collaborator_id: number; start_date: string; end_date: string
+}) =>
+  publicApi.get<DayAvailability[]>('/availability/calendar', { params }).then(r => r.data)
+
 // Inject client token
 publicApi.interceptors.request.use((config) => {
   const token = localStorage.getItem('client_token')

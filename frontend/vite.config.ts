@@ -18,4 +18,15 @@ export default defineConfig({
       },
     },
   },
+  // `vite preview` serves the production build, which is the only way to check
+  // behaviour without HMR in the way. It needs the same proxy as dev, or every
+  // API call 404s against the static server.
+  preview: {
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
+    },
+  },
 })

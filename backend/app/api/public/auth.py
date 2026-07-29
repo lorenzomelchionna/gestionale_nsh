@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_
 from app.database import get_db
 from app.models.client import Client, ClientAccount
+from app.models.user import User
 from app.schemas.client import ClientRegister, ClientLoginRequest, PasswordResetRequest, PasswordReset
 from app.schemas.common import TokenResponse, MessageResponse
 from app.utils.auth import hash_password, verify_password, create_access_token, create_refresh_token
@@ -19,6 +20,15 @@ async def register(payload: ClientRegister, db: Annotated[AsyncSession, Depends(
     existing = await db.execute(select(ClientAccount).where(ClientAccount.email == payload.email))
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Email già registrata")
+
+    # Staff and clients share one sign-in screen, so an address can only mean
+    # one account. Salon staff who also want to book do so with another address.
+    staff = await db.execute(select(User).where(User.email == payload.email))
+    if staff.scalar_one_or_none():
+        raise HTTPException(
+            status_code=400,
+            detail="Questa email è già usata dallo staff del salone. Usane un'altra.",
+        )
 
     # Try to link to existing client (match phone or email)
     client_result = await db.execute(

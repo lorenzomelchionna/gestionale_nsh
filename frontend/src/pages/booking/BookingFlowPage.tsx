@@ -3,10 +3,10 @@ import { useQuery, useMutation } from '@tanstack/react-query'
 import { format, parseISO, addMinutes } from 'date-fns'
 import { it } from 'date-fns/locale'
 import { Check, ChevronLeft, CalendarX, Loader2 } from 'lucide-react'
-import { useClientAuth } from '@/components/layout/BookingLayout'
 import {
   publicGetServices, publicGetCollaborators, publicGetAvailability, bookAppointment
 } from '@/services/publicApi'
+import AvailabilityCalendar from '@/components/booking/AvailabilityCalendar'
 import { useNavigate } from 'react-router-dom'
 import type { Service, Collaborator } from '@/types'
 import clsx from 'clsx'
@@ -27,7 +27,6 @@ export default function BookingFlowPage() {
   const [selectedCollab, setSelectedCollab] = useState<Collaborator | null>(null)
   const [selectedDate, setSelectedDate] = useState('')
   const [selectedSlot, setSelectedSlot] = useState('')
-  const { token } = useClientAuth()
   const navigate = useNavigate()
 
   const { data: services } = useQuery({
@@ -61,7 +60,8 @@ export default function BookingFlowPage() {
     : []
 
   const handleBook = () => {
-    if (!token) { navigate('/booking/login'); return }
+    // Being signed in is guaranteed by RequireClient on the route — the flow is
+    // no longer reachable without an account, so there is nothing to check here.
     if (!selectedService || !selectedCollab || !selectedSlot) return
     const start = parseISO(selectedSlot)
     const end = addMinutes(start, selectedService.duration_slots * 30)
@@ -189,16 +189,15 @@ export default function BookingFlowPage() {
       {step === 'datetime' && (
         <div className="space-y-4">
           <h2 className="text-title font-bold">Data e orario</h2>
-          <div>
-            <label className="label">Data</label>
-            <input
-              type="date"
-              className="input sm:max-w-xs"
-              min={format(new Date(), 'yyyy-MM-dd')}
+
+          {selectedService && selectedCollab && (
+            <AvailabilityCalendar
+              serviceId={selectedService.id}
+              collaboratorId={selectedCollab.id}
               value={selectedDate}
-              onChange={e => { setSelectedDate(e.target.value); setSelectedSlot('') }}
+              onChange={date => { setSelectedDate(date); setSelectedSlot('') }}
             />
-          </div>
+          )}
 
           {selectedDate && (
             slotsLoading ? (
@@ -263,18 +262,10 @@ export default function BookingFlowPage() {
             La prenotazione verrà confermata dal salone. Riceverai una notifica.
           </p>
 
-          {!token && (
-            <p className="text-[13px] text-warning bg-warning/10 px-3 py-2.5 rounded-lg">
-              Devi accedere o registrarti per completare la prenotazione.
-            </p>
-          )}
-
           <button onClick={handleBook} disabled={bookMut.isPending} className="btn-primary w-full">
-            {!token
-              ? 'Accedi per prenotare'
-              : bookMut.isPending
-                ? <><Loader2 className="w-4 h-4 animate-spin" /> Invio richiesta...</>
-                : 'Invia richiesta'}
+            {bookMut.isPending
+              ? <><Loader2 className="w-4 h-4 animate-spin" /> Invio richiesta...</>
+              : 'Invia richiesta'}
           </button>
 
           {bookMut.isError && (

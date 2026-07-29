@@ -61,7 +61,7 @@ export default function BookingLayout() {
               <LogOut className="w-[18px] h-[18px]" />
             </button>
           ) : (
-            <Link to="/booking/login" className="btn-primary btn-sm">
+            <Link to="/login" className="btn-primary btn-sm">
               Accedi
             </Link>
           )}

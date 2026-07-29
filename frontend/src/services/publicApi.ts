@@ -53,7 +53,8 @@ export const publicGetAvailability = (params: {
   publicApi.get<string[]>('/availability', { params }).then(r => r.data)
 
 export const clientRegister = (data: {
-  first_name: string; last_name: string; phone: string; email: string; password: string
+  first_name: string; last_name: string; phone: string; email: string
+  password: string; birth_date: string
 }) =>
   publicApi.post<TokenResponse>('/auth/register', data).then(r => r.data)
 

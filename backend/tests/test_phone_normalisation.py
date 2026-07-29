@@ -116,6 +116,7 @@ class TestRegistrationLinksInsteadOfDuplicating:
                 "phone": "+39 333 287 6794",
                 "email": "maria.rossi@nsh-test.it",
                 "password": GOOD_PASSWORD,
+                "birth_date": "1990-05-12",
             },
         )
         assert resp.status_code == 201, resp.text
@@ -136,6 +137,7 @@ class TestRegistrationLinksInsteadOfDuplicating:
                 "phone": "334 111 2233",
                 "email": "nuova.cliente@nsh-test.it",
                 "password": GOOD_PASSWORD,
+                "birth_date": "1988-11-03",
             },
         )
         assert resp.status_code == 201, resp.text

@@ -267,7 +267,8 @@ function ClientFormModal({ client, onClose, onSave, loading }: {
             onChange={e => setForm({ ...form, phone: e.target.value })}
           />
           <p className="text-xs text-muted-foreground mt-1.5">
-            Con prefisso internazionale, per le notifiche WhatsApp.
+            Puoi scriverlo come preferisci: senza prefisso viene completato con
+            +39, il formato che serve alle notifiche WhatsApp.
           </p>
         </div>
         <div>

@@ -1,6 +1,8 @@
 from datetime import datetime, date
 from typing import Optional
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator
+
+from app.utils.phone import to_e164
 
 
 class ClientBase(BaseModel):
@@ -10,6 +12,13 @@ class ClientBase(BaseModel):
     email: Optional[EmailStr] = None
     birth_date: Optional[date] = None
     notes: Optional[str] = None
+
+    @field_validator("phone")
+    @classmethod
+    def normalise_phone(cls, value: Optional[str]) -> Optional[str]:
+        """Store canonically so a hand-entered client and the same client
+        registering online resolve to one record. See app/utils/phone.py."""
+        return to_e164(value)
 
 
 class ClientCreate(ClientBase):
@@ -36,6 +45,16 @@ class ClientRegister(BaseModel):
     phone: str
     email: EmailStr
     password: str
+
+    @field_validator("phone")
+    @classmethod
+    def normalise_phone(cls, value: str) -> str:
+        """Normalised before registration looks for an existing client by phone,
+        so the lookup compares the same shape that admin-entered records hold."""
+        normalised = to_e164(value)
+        if normalised is None:
+            raise ValueError("Il numero di telefono è obbligatorio")
+        return normalised
 
 
 class ClientAccountOut(BaseModel):

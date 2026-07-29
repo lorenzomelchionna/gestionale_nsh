@@ -60,6 +60,43 @@ async def public_collaborators(db: Annotated[AsyncSession, Depends(get_db)]):
     ]
 
 
+async def _bookable_collaborator(
+    db: AsyncSession, collaborator_id: int, service_ids: List[int]
+) -> Collaborator:
+    """
+    Load a collaborator the portal may book, or raise.
+
+    The booking flow only ever offers collaborators that are active, visible
+    online and perform the chosen service, but that filtering happens in the
+    browser. A request that did not come through it — a stale tab, a retried
+    call, anything hand-made — would otherwise book a colour with someone who
+    does not do colour, and the salon would find it in the calendar.
+    """
+    result = await db.execute(
+        select(Collaborator)
+        .options(selectinload(Collaborator.services))
+        .where(
+            Collaborator.id == collaborator_id,
+            Collaborator.is_active == True,  # noqa: E712 — SQL boolean, not Python
+            Collaborator.visible_online == True,  # noqa: E712
+        )
+    )
+    collab = result.scalar_one_or_none()
+    if not collab:
+        raise HTTPException(
+            status_code=404,
+            detail="Collaboratore non disponibile per le prenotazioni online",
+        )
+
+    offered = {s.id for s in (collab.services or [])}
+    if not all(sid in offered for sid in service_ids):
+        raise HTTPException(
+            status_code=400,
+            detail="Il collaboratore selezionato non esegue il servizio richiesto",
+        )
+    return collab
+
+
 @router.get("/availability", response_model=List[str])
 async def public_availability(
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -84,6 +121,8 @@ async def public_availability(
     service = svc_result.scalar_one_or_none()
     if not service or not service.bookable_online:
         raise HTTPException(status_code=404, detail="Servizio non trovato o non prenotabile online")
+
+    await _bookable_collaborator(db, collaborator_id, [service_id])
 
     slots = await get_available_slots(db, collaborator_id, target_date, service.duration_slots)
     return [s.isoformat() for s in slots]
@@ -119,6 +158,8 @@ async def book_appointment(
         if not svc or not svc.bookable_online:
             raise HTTPException(status_code=400, detail=f"Servizio {sid} non prenotabile online")
         services.append(svc)
+
+    await _bookable_collaborator(db, payload.collaborator_id, payload.service_ids)
 
     appt = Appointment(
         client_id=client.id,

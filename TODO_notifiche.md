@@ -83,10 +83,10 @@ Passi WhatsApp produzione (qualunque scenario):
   pagamenti, prodotti e spese demo cancellati; collaboratori e servizi demo rimossi.
 
 ### Allineamento da controllare
-- [ ] `closed_weekdays` in Impostazioni ha il salone chiuso **domenica e lunedì**,
-  mentre l'orario dei collaboratori è lun–ven (chiuso **domenica e sabato**). Il
-  lunedì risulta aperto per lo staff ma chiuso alle prenotazioni online: da
-  allineare se non è voluto.
+- [x] `closed_weekdays` allineato — 2026-07-29: confermato chiuso **domenica e
+  lunedì**. Orario dei 3 collaboratori aggiornato da lun–ven a **mar–sab
+  08:00–19:00** (nessun appuntamento attivo di lunedì nel DB, nessuna
+  prenotazione persa).
 
 ---
 

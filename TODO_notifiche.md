@@ -72,7 +72,14 @@ Passi WhatsApp produzione (qualunque scenario):
   collegato al profilo "Vincenzo Romolo". Password temporanea comunicata a voce,
   che lui cambia da solo al primo accesso.
 - [ ] Servizi assegnati a ciascun collaboratore (dopo che Flavia inserisce il listino)
-- [ ] Telefoni clienti sempre in E.164 (`+39...`)
+- [x] Telefoni clienti in E.164 — 2026-07-29: normalizzati automaticamente in
+  scrittura (`app/utils/phone.py`), si possono digitare in qualunque formato.
+  Serviva perché la registrazione online e la chat WhatsApp cercano il cliente
+  per telefono confrontando stringhe: `333 287 6794` e `+39 333 287 6794`
+  creavano due schede separate. Per dati importati da fuori:
+  `python scripts/normalise_client_phones.py` (dry-run, `--apply` per scrivere).
+  Le **email** restano case-sensitive per scelta: normalizzarle tocca anche il
+  login, quindi richiede una migrazione dati contestuale.
 - [x] Dati reali: collaboratori creati con orari lun–ven 08:00–19:00
 - [x] Cambiare password admin demo (`admin123`) — 2026-07-28: email → `newstylehair2019@gmail.com`,
   password ruotata (generata e mostrata una volta in chat, da salvare in un password manager)

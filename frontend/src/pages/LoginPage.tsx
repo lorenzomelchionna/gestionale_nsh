@@ -32,6 +32,7 @@ export default function LoginPage() {
   )
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [form, setForm] = useState({
     first_name: '', last_name: '', phone: '', birth_date: '',
@@ -85,6 +86,12 @@ export default function LoginPage() {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+    // Checked here and not on the server: the second field exists to catch a
+    // typo at the keyboard, and the server only ever receives one password.
+    if (password !== confirmPassword) {
+      setError('Le due password non coincidono. Controlla di averle scritte uguali.')
+      return
+    }
     setLoading(true)
     try {
       const result = await clientRegister({ ...form, email, password })
@@ -117,7 +124,10 @@ export default function LoginPage() {
     try {
       const tokens = await verifyEmail(email, code.trim())
       clientLogin(tokens.access_token, email)
-      navigate(next || '/booking')
+      // Registration is only finished here — the account existed before the
+      // code, but this is the first moment it belongs to anyone. The greeting
+      // rides along in navigation state so it shows once and not on a reload.
+      navigate(next || '/booking', { state: { justRegistered: true } })
     } catch (err) {
       const detail = (err as { response?: { data?: { detail?: string } } })
         ?.response?.data?.detail
@@ -152,6 +162,7 @@ export default function LoginPage() {
     setMode(m)
     setError('')
     setNotice('')
+    setConfirmPassword('')
   }
 
   return (
@@ -318,6 +329,36 @@ export default function LoginPage() {
               )}
             </div>
 
+            {mode === 'register' && (
+              <div>
+                <label htmlFor="confirm_password" className="label">Ripeti password</label>
+                <input
+                  id="confirm_password"
+                  // Same visibility toggle as the field above, so someone who
+                  // chose to see what they are typing sees both.
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="new-password"
+                  className="input"
+                  value={confirmPassword}
+                  onChange={e => setConfirmPassword(e.target.value)}
+                  placeholder="••••••••"
+                  required
+                />
+                {/* Said as soon as it is knowable rather than on submit: a typo
+                    is easiest to fix while the keyboard is still open. */}
+                {confirmPassword && password !== confirmPassword && (
+                  <p className="text-xs text-danger mt-1.5">
+                    Le due password non coincidono.
+                  </p>
+                )}
+                {confirmPassword && password === confirmPassword && (
+                  <p className="text-xs text-emerald-600 dark:text-emerald-500 mt-1.5">
+                    Le password coincidono.
+                  </p>
+                )}
+              </div>
+            )}
+
             {/* Placed once, above the button, rather than as a hint under each
                 contact field: it explains what both of them are collected for. */}
             {mode === 'register' && (
@@ -337,7 +378,11 @@ export default function LoginPage() {
               </p>
             )}
 
-            <button type="submit" disabled={loading} className="btn-primary w-full">
+            <button
+              type="submit"
+              disabled={loading || (mode === 'register' && password !== confirmPassword)}
+              className="btn-primary w-full"
+            >
               {loading ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />

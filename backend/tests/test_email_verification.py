@@ -91,6 +91,56 @@ class TestRegistrationIssuesACode:
         assert code not in (account.verification_code_hash or "")
 
 
+class TestDeliveryFailureIsReported:
+    """
+    A send that fails must not look like one that worked.
+
+    This is not hypothetical: the mail provider started rejecting the server's
+    IP, every code silently vanished, and the screen kept telling people to
+    check an inbox nothing had been sent to.
+    """
+
+    @pytest.fixture
+    def failing_mail(self, monkeypatch):
+        import app.api.public.auth as auth_api
+
+        async def boom(*args, **kwargs):
+            raise RuntimeError("Brevo error 401: unrecognised IP address")
+
+        monkeypatch.setattr(auth_api, "send_verification_code_email", boom)
+
+    async def test_registration_says_the_mail_did_not_leave(self, client, failing_mail):
+        resp = await client.post(REGISTER, json=registration())
+        assert resp.status_code == 201, resp.text
+        assert resp.json()["email_sent"] is False
+
+    async def test_the_account_survives_so_a_resend_can_recover_it(
+        self, client, db, failing_mail
+    ):
+        await client.post(REGISTER, json=registration())
+        account = (await db.execute(
+            select(ClientAccount).where(ClientAccount.email == EMAIL)
+        )).scalar_one()
+        assert account.verification_code_hash is not None
+
+    async def test_resend_says_so_too(self, client, failing_mail):
+        await client.post(REGISTER, json=registration())
+        resp = await client.post(RESEND, json={"email": EMAIL})
+        assert resp.status_code == 200
+        assert resp.json()["email_sent"] is False
+
+    async def test_a_working_send_still_reports_success(self, client, sent_codes):
+        resp = await client.post(REGISTER, json=registration())
+        assert resp.json()["email_sent"] is True
+
+    async def test_an_unknown_address_never_reports_a_failure(
+        self, client, failing_mail
+    ):
+        """Nothing is sent for it, so nothing can fail — and nothing is leaked."""
+        resp = await client.post(RESEND, json={"email": "mai.visto@nsh-test.it"})
+        assert resp.json()["email_sent"] is True
+
+
 class TestUnverifiedCannotAct:
     async def test_login_is_refused_before_verifying(self, client, sent_codes):
         await client.post(REGISTER, json=registration())

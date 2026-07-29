@@ -1,6 +1,7 @@
 import { Outlet, Link, NavLink, useNavigate } from 'react-router-dom'
 import { Scissors, User, LogOut, Home, CalendarPlus } from 'lucide-react'
 import clsx from 'clsx'
+import WelcomeDialog from '@/components/booking/WelcomeDialog'
 
 // Simple client auth store (separate from admin)
 import { create } from 'zustand'
@@ -77,6 +78,10 @@ export default function BookingLayout() {
       >
         <Outlet />
       </main>
+
+      {/* Lives here rather than on the home page: verification can land someone
+          on the booking flow when they were sent to sign in mid-booking. */}
+      <WelcomeDialog />
 
       {/* Signed-in clients get thumb-level navigation; guests only ever see
           the login/booking funnel, so the bar would be noise. */}

@@ -55,6 +55,8 @@ export const publicGetAvailability = (params: {
 export interface VerificationRequired {
   email: string
   verification_required: boolean
+  /** False when the code could not be mailed — the account exists regardless. */
+  email_sent: boolean
 }
 
 /** Creates the account but grants no session — the emailed code does that. */
@@ -67,8 +69,13 @@ export const clientRegister = (data: {
 export const verifyEmail = (email: string, code: string) =>
   publicApi.post<TokenResponse>('/auth/verify-email', { email, code }).then(r => r.data)
 
+export interface ResendResult {
+  message: string
+  email_sent: boolean
+}
+
 export const resendVerificationCode = (email: string) =>
-  publicApi.post('/auth/resend-code', { email }).then(r => r.data)
+  publicApi.post<ResendResult>('/auth/resend-code', { email }).then(r => r.data)
 
 export const clientLogin = (email: string, password: string) =>
   publicApi.post<TokenResponse>('/auth/login', { email, password }).then(r => r.data)

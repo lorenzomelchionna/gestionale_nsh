@@ -80,6 +80,21 @@ Passi WhatsApp produzione (qualunque scenario):
   `python scripts/normalise_client_phones.py` (dry-run, `--apply` per scrivere).
   Le **email** restano case-sensitive per scelta: normalizzarle tocca anche il
   login, quindi richiede una migrazione dati contestuale.
+- [x] **Verifica email alla registrazione** — 2026-07-29: codice a 6 cifre
+  inviato per email, valido 15 minuti, 5 tentativi. L'account non ha sessione
+  finché il codice non è inserito, e il login (sia dal portale sia dalla
+  schermata unica) rifiuta gli indirizzi non verificati. Un'iscrizione non
+  verificata non blocca l'indirizzo: chi si registra dopo la sovrascrive, così
+  nessuno può occupare l'email di un altro.
+- [ ] **Verifica del numero di telefono** — da fare. Oggi il telefono viene
+  normalizzato in E.164 ma **non verificato**: nulla impedisce di inserire il
+  numero di qualcun altro, che si ritroverebbe i messaggi WhatsApp del salone.
+  Serve lo stesso schema dell'email — codice via SMS o WhatsApp, con scadenza e
+  tetto ai tentativi. Il modulo `app/services/email_verification.py` è già
+  scritto in modo riutilizzabile: cambia solo il canale di invio.
+  **Prerequisito**: WhatsApp fuori dalla Sandbox Twilio, altrimenti il codice
+  arriva solo a chi ha già fatto il `join` (vedi sezione WhatsApp produzione).
+  In alternativa SMS Twilio, che si paga a messaggio.
 - [x] Dati reali: collaboratori creati con orari lun–ven 08:00–19:00
 - [x] Cambiare password admin demo (`admin123`) — 2026-07-28: email → `newstylehair2019@gmail.com`,
   password ruotata (generata e mostrata una volta in chat, da salvare in un password manager)

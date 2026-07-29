@@ -5,9 +5,11 @@ import clsx from 'clsx'
 import { useAuthStore } from '@/store/authStore'
 import { useClientAuth } from '@/components/layout/BookingLayout'
 import { getMe, setTokens } from '@/services/api'
-import { signIn, clientRegister } from '@/services/publicApi'
+import {
+  signIn, clientRegister, verifyEmail, resendVerificationCode,
+} from '@/services/publicApi'
 
-type Mode = 'signin' | 'register'
+type Mode = 'signin' | 'register' | 'verify'
 
 // Caps the date picker so a future birthday cannot be chosen at all, rather
 // than being rejected only once the form is submitted.
@@ -34,6 +36,8 @@ export default function LoginPage() {
   const [form, setForm] = useState({
     first_name: '', last_name: '', phone: '', birth_date: '',
   })
+  const [code, setCode] = useState('')
+  const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -60,12 +64,19 @@ export default function LoginPage() {
         navigate(next || '/booking')
       }
     } catch (err) {
-      const status = (err as { response?: { status?: number } })?.response?.status
-      setError(
-        status === 403
-          ? 'Questo account è disattivato. Contatta il salone.'
-          : 'Email o password non validi'
-      )
+      const res = (err as { response?: { status?: number; data?: { detail?: string } } })?.response
+      const detail = res?.data?.detail ?? ''
+      // The password was right but the address was never confirmed. Sending
+      // them to the code screen is the only useful thing to do with that.
+      if (res?.status === 403 && detail.toLowerCase().includes('verificat')) {
+        setMode('verify')
+        setNotice('Ti abbiamo inviato un codice. Controlla la tua email.')
+        resendVerificationCode(email).catch(() => {})
+      } else if (res?.status === 403) {
+        setError('Questo account è disattivato. Contatta il salone.')
+      } else {
+        setError('Email o password non validi')
+      }
     } finally {
       setLoading(false)
     }
@@ -76,9 +87,10 @@ export default function LoginPage() {
     setError('')
     setLoading(true)
     try {
-      const tokens = await clientRegister({ ...form, email, password })
-      clientLogin(tokens.access_token, email)
-      navigate(next || '/booking')
+      await clientRegister({ ...form, email, password })
+      // No session yet: the account exists but the address is unproven.
+      setMode('verify')
+      setNotice(`Abbiamo inviato un codice a ${email}.`)
     } catch (err) {
       const detail = (err as { response?: { data?: { detail?: string } } })
         ?.response?.data?.detail
@@ -88,9 +100,41 @@ export default function LoginPage() {
     }
   }
 
+  const handleVerify = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+    setLoading(true)
+    try {
+      const tokens = await verifyEmail(email, code.trim())
+      clientLogin(tokens.access_token, email)
+      navigate(next || '/booking')
+    } catch (err) {
+      const detail = (err as { response?: { data?: { detail?: string } } })
+        ?.response?.data?.detail
+      setError(detail ?? 'Codice non valido')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleResend = async () => {
+    setError('')
+    setLoading(true)
+    try {
+      await resendVerificationCode(email)
+      setCode('')
+      setNotice('Ti abbiamo inviato un nuovo codice.')
+    } catch {
+      setError('Non siamo riusciti a inviare il codice. Riprova fra poco.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const switchMode = (m: Mode) => {
     setMode(m)
     setError('')
+    setNotice('')
   }
 
   return (
@@ -107,10 +151,25 @@ export default function LoginPage() {
           </div>
           <h1 className="text-title-lg font-bold text-foreground">New Style Hair</h1>
           <p className="text-muted-foreground text-sm mt-1">
-            {mode === 'signin' ? 'Accedi al tuo account' : 'Crea il tuo account'}
+            {mode === 'signin' && 'Accedi al tuo account'}
+            {mode === 'register' && 'Crea il tuo account'}
+            {mode === 'verify' && 'Conferma il tuo indirizzo'}
           </p>
         </div>
 
+        {mode === 'verify' ? (
+          <VerifyCard
+            email={email}
+            code={code}
+            setCode={setCode}
+            notice={notice}
+            error={error}
+            loading={loading}
+            onSubmit={handleVerify}
+            onResend={handleResend}
+            onBack={() => switchMode('signin')}
+          />
+        ) : (
         <div className="card p-5 sm:p-6">
           <div
             role="tablist"
@@ -275,25 +334,120 @@ export default function LoginPage() {
             </button>
           </form>
         </div>
+        )}
 
-        <p className="text-center text-xs text-muted-foreground mt-6">
-          {mode === 'signin' ? (
-            <>
-              Non hai un account?{' '}
-              <button
-                type="button"
-                onClick={() => switchMode('register')}
-                className="text-primary font-medium hover:underline"
-              >
-                Registrati
-              </button>
-            </>
-          ) : (
-            <>
-              Lavori nel salone? Il tuo accesso lo crea l'amministratore.
-            </>
-          )}
+        {mode !== 'verify' && (
+          <p className="text-center text-xs text-muted-foreground mt-6">
+            {mode === 'signin' ? (
+              <>
+                Non hai un account?{' '}
+                <button
+                  type="button"
+                  onClick={() => switchMode('register')}
+                  className="text-primary font-medium hover:underline"
+                >
+                  Registrati
+                </button>
+              </>
+            ) : (
+              <>Lavori nel salone? Il tuo accesso lo crea l'amministratore.</>
+            )}
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}
+
+interface VerifyProps {
+  email: string
+  code: string
+  setCode: (v: string) => void
+  notice: string
+  error: string
+  loading: boolean
+  onSubmit: (e: React.FormEvent) => void
+  onResend: () => void
+  onBack: () => void
+}
+
+/**
+ * The step between creating an account and having one.
+ *
+ * Kept deliberately bare: at this point the person is holding a phone in one
+ * hand and their inbox in the other, and anything beyond the code is in the way.
+ */
+function VerifyCard({
+  email, code, setCode, notice, error, loading, onSubmit, onResend, onBack,
+}: VerifyProps) {
+  return (
+    <div className="card p-5 sm:p-6">
+      <form onSubmit={onSubmit} className="space-y-4">
+        <p className="text-[13px] text-muted-foreground">
+          {notice || `Abbiamo inviato un codice a ${email}.`}
         </p>
+
+        <div>
+          <label htmlFor="code" className="label">Codice di verifica</label>
+          <input
+            id="code"
+            className="input text-center text-2xl tracking-[0.4em] tabular-nums"
+            // A numeric keypad on phones, and the OS offer to fill the code
+            // straight from the notification.
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            pattern="[0-9]*"
+            maxLength={6}
+            autoFocus
+            required
+            placeholder="000000"
+            value={code}
+            onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+          />
+          <p className="text-xs text-muted-foreground mt-1.5">
+            Sei cifre, valido per 15 minuti.
+          </p>
+        </div>
+
+        {error && (
+          <p
+            role="alert"
+            className="flex items-start gap-2 text-[13px] text-danger bg-danger/10 px-3 py-2.5 rounded-lg"
+          >
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            {error}
+          </p>
+        )}
+
+        <button
+          type="submit"
+          disabled={loading || code.length < 6}
+          className="btn-primary w-full"
+        >
+          {loading ? (
+            <><Loader2 className="w-4 h-4 animate-spin" /> Verifica in corso...</>
+          ) : (
+            'Conferma'
+          )}
+        </button>
+      </form>
+
+      <div className="flex items-center justify-between gap-3 mt-5">
+        <button
+          type="button"
+          onClick={onResend}
+          disabled={loading}
+          className="text-xs text-primary font-medium hover:underline disabled:opacity-50"
+        >
+          Invia un nuovo codice
+        </button>
+        <button
+          type="button"
+          onClick={onBack}
+          className="text-xs text-muted-foreground hover:text-foreground"
+        >
+          Torna indietro
+        </button>
       </div>
     </div>
   )

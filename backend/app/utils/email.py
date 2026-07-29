@@ -174,3 +174,20 @@ async def send_booking_status_email(appointment, status_msg: str) -> None:
     <p>Accedi alla tua area personale per maggiori dettagli.</p>
     """
     await send_email(client.email, subject, body)
+
+
+async def send_verification_code_email(
+    to_email: str, first_name: str, code: str, ttl_minutes: int
+) -> None:
+    """Email carrying the sign-up confirmation code."""
+    subject = "Conferma il tuo indirizzo – New Style Hair"
+    body = f"""
+    <h2>New Style Hair</h2>
+    <p>Ciao {first_name or ''},</p>
+    <p>Per completare la registrazione inserisci questo codice:</p>
+    <p style="font-size:28px;font-weight:bold;letter-spacing:6px">{code}</p>
+    <p>Il codice è valido per {ttl_minutes} minuti.</p>
+    <p>Se non hai richiesto tu la registrazione, ignora questa email:
+       senza il codice l'account non viene attivato.</p>
+    """
+    await send_email(to_email, subject, body)

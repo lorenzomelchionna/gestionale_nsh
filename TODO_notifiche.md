@@ -59,16 +59,34 @@ Passi WhatsApp produzione (qualunque scenario):
 5. Aggiornare `TWILIO_WHATSAPP_FROM` (1 variabile, zero codice)
 
 ### Altri step go-live
-- [ ] Dati reali: collaboratori (orari, servizi, colori), servizi (prezzi, durate),
-  impostazioni (chiusure, anticipo, finestra reminder)
+- [ ] **Account di Vincenzo Romolo** — manca la sua email, quindi il login non è
+  ancora creabile. Gli altri due sono fatti:
+
+  | Collaboratore | Profilo agenda | Account |
+  |---|---|---|
+  | Flavia Romolo | id 4 | ✅ `flaviaromolo400@gmail.com` |
+  | Raffaella Bozza | id 5 | ✅ `raff8541@gmail.com` |
+  | Vincenzo Romolo | id 6 | ❌ manca l'email |
+
+  Quando l'email arriva: Team e accessi → Nuovo accesso, ruolo collaboratore,
+  collegato al profilo "Vincenzo Romolo". Password temporanea comunicata a voce,
+  che lui cambia da solo al primo accesso.
+- [ ] Servizi assegnati a ciascun collaboratore (dopo che Flavia inserisce il listino)
 - [ ] Telefoni clienti sempre in E.164 (`+39...`)
+- [x] Dati reali: collaboratori creati con orari lun–ven 08:00–19:00
 - [x] Cambiare password admin demo (`admin123`) — 2026-07-28: email → `newstylehair2019@gmail.com`,
   password ruotata (generata e mostrata una volta in chat, da salvare in un password manager)
-- [ ] **Cambio password dal gestionale** — non esiste ancora un endpoint/pagina per
-  farlo da interfaccia; oggi la password si cambia solo via script sul DB.
-  Serve prima che l'admin possa ruotarla senza intervento manuale.
+- [x] **Cambio password dal gestionale** — 2026-07-29: pagina "Team e accessi" con
+  creazione login, reset password da admin e cambio password self-service.
 - [ ] Verificare `SECRET_KEY` robusta in prod
-- [ ] Disattivare `SEED_DEMO` + svuotare dati demo
+- [x] Disattivare `SEED_DEMO` + svuotare dati demo — 2026-07-29: clienti, appuntamenti,
+  pagamenti, prodotti e spese demo cancellati; collaboratori e servizi demo rimossi.
+
+### Allineamento da controllare
+- [x] `closed_weekdays` allineato — 2026-07-29: confermato chiuso **domenica e
+  lunedì**. Orario dei 3 collaboratori aggiornato da lun–ven a **mar–sab
+  08:00–19:00** (nessun appuntamento attivo di lunedì nel DB, nessuna
+  prenotazione persa).
 
 ---
 

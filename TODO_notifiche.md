@@ -59,18 +59,18 @@ Passi WhatsApp produzione (qualunque scenario):
 5. Aggiornare `TWILIO_WHATSAPP_FROM` (1 variabile, zero codice)
 
 ### Altri step go-live
-- [ ] **Account di Vincenzo Romolo** — manca la sua email, quindi il login non è
-  ancora creabile. Gli altri due sono fatti:
+- [x] **Accessi dei collaboratori** — 2026-07-29: tutti e tre creati e collegati
+  al rispettivo profilo in agenda. Nessun collaboratore resta senza account.
 
   | Collaboratore | Profilo agenda | Account |
   |---|---|---|
   | Flavia Romolo | id 4 | ✅ `flaviaromolo400@gmail.com` |
   | Raffaella Bozza | id 5 | ✅ `raff8541@gmail.com` |
-  | Vincenzo Romolo | id 6 | ❌ manca l'email |
+  | Vincenzo Romolo | id 6 | ✅ `vincenzoromolo75@gmail.com` |
 
-  Quando l'email arriva: Team e accessi → Nuovo accesso, ruolo collaboratore,
-  collegato al profilo "Vincenzo Romolo". Password temporanea comunicata a voce,
-  che lui cambia da solo al primo accesso.
+  Password temporanee generate e comunicate a voce, da cambiare al primo accesso
+  da Team e accessi. Permessi verificati in produzione per tutti: calendario,
+  clienti e chat sì; dashboard, incassi, spese, team e impostazioni no.
 - [ ] Servizi assegnati a ciascun collaboratore (dopo che Flavia inserisce il listino)
 - [x] Telefoni clienti in E.164 — 2026-07-29: normalizzati automaticamente in
   scrittura (`app/utils/phone.py`), si possono digitare in qualunque formato.
@@ -110,6 +110,21 @@ Passi WhatsApp produzione (qualunque scenario):
   tutti, refresh token compresi.
 - [x] Disattivare `SEED_DEMO` + svuotare dati demo — 2026-07-29: clienti, appuntamenti,
   pagamenti, prodotti e spese demo cancellati; collaboratori e servizi demo rimossi.
+- [x] **Limiti di spesa Railway** — verificato via `railway usage`: soft $5,
+  hard $10. Sono due cose diverse: il soft **avvisa**, l'hard **spegne i
+  servizi**. Un hard a $5 secco rischierebbe di mandare offline il salone senza
+  preavviso, quindi il margine fra i due è voluto.
+
+  Consumo reale: $2.00 nel periodo, stima $3.48 — di cui **memoria $1.91**, CPU
+  $0.07, volumi $0.02, egress trascurabile. È la RAM a fare il costo.
+
+  Nota: il consumo **è fatturato** (`currentBill` = `currentUsage`), non
+  assorbito da un credito incluso. Ridurlo ridurrebbe davvero la spesa, ma le
+  cifre in gioco sono di circa un euro al mese e non valgono la perdita di
+  affidabilità (vedi il ragionamento su worker e Redis nella cronologia).
+
+  Comandi utili: `railway usage`, `railway usage projects`,
+  `railway usage limit status`.
 
 ### Allineamento da controllare
 - [x] `closed_weekdays` allineato — 2026-07-29: confermato chiuso **domenica e

@@ -110,6 +110,21 @@ Passi WhatsApp produzione (qualunque scenario):
   tutti, refresh token compresi.
 - [x] Disattivare `SEED_DEMO` + svuotare dati demo — 2026-07-29: clienti, appuntamenti,
   pagamenti, prodotti e spese demo cancellati; collaboratori e servizi demo rimossi.
+- [x] **Limiti di spesa Railway** — verificato via `railway usage`: soft $5,
+  hard $10. Sono due cose diverse: il soft **avvisa**, l'hard **spegne i
+  servizi**. Un hard a $5 secco rischierebbe di mandare offline il salone senza
+  preavviso, quindi il margine fra i due è voluto.
+
+  Consumo reale: $2.00 nel periodo, stima $3.48 — di cui **memoria $1.91**, CPU
+  $0.07, volumi $0.02, egress trascurabile. È la RAM a fare il costo.
+
+  Nota: il consumo **è fatturato** (`currentBill` = `currentUsage`), non
+  assorbito da un credito incluso. Ridurlo ridurrebbe davvero la spesa, ma le
+  cifre in gioco sono di circa un euro al mese e non valgono la perdita di
+  affidabilità (vedi il ragionamento su worker e Redis nella cronologia).
+
+  Comandi utili: `railway usage`, `railway usage projects`,
+  `railway usage limit status`.
 
 ### Allineamento da controllare
 - [x] `closed_weekdays` allineato — 2026-07-29: confermato chiuso **domenica e

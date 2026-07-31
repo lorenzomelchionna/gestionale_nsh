@@ -2,12 +2,12 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { format, parseISO } from 'date-fns'
 import { it } from 'date-fns/locale'
-import { Bell, CheckCircle, Trash2, Clock, UserCheck, Filter } from 'lucide-react'
+import { Bell, Trash2, Clock, UserCheck } from 'lucide-react'
 import {
   getWaitlist, notifyWaitlistEntry, fulfilWaitlistEntry, deleteWaitlistEntry,
 } from '@/services/api'
 import type { WaitlistEntryWithNames, WaitlistStatus } from '@/types'
-import { PageHeader, EmptyState, SkeletonList } from '@/components/ui'
+import { PageHeader, EmptyState, SkeletonList, Segmented } from '@/components/ui'
 
 const STATUS_LABEL: Record<WaitlistStatus, string> = {
   waiting: 'In attesa',
@@ -16,22 +16,35 @@ const STATUS_LABEL: Record<WaitlistStatus, string> = {
   cancelled: 'Annullato',
 }
 
-const STATUS_COLOR: Record<WaitlistStatus, string> = {
-  waiting: 'bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300',
-  notified: 'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300',
-  fulfilled: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300',
-  cancelled: 'bg-gray-100 text-gray-500 dark:bg-gray-500/15 dark:text-gray-400',
+/* The four states borrow the appointment badges rather than inventing a second
+   set: waiting is pencilled in, notified agreed, fulfilled posted, cancelled
+   struck out — the same four marks the register uses everywhere else. */
+const STATUS_BADGE: Record<WaitlistStatus, string> = {
+  waiting: 'status-pending',
+  notified: 'status-confirmed',
+  fulfilled: 'status-completed',
+  cancelled: 'status-cancelled',
 }
+
+type Filter = WaitlistStatus | 'all'
+
+const FILTERS: { value: Filter; label: string }[] = [
+  { value: 'all', label: 'Tutti' },
+  { value: 'waiting', label: 'In attesa' },
+  { value: 'notified', label: 'Notificati' },
+  { value: 'fulfilled', label: 'Soddisfatti' },
+  { value: 'cancelled', label: 'Annullati' },
+]
 
 export default function WaitlistPage() {
   const qc = useQueryClient()
   const inv = () => qc.invalidateQueries({ queryKey: ['waitlist'] })
 
-  const [statusFilter, setStatusFilter] = useState<WaitlistStatus | ''>('')
+  const [statusFilter, setStatusFilter] = useState<Filter>('all')
 
   const { data: entries = [], isLoading } = useQuery({
     queryKey: ['waitlist', statusFilter],
-    queryFn: () => getWaitlist(statusFilter || undefined),
+    queryFn: () => getWaitlist(statusFilter === 'all' ? undefined : statusFilter),
     refetchInterval: 30_000,
   })
 
@@ -50,24 +63,10 @@ export default function WaitlistPage() {
         subtitle={waitingCount > 0 ? `${waitingCount} in attesa` : undefined}
       />
 
-      <div className="flex items-center gap-2">
-        <Filter className="w-4 h-4 text-muted-foreground shrink-0" />
-        <select
-          value={statusFilter}
-          onChange={e => setStatusFilter(e.target.value as WaitlistStatus | '')}
-          className="input !min-h-[2.5rem] text-[13px] py-1.5 flex-1 sm:max-w-xs"
-          aria-label="Filtra per stato"
-        >
-          <option value="">Tutti</option>
-          <option value="waiting">In attesa</option>
-          <option value="notified">Notificati</option>
-          <option value="fulfilled">Soddisfatti</option>
-          <option value="cancelled">Annullati</option>
-        </select>
-      </div>
+      <Segmented options={FILTERS} value={statusFilter} onChange={setStatusFilter} />
 
       {entries.length === 0 ? (
-        <div className="card">
+        <div className="panel">
           <EmptyState
             icon={Clock}
             title="Lista d'attesa vuota"
@@ -75,9 +74,9 @@ export default function WaitlistPage() {
           />
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="flex flex-col gap-3.5">
           {entries.map(entry => (
-            <WaitlistCard
+            <WaitlistRow
               key={entry.id}
               entry={entry}
               onNotify={() => notifyMut.mutate(entry.id)}
@@ -92,7 +91,18 @@ export default function WaitlistPage() {
   )
 }
 
-function WaitlistCard({
+/** A small-caps label over the fact it names — the design's way of laying out
+    the particulars of a request. */
+function Fact({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <span className="flex flex-col gap-1.5 min-w-0">
+      <span className="kicker">{label}</span>
+      <span className="text-[15px] text-foreground truncate">{children}</span>
+    </span>
+  )
+}
+
+function WaitlistRow({
   entry: e,
   onNotify,
   onFulfil,
@@ -108,65 +118,68 @@ function WaitlistCard({
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   return (
-    <div className="card p-4">
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-        <div className="space-y-1 min-w-0">
-          {/* Client + status */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-semibold text-foreground">{e.client_name}</span>
-            <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${STATUS_COLOR[e.status]}`}>
+    <div className="panel flex items-stretch">
+      {/* A gold bar down the edge marks an entry that is still someone's turn. */}
+      <div
+        className={e.status === 'waiting' || e.status === 'notified' ? 'w-[3px] bg-primary shrink-0' : 'w-[3px] bg-rule shrink-0'}
+        aria-hidden="true"
+      />
+
+      <div className="flex-1 min-w-0 flex flex-col lg:flex-row lg:items-stretch">
+        <div className="flex-1 min-w-0 px-5 py-4 flex flex-col gap-3">
+          <div className="flex items-baseline gap-3 flex-wrap">
+            <span className="font-heading text-[21px] tracking-[0.03em] text-foreground">
+              {e.client_name}
+            </span>
+            <span className={`status-badge ${STATUS_BADGE[e.status]}`}>
               {STATUS_LABEL[e.status]}
+            </span>
+            <span className="note ml-auto tabular-nums shrink-0">
+              iscritto il {format(parseISO(e.created_at), 'd MMM yyyy HH:mm', { locale: it })}
             </span>
           </div>
 
-          {/* Service + collaborator */}
-          <p className="text-sm text-muted-foreground">
-            Servizio: <span className="font-medium text-foreground">{e.service_name}</span>
-            {e.collaborator_name && (
-              <> · Con: <span className="font-medium text-foreground">{e.collaborator_name}</span></>
-            )}
-            {!e.collaborator_name && <> · <span className="italic">Qualsiasi collaboratore</span></>}
-          </p>
-
-          {/* Preferred date */}
-          {e.preferred_date && (
-            <p className="text-sm text-muted-foreground">
-              Data preferita:{' '}
-              <span className="font-medium text-foreground">
-                {format(parseISO(e.preferred_date), 'd MMMM yyyy', { locale: it })}
-              </span>
-            </p>
-          )}
-          {!e.preferred_date && (
-            <p className="text-sm text-muted-foreground italic">Prima disponibilità</p>
-          )}
-
-          {/* Notes */}
-          {e.notes && <p className="text-xs text-muted-foreground italic">"{e.notes}"</p>}
-
-          {/* Timestamps */}
-          <p className="text-xs text-muted-foreground">
-            Iscritto il {format(parseISO(e.created_at), 'd MMM yyyy HH:mm', { locale: it })}
+          <div className="flex gap-8 flex-wrap">
+            <Fact label="Servizio">{e.service_name}</Fact>
+            <Fact label="Operatore">
+              {e.collaborator_name ?? <span className="italic text-ink-3">chiunque</span>}
+            </Fact>
+            <Fact label="Quando">
+              {e.preferred_date ? (
+                <span className="tabular-nums">
+                  {format(parseISO(e.preferred_date), 'd MMMM yyyy', { locale: it })}
+                </span>
+              ) : (
+                <span className="italic text-ink-3">prima disponibilità</span>
+              )}
+            </Fact>
             {e.notified_at && (
-              <> · Notificato il {format(parseISO(e.notified_at), 'd MMM yyyy HH:mm', { locale: it })}</>
+              <Fact label="Notificato">
+                <span className="tabular-nums">
+                  {format(parseISO(e.notified_at), 'd MMM HH:mm', { locale: it })}
+                </span>
+              </Fact>
             )}
-          </p>
+          </div>
+
+          {e.notes && <p className="note">{e.notes}</p>}
         </div>
 
-        {/* Actions stretch to full width on phones so each stays tappable. */}
-        <div className="flex gap-2 shrink-0 pt-1 sm:pt-0">
+        {/* Actions sit in their own column behind a rule, the way the design
+            separates what you can do from what you are reading. */}
+        <div className="shrink-0 flex lg:flex-col justify-center gap-2.5 px-5 py-4 border-t lg:border-t-0 lg:border-l border-rule-soft">
           {confirmDelete ? (
             <>
               <button
                 onClick={() => { onDelete(); setConfirmDelete(false) }}
                 disabled={isLoading}
-                className="btn-danger btn-sm flex-1 sm:flex-none"
+                className="btn-danger btn-sm flex-1 lg:flex-none"
               >
                 Conferma
               </button>
               <button
                 onClick={() => setConfirmDelete(false)}
-                className="btn-secondary btn-sm flex-1 sm:flex-none"
+                className="btn-secondary btn-sm flex-1 lg:flex-none"
               >
                 Annulla
               </button>
@@ -177,24 +190,24 @@ function WaitlistCard({
                 <button
                   onClick={onNotify}
                   disabled={isLoading}
-                  className="btn-primary btn-sm flex-1 sm:flex-none !bg-blue-600 hover:!bg-blue-700"
+                  className="btn-primary btn-sm flex-1 lg:flex-none"
                 >
-                  <Bell className="w-4 h-4" /> Notifica
+                  <Bell className="w-3.5 h-3.5" /> Notifica
                 </button>
               )}
               {(e.status === 'waiting' || e.status === 'notified') && (
                 <button
                   onClick={onFulfil}
                   disabled={isLoading}
-                  className="btn-primary btn-sm flex-1 sm:flex-none !bg-emerald-600 hover:!bg-emerald-700"
+                  className="btn-accent btn-sm flex-1 lg:flex-none"
                 >
-                  <UserCheck className="w-4 h-4" /> Soddisfatto
+                  <UserCheck className="w-3.5 h-3.5" /> Soddisfatto
                 </button>
               )}
               <button
                 onClick={() => setConfirmDelete(true)}
                 disabled={isLoading}
-                className="btn-icon !w-10 !h-10 hover:text-danger shrink-0"
+                className="btn-icon !w-10 !h-10 hover:text-danger shrink-0 self-center"
                 aria-label="Rimuovi dalla lista"
               >
                 <Trash2 className="w-4 h-4" />

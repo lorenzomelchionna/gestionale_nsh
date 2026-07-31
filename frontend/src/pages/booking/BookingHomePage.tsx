@@ -1,74 +1,89 @@
 import { Link } from 'react-router-dom'
-import { Calendar, Scissors, Clock, ArrowRight } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
 import { useClientAuth } from '@/components/layout/BookingLayout'
+import { publicGetServices } from '@/services/publicApi'
 
-const STEPS = [
-  { icon: Scissors, title: 'Scegli il servizio', text: 'Taglio, colore, trattamenti' },
-  { icon: Calendar, title: 'Data e ora', text: 'Solo gli orari liberi' },
-  { icon: Clock, title: 'Conferma', text: 'Ti avvisiamo noi' },
-]
+/** Half an hour to a slot — the same unit the booking flow converts with, so
+    the price list and the summary quote the same duration. */
+const MINUTES_PER_SLOT = 30
 
 export default function BookingHomePage() {
   const { token } = useClientAuth()
 
+  const { data: services } = useQuery({
+    queryKey: ['public-services'],
+    queryFn: publicGetServices,
+  })
+
+  const listino = (services ?? []).filter(s => s.bookable_online)
+
   return (
-    <div className="space-y-10">
-      <section className="text-center pt-4 pb-2">
-        <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center mx-auto mb-5 shadow-raised">
-          <Scissors className="w-8 h-8 text-primary-foreground" />
-        </div>
-        <h1 className="text-title-lg font-bold text-foreground">New Style Hair</h1>
-        <p className="text-muted-foreground mt-2 max-w-xs mx-auto">
-          Prenota il tuo appuntamento online, in meno di un minuto.
+    <div className="flex flex-col gap-10 py-2">
+      {/* The salon says who it is before it asks for anything: the trade, the
+          year, then the invitation. */}
+      <section className="flex flex-col gap-4">
+        <span className="kicker">Special haircut salon · dal 2016</span>
+        <h1 className="font-heading text-[clamp(2.25rem,1.6rem+3vw,3.5rem)] leading-[1.06] text-foreground max-w-[28rem]">
+          Prenota il tuo posto in poltrona
+        </h1>
+        <p className="text-base leading-relaxed text-muted-foreground max-w-[26rem]">
+          Scegli il servizio, la persona e l'orario. Ti confermiamo noi, di
+          solito entro un'ora.
         </p>
+
+        {/* Primary action sits high on the page so it is reachable without
+            scrolling on a phone. */}
+        <div className="flex flex-col sm:flex-row gap-2.5 mt-2">
+          <Link to="/booking/new" className="btn-primary sm:px-8">
+            Prenota ora
+          </Link>
+          <Link
+            to={token ? '/booking/account' : '/login'}
+            className="btn-secondary sm:px-7"
+          >
+            {token ? 'I miei appuntamenti' : 'La mia area'}
+          </Link>
+        </div>
+
+        {/* Said up front, because "Prenota ora" leads to the sign-in screen and
+            an unexplained redirect reads as a dead end. */}
+        {!token && (
+          <p className="note">
+            Per prenotare serve un account: bastano nome, telefono ed email.
+          </p>
+        )}
       </section>
 
-      {/* Primary action sits high on the page so it is reachable without
-          scrolling on a phone. */}
-      <div className="space-y-2.5">
-        <Link to="/booking/new" className="btn-primary w-full text-base">
-          Prenota ora <ArrowRight className="w-4 h-4" />
-        </Link>
-        {!token && (
-          <>
-            <Link to="/login" className="btn-outline w-full">
-              Accedi all'area personale
-            </Link>
-            {/* Said up front, because "Prenota ora" leads to the sign-in
-                screen and an unexplained redirect reads as a dead end. */}
-            <p className="text-xs text-muted-foreground text-center pt-1">
-              Per prenotare serve un account: bastano nome, telefono ed email.
-            </p>
-          </>
-        )}
-        {token && (
-          <Link to="/booking/account" className="btn-outline w-full">
-            I miei appuntamenti
-          </Link>
-        )}
-      </div>
-
-      <section className="space-y-3">
-        <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider text-center">
-          Come funziona
-        </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {STEPS.map(({ icon: Icon, title, text }, i) => (
-            <div key={title} className="card p-4 flex sm:flex-col items-center sm:text-center gap-3.5">
-              <div className="relative w-11 h-11 rounded-xl bg-primary/12 flex items-center justify-center shrink-0">
-                <Icon className="w-5 h-5 text-primary" />
-                <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-primary text-primary-foreground text-[11px] font-bold flex items-center justify-center">
-                  {i + 1}
+      {/* The price list, set as one: name, what it involves, and what it costs
+          closing the line — the way it hangs on the wall. */}
+      {listino.length > 0 && (
+        <section className="flex flex-col gap-4">
+          <span className="kicker border-b border-rule pb-2.5">Listino</span>
+          <div className="flex flex-col">
+            {listino.map(s => (
+              <div
+                key={s.id}
+                className="flex items-baseline gap-4 py-3.5 border-b border-rule-soft last:border-b-0"
+              >
+                <div className="flex-1 min-w-0 flex flex-col gap-1">
+                  <span className="font-heading text-[19px] leading-tight tracking-[0.03em] text-foreground">
+                    {s.name}
+                  </span>
+                  <span className="text-[13px] text-ink-3">
+                    {s.description ? `${s.description} · ` : ''}
+                    <span className="tabular-nums">
+                      {s.duration_slots * MINUTES_PER_SLOT} min
+                    </span>
+                  </span>
+                </div>
+                <span className="text-[17px] tabular-nums text-primary-dark shrink-0">
+                  €{s.price.toFixed(2)}
                 </span>
               </div>
-              <div className="min-w-0">
-                <p className="font-semibold text-sm text-foreground">{title}</p>
-                <p className="text-[13px] text-muted-foreground mt-0.5">{text}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   )
 }

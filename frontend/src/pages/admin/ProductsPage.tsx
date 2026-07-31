@@ -40,10 +40,10 @@ export default function ProductsPage() {
       />
 
       {lowStock.length > 0 && (
-        <div className="bg-warning/10 border border-warning/30 rounded-xl px-4 py-3 flex items-start gap-2.5">
-          <AlertTriangle className="w-4 h-4 text-warning shrink-0 mt-0.5" />
+        <div className="flex items-start gap-2.5 border-l-2 border-danger bg-danger/[0.08] px-4 py-3">
+          <AlertTriangle className="w-4 h-4 text-danger shrink-0 mt-0.5" />
           <div className="min-w-0">
-            <p className="text-[13px] font-semibold text-warning">
+            <p className="text-[13px] font-semibold text-danger tabular-nums">
               {lowStock.length} prodott{lowStock.length > 1 ? 'i' : 'o'} sotto scorta
             </p>
             <p className="text-[13px] text-muted-foreground mt-0.5">
@@ -56,7 +56,7 @@ export default function ProductsPage() {
       {isLoading ? (
         <SkeletonList rows={4} />
       ) : products.length === 0 ? (
-        <div className="card">
+        <div className="panel">
           <EmptyState
             icon={Package}
             title="Magazzino vuoto"
@@ -69,35 +69,66 @@ export default function ProductsPage() {
           />
         </div>
       ) : (
-        <div className="card divide-y divide-border overflow-hidden">
-          {products.map(p => {
-            const low = p.quantity <= p.min_quantity
-            return (
-              <div key={p.id} className="p-4 flex items-center gap-3">
-                <div className="min-w-0 flex-1">
-                  <p className="font-medium truncate">{p.name}</p>
-                  <p className="text-xs text-muted-foreground truncate">{p.category}</p>
-                  <div className="flex items-center gap-3 mt-1.5 text-[13px]">
-                    <span className={clsx('font-semibold tabular-nums', low ? 'text-warning' : 'text-foreground')}>
-                      {p.quantity} pz
-                    </span>
-                    <span className="text-xs text-muted-foreground">min {p.min_quantity}</span>
-                    <span className="text-xs text-muted-foreground tabular-nums">
-                      €{p.purchase_price.toFixed(2)} → €{p.sale_price.toFixed(2)}
-                    </span>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setMovementProduct(p)}
-                  className="btn-icon bg-muted/60 hover:bg-muted hover:text-primary"
-                  title="Carico / scarico"
-                  aria-label={`Movimento magazzino per ${p.name}`}
-                >
-                  <PackagePlus className="w-[18px] h-[18px]" />
-                </button>
-              </div>
-            )
-          })}
+        /* The stock read as a ledger: figures right-aligned so a shelf can be
+           checked by running down one column. The category column drops on a
+           phone rather than letting the table scroll sideways. */
+        <div className="panel table-scroll">
+          <table className="ledger [&_tbody_tr:last-child_td]:border-b-0">
+            <thead>
+              <tr>
+                <th>Prodotto</th>
+                <th className="hidden sm:table-cell">Categoria</th>
+                <th className="num">Giacenza</th>
+                <th className="num">Prezzo</th>
+                <th className="w-px" />
+              </tr>
+            </thead>
+            <tbody>
+              {products.map(p => {
+                const low = p.quantity <= p.min_quantity
+                return (
+                  <tr key={p.id}>
+                    <td>
+                      <div className="flex items-baseline gap-2.5">
+                        <span>{p.name}</span>
+                        {low && (
+                          <span className="status-badge status-rejected shrink-0">sotto scorta</span>
+                        )}
+                      </div>
+                      {p.description && (
+                        <p className="text-[13px] text-ink-3 line-clamp-1 mt-0.5">{p.description}</p>
+                      )}
+                      <span className="kicker sm:hidden mt-1">{p.category}</span>
+                    </td>
+                    <td className="hidden sm:table-cell text-muted-foreground">{p.category}</td>
+                    <td className="num whitespace-nowrap">
+                      <span className={clsx('amount', low && 'text-danger')}>{p.quantity}</span>
+                      <span className={clsx('text-[13px]', low ? 'text-danger' : 'text-ink-3')}> pz</span>
+                      <span className="block text-[11px] text-ink-3 tabular-nums">
+                        min {p.min_quantity}
+                      </span>
+                    </td>
+                    <td className="num whitespace-nowrap">
+                      <span className="amount">€{p.sale_price.toFixed(2)}</span>
+                      <span className="block text-[11px] text-ink-3 tabular-nums">
+                        acquisto €{p.purchase_price.toFixed(2)}
+                      </span>
+                    </td>
+                    <td className="w-px">
+                      <button
+                        onClick={() => setMovementProduct(p)}
+                        className="btn-icon hover:text-primary"
+                        title="Carico / scarico"
+                        aria-label={`Movimento magazzino per ${p.name}`}
+                      >
+                        <PackagePlus className="w-[18px] h-[18px]" />
+                      </button>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
         </div>
       )}
 
@@ -250,10 +281,10 @@ function MovementModal({ product, onClose, onSave, loading }: {
                 type="button"
                 onClick={() => setForm({ ...form, type: t.value })}
                 className={clsx(
-                  'min-h-touch rounded-lg text-sm font-medium border transition-colors',
+                  'min-h-touch border font-heading text-[12px] uppercase tracking-[0.1em] transition-colors',
                   form.type === t.value
                     ? 'border-primary bg-primary/10 text-primary'
-                    : 'border-border bg-surface text-muted-foreground hover:bg-muted'
+                    : 'border-border bg-surface text-muted-foreground hover:bg-foreground/[0.05]'
                 )}
               >
                 {t.label}

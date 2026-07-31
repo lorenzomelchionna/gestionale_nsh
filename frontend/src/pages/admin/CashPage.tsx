@@ -1,13 +1,23 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { format, parseISO } from 'date-fns'
-import { Plus, X, Wallet } from 'lucide-react'
+import { Plus, Wallet } from 'lucide-react'
 import { getPayments, createPayment } from '@/services/api'
 import type { Payment } from '@/types'
+import Sheet from '@/components/ui/Sheet'
 import { PageHeader, EmptyState } from '@/components/ui'
 
 const METHOD_LABELS: Record<string, string> = { contanti: 'Contanti', carta: 'Carta', misto: 'Misto' }
 const TYPE_LABELS: Record<string, string> = { servizio: 'Servizio', prodotto: 'Prodotto' }
+
+/** The tender is named, not colour-coded: the register owns a single hue. */
+function MethodLabel({ method }: { method: string }) {
+  return (
+    <span className="font-heading text-[12px] uppercase tracking-[0.12em] text-muted-foreground">
+      {METHOD_LABELS[method]}
+    </span>
+  )
+}
 
 /** Ricava la quota contanti effettiva di un pagamento (inclusi i misti). */
 function effectiveCash(p: Payment): number {
@@ -55,7 +65,7 @@ export default function CashPage() {
       />
 
       {/* Filters */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-3 sm:max-w-md">
         <div>
           <label className="label">Dal</label>
           <input type="date" className="input" value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
@@ -66,100 +76,120 @@ export default function CashPage() {
         </div>
       </div>
 
-      {/* Summary — the total spans the row on phones, where three side-by-side
-          euro figures wrap mid-number. */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        <div className="card p-4 text-center col-span-2 sm:col-span-1">
-          <p className="text-xl font-bold text-foreground tabular-nums">€{total.toFixed(2)}</p>
-          <p className="text-xs text-muted-foreground mt-1">Totale incassato</p>
+      {/* Summary — one panel divided into cells, not three floating cards. The
+          total still spans the row on phones, where three side-by-side euro
+          figures wrap mid-number. */}
+      <div className="panel grid grid-cols-2 sm:grid-cols-3">
+        <div className="col-span-2 sm:col-span-1 px-4 py-3.5 border-b border-rule-soft sm:border-b-0 sm:border-r">
+          <span className="kicker">Totale incassato</span>
+          <p className="font-heading text-[28px] leading-none tabular-nums text-foreground mt-2">
+            €{total.toFixed(2)}
+          </p>
         </div>
-        <div className="card p-4 text-center">
-          <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">€{cash.toFixed(2)}</p>
-          <p className="text-xs text-muted-foreground mt-1">Contanti</p>
+        <div className="px-4 py-3.5 border-r border-rule-soft">
+          <span className="kicker">Contanti</span>
+          <p className="font-heading text-[22px] leading-none tabular-nums text-ink-2 mt-2">
+            €{cash.toFixed(2)}
+          </p>
         </div>
-        <div className="card p-4 text-center">
-          <p className="text-xl font-bold text-blue-600 dark:text-blue-400 tabular-nums">€{card.toFixed(2)}</p>
-          <p className="text-xs text-muted-foreground mt-1">Carta</p>
+        <div className="px-4 py-3.5">
+          <span className="kicker">Carta</span>
+          <p className="font-heading text-[22px] leading-none tabular-nums text-ink-2 mt-2">
+            €{card.toFixed(2)}
+          </p>
         </div>
       </div>
 
-      {/* Phones: card rows. The five-column ledger needs real width to read. */}
-      <div className="sm:hidden space-y-2">
+      {/* Phones: ruled rows. The five-column ledger needs real width to read. */}
+      <div className="panel sm:hidden">
         {payments.length === 0 ? (
-          <div className="card">
-            <EmptyState icon={Wallet} title="Nessun incasso nel periodo" />
-          </div>
-        ) : payments.map(p => (
-          <div key={p.id} className="card p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="font-medium text-foreground">{TYPE_LABELS[p.type]}</p>
-                <p className="text-xs text-muted-foreground tabular-nums mt-0.5">
-                  {format(parseISO(p.date), 'dd/MM/yyyy HH:mm')}
-                </p>
-              </div>
-              <span className="font-semibold tabular-nums shrink-0">€{p.amount.toFixed(2)}</span>
+          <EmptyState icon={Wallet} title="Nessun incasso nel periodo" />
+        ) : (
+          <>
+            <div className="divide-y divide-rule-soft">
+              {payments.map(p => (
+                <div key={p.id} className="px-4 py-3.5">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <p className="text-foreground truncate">{TYPE_LABELS[p.type]}</p>
+                    <span className="tabular-nums text-foreground shrink-0">€{p.amount.toFixed(2)}</span>
+                  </div>
+                  <div className="flex items-baseline gap-2.5 mt-1 flex-wrap">
+                    <MethodLabel method={p.method} />
+                    <span className="text-xs text-ink-3 tabular-nums">
+                      {format(parseISO(p.date), 'dd/MM/yyyy HH:mm')}
+                    </span>
+                    {p.method === 'misto' && p.cash_amount != null && p.card_amount != null && (
+                      <span className="text-xs text-muted-foreground tabular-nums">
+                        €{p.cash_amount.toFixed(2)} + €{p.card_amount.toFixed(2)}
+                      </span>
+                    )}
+                  </div>
+                  {p.notes && <p className="text-[13px] text-muted-foreground mt-1.5">{p.notes}</p>}
+                </div>
+              ))}
             </div>
-            <div className="flex items-center gap-2 mt-2.5 flex-wrap">
-              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                p.method === 'contanti' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
-                : p.method === 'carta' ? 'bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300'
-                : 'bg-purple-100 text-purple-700 dark:bg-purple-500/15 dark:text-purple-300'
-              }`}>
-                {METHOD_LABELS[p.method]}
-              </span>
-              {p.method === 'misto' && p.cash_amount != null && p.card_amount != null && (
-                <span className="text-xs text-muted-foreground tabular-nums">
-                  €{p.cash_amount.toFixed(2)} + €{p.card_amount.toFixed(2)}
-                </span>
-              )}
+            <div className="bg-band border-t border-rule px-4 py-3 flex items-baseline justify-between">
+              <span className="kicker">Totale incassato</span>
+              <span className="amount">€{total.toFixed(2)}</span>
             </div>
-            {p.notes && <p className="text-xs text-muted-foreground mt-2">{p.notes}</p>}
-          </div>
-        ))}
+          </>
+        )}
       </div>
 
-      {/* Table */}
-      <div className="card overflow-hidden hidden sm:block table-scroll">
-        <table className="w-full text-sm">
+      {/* The register itself, from sm up: banded head, hairline rows, a summed foot. */}
+      <div className="panel hidden sm:block table-scroll">
+        <table className="ledger">
           <thead>
-            <tr className="border-b border-border bg-muted/50">
-              <th className="text-left px-4 py-2 font-medium text-muted-foreground text-xs">Data</th>
-              <th className="text-left px-4 py-2 font-medium text-muted-foreground text-xs">Tipo</th>
-              <th className="text-left px-4 py-2 font-medium text-muted-foreground text-xs">Metodo</th>
-              <th className="text-right px-4 py-2 font-medium text-muted-foreground text-xs">Importo</th>
-              <th className="text-left px-4 py-2 font-medium text-muted-foreground text-xs">Note</th>
+            <tr>
+              <th>Data</th>
+              <th>Tipo</th>
+              <th>Metodo</th>
+              <th className="!text-right">Importo</th>
+              <th>Note</th>
             </tr>
           </thead>
           <tbody>
             {payments.length === 0 && (
-              <tr><td colSpan={5} className="px-4 py-6 text-center text-muted-foreground">Nessun incasso nel periodo</td></tr>
+              <tr>
+                <td colSpan={5}>
+                  <p className="note text-center py-5">Nessun incasso nel periodo</p>
+                </td>
+              </tr>
             )}
             {payments.map(p => (
-              <tr key={p.id} className="border-b border-border last:border-0">
-                <td className="px-4 py-2.5">{format(parseISO(p.date), 'dd/MM/yyyy HH:mm')}</td>
-                <td className="px-4 py-2.5">{TYPE_LABELS[p.type]}</td>
-                <td className="px-4 py-2.5">
-                  <div className="flex items-center gap-1.5">
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                      p.method === 'contanti' ? 'bg-emerald-100 text-emerald-700'
-                      : p.method === 'carta' ? 'bg-blue-100 text-blue-700'
-                      : 'bg-purple-100 text-purple-700'
-                    }`}>
-                      {METHOD_LABELS[p.method]}
-                    </span>
+              <tr key={p.id}>
+                <td className="tabular-nums text-ink-2 whitespace-nowrap">
+                  {format(parseISO(p.date), 'dd/MM/yyyy HH:mm')}
+                </td>
+                <td>{TYPE_LABELS[p.type]}</td>
+                <td>
+                  <div className="flex items-baseline gap-2">
+                    <MethodLabel method={p.method} />
                     {p.method === 'misto' && p.cash_amount != null && p.card_amount != null && (
-                      <span className="text-xs text-muted-foreground">
+                      <span className="text-xs text-ink-3 tabular-nums whitespace-nowrap">
                         €{p.cash_amount.toFixed(2)} + €{p.card_amount.toFixed(2)}
                       </span>
                     )}
                   </div>
                 </td>
-                <td className="px-4 py-2.5 text-right font-semibold">€{p.amount.toFixed(2)}</td>
-                <td className="px-4 py-2.5 text-muted-foreground">{p.notes ?? '–'}</td>
+                <td className="num">€{p.amount.toFixed(2)}</td>
+                <td className="text-muted-foreground">{p.notes ?? '–'}</td>
               </tr>
             ))}
           </tbody>
+          {payments.length > 0 && (
+            <tfoot>
+              <tr>
+                <td colSpan={3} className="border-t border-rule">
+                  <span className="kicker">Totale incassato</span>
+                </td>
+                <td className="num border-t border-rule">
+                  <span className="amount">€{total.toFixed(2)}</span>
+                </td>
+                <td className="border-t border-rule" />
+              </tr>
+            </tfoot>
+          )}
         </table>
       </div>
 
@@ -226,84 +256,90 @@ function PaymentFormModal({ onClose, onSave, loading, error }: {
   const isMisto = form.method === 'misto'
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-surface rounded-xl shadow-xl w-full max-w-sm">
-        <div className="flex items-center justify-between p-4 border-b border-border">
-          <h3 className="font-semibold">Registra incasso</h3>
-          <button onClick={onClose}><X className="w-5 h-5" /></button>
+    <Sheet
+      onClose={onClose}
+      title="Registra incasso"
+      size="sm"
+      footer={
+        <>
+          <button type="button" onClick={onClose} className="btn-secondary btn-sm">Annulla</button>
+          <button type="submit" form="payment-form" disabled={loading} className="btn-primary btn-sm">
+            Salva
+          </button>
+        </>
+      }
+    >
+      <form id="payment-form" onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className="label">Metodo</label>
+          <select className="input" value={form.method} onChange={e => set('method', e.target.value)}>
+            <option value="contanti">Contanti</option>
+            <option value="carta">Carta</option>
+            <option value="misto">Misto (contanti + carta)</option>
+          </select>
         </div>
-        <form onSubmit={handleSubmit} className="p-4 space-y-3">
-          <div>
-            <label className="label block mb-1">Metodo</label>
-            <select className="input" value={form.method} onChange={e => set('method', e.target.value)}>
-              <option value="contanti">Contanti</option>
-              <option value="carta">Carta</option>
-              <option value="misto">Misto (contanti + carta)</option>
-            </select>
-          </div>
 
-          {isMisto ? (
-            /* Split payment: two sub-amounts, total computed automatically */
-            <div className="space-y-2">
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="label block mb-1 text-xs">Contanti (€) *</label>
-                  <input
-                    className="input"
-                    type="number" step="0.01" min="0.01" required
-                    placeholder="0.00"
-                    value={form.cashAmount}
-                    onChange={e => set('cashAmount', e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label className="label block mb-1 text-xs">Carta (€) *</label>
-                  <input
-                    className="input"
-                    type="number" step="0.01" min="0.01" required
-                    placeholder="0.00"
-                    value={form.cardAmount}
-                    onChange={e => set('cardAmount', e.target.value)}
-                  />
-                </div>
+        {isMisto ? (
+          /* Split payment: two sub-amounts, total computed automatically */
+          <div className="space-y-2.5">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="label">Contanti (€) *</label>
+                <input
+                  className="input"
+                  type="number" step="0.01" min="0.01" required
+                  placeholder="0.00"
+                  value={form.cashAmount}
+                  onChange={e => set('cashAmount', e.target.value)}
+                />
               </div>
-              {form.amount && (
-                <p className="text-xs text-muted-foreground">
-                  Totale: <span className="font-semibold text-foreground">€{Number(form.amount).toFixed(2)}</span>
-                </p>
-              )}
+              <div>
+                <label className="label">Carta (€) *</label>
+                <input
+                  className="input"
+                  type="number" step="0.01" min="0.01" required
+                  placeholder="0.00"
+                  value={form.cardAmount}
+                  onChange={e => set('cardAmount', e.target.value)}
+                />
+              </div>
             </div>
-          ) : (
-            <div>
-              <label className="label block mb-1">Importo (€) *</label>
-              <input
-                className="input" type="number" step="0.01" min="0.01" required
-                value={form.amount}
-                onChange={e => set('amount', e.target.value)}
-              />
-            </div>
-          )}
-
+            {form.amount && (
+              <p className="flex items-baseline justify-between gap-3 border-t border-rule-soft pt-2.5">
+                <span className="kicker">Totale</span>
+                <span className="amount">€{Number(form.amount).toFixed(2)}</span>
+              </p>
+            )}
+          </div>
+        ) : (
           <div>
-            <label className="label block mb-1">Tipo</label>
-            <select className="input" value={form.type} onChange={e => set('type', e.target.value)}>
-              <option value="servizio">Servizio</option>
-              <option value="prodotto">Prodotto</option>
-            </select>
+            <label className="label">Importo (€) *</label>
+            <input
+              className="input" type="number" step="0.01" min="0.01" required
+              value={form.amount}
+              onChange={e => set('amount', e.target.value)}
+            />
           </div>
-          <div>
-            <label className="label block mb-1">Note</label>
-            <input className="input" value={form.notes} onChange={e => set('notes', e.target.value)} />
-          </div>
+        )}
 
-          {error && <p className="text-xs text-red-500">{error}</p>}
+        <div>
+          <label className="label">Tipo</label>
+          <select className="input" value={form.type} onChange={e => set('type', e.target.value)}>
+            <option value="servizio">Servizio</option>
+            <option value="prodotto">Prodotto</option>
+          </select>
+        </div>
+        <div>
+          <label className="label">Note</label>
+          <input className="input" value={form.notes} onChange={e => set('notes', e.target.value)} />
+        </div>
 
-          <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={onClose} className="btn-secondary text-sm">Annulla</button>
-            <button type="submit" disabled={loading} className="btn-primary text-sm">Salva</button>
-          </div>
-        </form>
-      </div>
-    </div>
+        {error && (
+          <p role="alert" className="text-[13px] text-danger border-l-2 border-danger bg-danger/[0.08] px-3 py-2.5">
+            {error}
+          </p>
+        )}
+      </form>
+    </Sheet>
   )
 }

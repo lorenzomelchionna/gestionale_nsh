@@ -72,7 +72,9 @@ export default function ChatPage() {
               />
             </div>
           ) : (
-            <div className="space-y-2">
+            /* One ruled sheet rather than a stack of floating cards: the list
+               of open threads is a register page like every other. */
+            <div className="panel divide-y divide-rule-soft">
               {conversations.map(c => (
                 <ConversationRow
                   key={c.id}
@@ -117,13 +119,13 @@ export default function ChatPage() {
  */
 function NotLiveBanner({ mode }: { mode: ChatChannelStatus['mode'] }) {
   return (
-    <div className="flex items-start gap-2.5 rounded-xl border border-warning/30 bg-warning/10 px-4 py-3">
-      <AlertTriangle className="w-4 h-4 text-warning shrink-0 mt-0.5" />
+    <div className="flex items-start gap-2.5 border border-primary bg-primary/10 px-4 py-3">
+      <AlertTriangle className="w-4 h-4 text-primary shrink-0 mt-0.5" />
       <div className="min-w-0 text-[13px]">
-        <p className="font-semibold text-warning">
+        <p className="kicker text-primary-dark leading-relaxed">
           Numero WhatsApp da configurare — canale non ancora attivo
         </p>
-        <p className="text-muted-foreground mt-1">
+        <p className="text-muted-foreground mt-1.5">
           {mode === 'not_configured'
             ? 'Twilio non è configurato: i messaggi inviati da qui vengono solo registrati, non recapitati.'
             : 'È in uso il numero di prova Twilio: i messaggi raggiungono solo i telefoni che hanno inviato il codice di adesione, non i clienti reali.'}
@@ -144,20 +146,22 @@ function ConversationRow({ conversation: c, active, onClick }: {
     <button
       onClick={onClick}
       className={clsx(
-        'card-interactive w-full text-left p-3.5 flex items-start gap-3',
-        active && 'border-primary/60 bg-primary/[0.04]'
+        'w-full text-left px-3.5 py-3 flex items-start gap-3 border-l-2 transition-colors',
+        active
+          ? 'border-l-primary bg-primary/10'
+          : 'border-l-transparent hover:bg-foreground/[0.05]'
       )}
     >
-      <div className="w-10 h-10 rounded-full bg-primary/12 flex items-center justify-center shrink-0">
-        <span className="text-primary text-[13px] font-semibold">
+      <div className="w-9 h-9 border border-border flex items-center justify-center shrink-0">
+        <span className="font-heading text-[13px] tracking-[0.06em] text-primary-dark">
           {c.display_name.slice(0, 2).toUpperCase()}
         </span>
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline justify-between gap-2">
-          <p className="font-medium text-foreground truncate">{c.display_name}</p>
+          <p className="font-heading text-[16px] text-foreground truncate">{c.display_name}</p>
           {c.last_message_at && (
-            <span className="text-[11px] text-muted-foreground shrink-0 tabular-nums">
+            <span className="text-[11px] text-ink-3 shrink-0 tabular-nums">
               {isToday(parseISO(c.last_message_at))
                 ? format(parseISO(c.last_message_at), 'HH:mm')
                 : format(parseISO(c.last_message_at), 'd MMM', { locale: it })}
@@ -171,7 +175,7 @@ function ConversationRow({ conversation: c, active, onClick }: {
         )}
       </div>
       {c.unread_count > 0 && (
-        <span className="min-w-5 h-5 px-1.5 bg-warning text-white text-[11px] font-bold rounded-full flex items-center justify-center shrink-0">
+        <span className="shrink-0 text-[13px] font-semibold text-danger tabular-nums">
           {c.unread_count > 9 ? '9+' : c.unread_count}
         </span>
       )}
@@ -231,13 +235,13 @@ function Thread({ conversationId, onBack, onChanged }: {
   return (
     <div className="card flex flex-col lg:h-full min-h-[60vh]">
       {/* Thread header */}
-      <div className="flex items-center gap-2 p-3 border-b border-border shrink-0">
+      <div className="band flex items-center gap-2 px-3 py-2 shrink-0">
         <button onClick={onBack} className="btn-icon lg:hidden -ml-1" aria-label="Torna all'elenco">
           <ChevronLeft className="w-5 h-5" />
         </button>
         <div className="min-w-0 flex-1">
-          <p className="font-semibold text-foreground truncate">{conv.display_name}</p>
-          <p className="text-xs text-muted-foreground tabular-nums">{conv.phone}</p>
+          <p className="font-heading text-[18px] text-foreground truncate">{conv.display_name}</p>
+          <p className="text-[11px] text-ink-3 tabular-nums">{conv.phone}</p>
         </div>
         {conv.client_id && (
           <Link
@@ -259,12 +263,12 @@ function Thread({ conversationId, onBack, onChanged }: {
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-2.5 min-h-0">
-        {conv.messages.map(m => <Bubble key={m.id} message={m} />)}
+        {conv.messages.map(m => <Message key={m.id} message={m} />)}
         <div ref={bottomRef} />
       </div>
 
       {/* Composer */}
-      <div className="border-t border-border p-3 shrink-0">
+      <div className="border-t border-rule p-3 shrink-0">
         {windowOpen ? (
           <>
             <form onSubmit={send} className="flex items-end gap-2">
@@ -290,15 +294,15 @@ function Thread({ conversationId, onBack, onChanged }: {
               </button>
             </form>
             {expiresIn && (
-              <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground mt-2">
+              <p className="flex items-center gap-1.5 text-[11px] text-ink-3 tabular-nums mt-2">
                 <Clock className="w-3 h-3" />
                 Puoi rispondere liberamente per altre {expiresIn}
               </p>
             )}
           </>
         ) : (
-          <div className="flex items-start gap-2.5 text-[13px] bg-warning/10 text-warning rounded-lg px-3 py-2.5">
-            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+          <div className="flex items-start gap-2.5 border border-primary bg-primary/10 px-3 py-2.5 text-[13px] text-muted-foreground">
+            <AlertTriangle className="w-4 h-4 text-primary shrink-0 mt-0.5" />
             <p>
               Finestra di risposta chiusa. WhatsApp permette messaggi liberi solo entro
               24 ore dall'ultimo messaggio del cliente: oltre, servono i template
@@ -316,28 +320,32 @@ function Thread({ conversationId, onBack, onChanged }: {
   )
 }
 
-function Bubble({ message: m }: { message: ChatMessage }) {
+/**
+ * Who said what is carried by the ground and the side of the sheet, not by a
+ * bubble: ours is printed on the dark chrome, theirs on the tinted band.
+ */
+function Message({ message: m }: { message: ChatMessage }) {
   const mine = m.direction === 'outbound'
   return (
     <div className={clsx('flex', mine ? 'justify-end' : 'justify-start')}>
       <div
         className={clsx(
-          'max-w-[85%] sm:max-w-[70%] rounded-2xl px-3.5 py-2',
+          'max-w-[85%] sm:max-w-[70%] px-3.5 py-2',
           mine
-            ? 'bg-primary text-primary-foreground rounded-br-sm'
-            : 'bg-muted text-foreground rounded-bl-sm'
+            ? 'bg-chrome text-on-chrome'
+            : 'bg-band border border-border text-foreground'
         )}
       >
         <p className="text-sm whitespace-pre-wrap break-words">{m.body}</p>
         <div
           className={clsx(
-            'flex items-center gap-1.5 mt-1 text-[10px]',
-            mine ? 'text-primary-foreground/70 justify-end' : 'text-muted-foreground'
+            'flex items-center gap-1.5 mt-1 text-[10px] tabular-nums',
+            mine ? 'text-chrome-dim justify-end' : 'text-ink-3'
           )}
         >
-          <span className="tabular-nums">{format(parseISO(m.created_at), 'HH:mm')}</span>
+          <span>{format(parseISO(m.created_at), 'HH:mm')}</span>
           {m.status === 'failed' && (
-            <span className="font-semibold text-danger bg-surface px-1 rounded">
+            <span className="border border-danger bg-surface px-1 font-semibold text-danger">
               non inviato
             </span>
           )}

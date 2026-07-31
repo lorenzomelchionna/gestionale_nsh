@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, X, Edit, Trash2 } from 'lucide-react'
+import { Plus, Check, Edit, Trash2 } from 'lucide-react'
 import {
   getCollaborators, createCollaborator, updateCollaborator,
   updateCollaboratorSchedule, updateCollaboratorServices, getServices,
@@ -15,11 +15,41 @@ import clsx from 'clsx'
 
 const DAYS = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom']
 
+/* The shared .input is cut for a full-page form; everything inside a
+   collaborator card sits in ruled rows, so the fields take the same well at
+   row height instead. */
+const FIELD =
+  'w-full border border-border bg-field px-2 py-1.5 text-[13px] text-foreground ' +
+  'transition-colors focus:outline-none focus:border-primary'
+
+/* Same well, sized for the two hours that close a timetable row. */
+const TIME_FIELD =
+  'border border-border bg-field px-1.5 py-1 text-[13px] tabular-nums text-foreground ' +
+  'transition-colors focus:outline-none focus:border-primary'
+
 const ABSENCE_TYPE_LABELS: Record<AbsenceType, string> = {
   ferie:    'Ferie',
   permesso: 'Permesso',
   malattia: 'Malattia',
   altro:    'Altro',
+}
+
+/**
+ * A tick box with the ledger's own edge: square, hairline, filled gold when
+ * set — the same treatment classical.css gives its radio.
+ *
+ * It stays a real `<input type="checkbox">` under the paint, so the label
+ * association, the keyboard and the screen reader all keep working; only the
+ * native rendering is replaced, because on macOS it comes out rounded.
+ */
+function SquareCheck(props: React.InputHTMLAttributes<HTMLInputElement>) {
+  return (
+    <input
+      type="checkbox"
+      className="w-4 h-4 shrink-0 cursor-pointer appearance-none border border-border bg-field transition-colors checked:border-primary checked:bg-primary checked:shadow-[inset_0_0_0_2px_hsl(var(--surface))]"
+      {...props}
+    />
+  )
 }
 
 export default function CollaboratorsPage() {
@@ -122,36 +152,47 @@ function CollaboratorCard({ collaborator: c, services, onEdit, onUpdateSchedule,
   const TAB_LABELS = { info: 'Info', schedule: 'Orari', services: 'Servizi', vacations: 'Ferie', extra: 'Straord.' }
 
   return (
-    <div className="card overflow-hidden">
-      <div className="p-4 flex items-center gap-3" style={{ borderLeft: `4px solid ${c.color}` }}>
+    <div className="panel">
+      {/* The colour is the one the calendar paints this collaborator with, so
+          it stays on the card — as a rule down the edge and as the ground of a
+          squared initials cell. */}
+      <div className="band flex items-center gap-3 px-3.5 py-3" style={{ borderLeft: `4px solid ${c.color}` }}>
         <div
-          className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0"
+          className="w-9 h-9 border border-border flex items-center justify-center shrink-0 font-heading text-[13px] tracking-[0.06em] text-white"
           style={{ backgroundColor: c.color }}
         >
           {c.first_name[0]}{c.last_name[0]}
         </div>
         <div className="flex-1 min-w-0">
-          <p className="font-semibold text-sm">{c.first_name} {c.last_name}</p>
-          <p className="text-xs text-muted-foreground truncate">{c.email ?? c.phone ?? '–'}</p>
+          <p className="font-heading text-[15px] tracking-[0.03em] text-foreground truncate">
+            {c.first_name} {c.last_name}
+          </p>
+          <p className="text-xs text-ink-3 truncate">{c.email ?? c.phone ?? '–'}</p>
         </div>
-        <div className="flex items-center gap-1">
-          {!c.is_active && <span className="text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded">inattivo</span>}
-          {c.visible_online && <span className="text-xs bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded">online</span>}
-          <button onClick={onEdit} className="text-muted-foreground hover:text-foreground p-1">
-            <Edit className="w-3.5 h-3.5" />
+        <div className="flex items-center gap-1.5">
+          {!c.is_active && (
+            <span className="status-badge border border-border text-ink-3">inattivo</span>
+          )}
+          {c.visible_online && <span className="status-badge status-confirmed">online</span>}
+          <button onClick={onEdit} className="btn-icon !w-9 !h-9 -mr-1.5">
+            <Edit className="w-4 h-4" />
           </button>
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex border-b border-border">
+      {/* Tabs — a rule under the live section, the way a register marks the
+          page it is open at. */}
+      <div className="flex border-b border-rule">
         {(['info', 'schedule', 'services', 'vacations', 'extra'] as const).map(t => (
           <button
             key={t}
             onClick={() => setTab(t)}
             className={clsx(
-              'flex-1 py-1.5 text-xs font-medium transition-colors',
-              tab === t ? 'text-primary border-b-2 border-primary' : 'text-muted-foreground hover:text-foreground'
+              'flex-1 px-1 py-2 -mb-px border-b-2 transition-colors whitespace-nowrap',
+              'font-heading text-[11px] uppercase tracking-[0.08em]',
+              tab === t
+                ? 'border-primary text-foreground'
+                : 'border-transparent text-ink-3 hover:text-foreground'
             )}
           >
             {TAB_LABELS[t]}
@@ -159,66 +200,81 @@ function CollaboratorCard({ collaborator: c, services, onEdit, onUpdateSchedule,
         ))}
       </div>
 
-      <div className="p-3">
+      <div className="p-3.5">
         {tab === 'info' && (
-          <div className="space-y-1 text-xs">
-            <p><span className="text-muted-foreground">Tel:</span> {c.phone ?? '–'}</p>
-            <p><span className="text-muted-foreground">Email:</span> {c.email ?? '–'}</p>
+          <div className="divide-y divide-rule-soft">
+            <div className="flex items-baseline gap-3 py-1.5">
+              <span className="kicker w-14 shrink-0">Tel:</span>
+              <span className="text-[13px] text-ink-2 tabular-nums truncate">{c.phone ?? '–'}</span>
+            </div>
+            <div className="flex items-baseline gap-3 py-1.5">
+              <span className="kicker w-14 shrink-0">Email:</span>
+              <span className="text-[13px] text-ink-2 truncate">{c.email ?? '–'}</span>
+            </div>
           </div>
         )}
 
+        {/* The week as a timetable: one ruled line per day, the day named on
+            the left and its hours closing the row on the right, so a glance
+            down the column reads the shift pattern. */}
         {tab === 'schedule' && (
-          <div className="space-y-1.5">
-            {DAYS.map((day, i) => (
-              <div key={i} className="flex items-center gap-2 text-xs">
-                <input
-                  type="checkbox"
-                  checked={schedules[i].working}
-                  onChange={e => setSchedules(s => ({ ...s, [i]: { ...s[i], working: e.target.checked } }))}
-                />
-                <span className="w-7 font-medium">{day}</span>
-                {schedules[i].working && (
-                  <>
-                    <input
-                      type="time"
-                      className="border border-border rounded px-1 py-0.5 text-xs"
-                      value={schedules[i].start}
-                      onChange={e => setSchedules(s => ({ ...s, [i]: { ...s[i], start: e.target.value } }))}
-                    />
-                    <span>–</span>
-                    <input
-                      type="time"
-                      className="border border-border rounded px-1 py-0.5 text-xs"
-                      value={schedules[i].end}
-                      onChange={e => setSchedules(s => ({ ...s, [i]: { ...s[i], end: e.target.value } }))}
-                    />
-                  </>
-                )}
-              </div>
-            ))}
-            <button onClick={saveSchedules} className="btn-primary text-xs py-1 mt-2 w-full">
+          <div>
+            <div className="divide-y divide-rule-soft border-y border-rule-soft">
+              {DAYS.map((day, i) => (
+                <div key={i} className="flex items-center gap-2.5 py-1.5">
+                  <SquareCheck
+                    checked={schedules[i].working}
+                    onChange={e => setSchedules(s => ({ ...s, [i]: { ...s[i], working: e.target.checked } }))}
+                  />
+                  <span className="kicker w-8 shrink-0">{day}</span>
+                  {schedules[i].working ? (
+                    <div className="ml-auto flex items-center gap-1.5">
+                      <input
+                        type="time"
+                        className={TIME_FIELD}
+                        value={schedules[i].start}
+                        onChange={e => setSchedules(s => ({ ...s, [i]: { ...s[i], start: e.target.value } }))}
+                      />
+                      <span className="text-ink-3">–</span>
+                      <input
+                        type="time"
+                        className={TIME_FIELD}
+                        value={schedules[i].end}
+                        onChange={e => setSchedules(s => ({ ...s, [i]: { ...s[i], end: e.target.value } }))}
+                      />
+                    </div>
+                  ) : (
+                    /* A day off still gets its line, so the seven rows stay
+                       aligned as a timetable rather than collapsing. */
+                    <span className="ml-auto text-[13px] text-ink-3">–</span>
+                  )}
+                </div>
+              ))}
+            </div>
+            <button onClick={saveSchedules} className="btn-primary btn-sm w-full mt-3">
               Salva orari
             </button>
           </div>
         )}
 
         {tab === 'services' && (
-          <div className="space-y-1.5">
-            {services.map(s => (
-              <label key={s.id} className="flex items-center gap-2 text-xs cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={selectedServices.includes(s.id)}
-                  onChange={e => setSelectedServices(prev =>
-                    e.target.checked ? [...prev, s.id] : prev.filter(id => id !== s.id)
-                  )}
-                />
-                {s.name}
-              </label>
-            ))}
+          <div>
+            <div className="divide-y divide-rule-soft border-y border-rule-soft">
+              {services.map(s => (
+                <label key={s.id} className="flex items-center gap-2.5 py-2 cursor-pointer">
+                  <SquareCheck
+                    checked={selectedServices.includes(s.id)}
+                    onChange={e => setSelectedServices(prev =>
+                      e.target.checked ? [...prev, s.id] : prev.filter(id => id !== s.id)
+                    )}
+                  />
+                  <span className="text-[13px] text-ink-2">{s.name}</span>
+                </label>
+              ))}
+            </div>
             <button
               onClick={() => onUpdateServices(selectedServices)}
-              className="btn-primary text-xs py-1 mt-2 w-full"
+              className="btn-primary btn-sm w-full mt-3"
             >
               Salva servizi
             </button>
@@ -301,7 +357,7 @@ function VacationsTab({ collaboratorId }: { collaboratorId: number }) {
             <button
               onClick={() => deleteMut.mutate(a.id)}
               disabled={deleteMut.isPending}
-              className="text-muted-foreground hover:text-red-500 ml-2"
+              className="text-muted-foreground hover:text-danger ml-2"
             >
               <Trash2 className="w-3.5 h-3.5" />
             </button>
@@ -446,7 +502,7 @@ function ExtraDaysTab({ collaboratorId }: { collaboratorId: number }) {
             <button
               onClick={() => deleteMut.mutate(e.id)}
               disabled={deleteMut.isPending}
-              className="text-muted-foreground hover:text-red-500 ml-2"
+              className="text-muted-foreground hover:text-danger ml-2"
             >
               <Trash2 className="w-3.5 h-3.5" />
             </button>
@@ -598,7 +654,7 @@ function CollaboratorFormModal({ collaborator, onClose, onSave, loading }: {
               type="color"
               value={form.color}
               onChange={e => setForm({ ...form, color: e.target.value })}
-              className="h-11 w-14 rounded-lg border border-border cursor-pointer bg-surface"
+              className="h-11 w-14 border border-border cursor-pointer bg-surface"
             />
             <span className="text-sm text-muted-foreground font-mono">{form.color}</span>
           </div>

@@ -126,13 +126,11 @@ export default function ClientDetailPage() {
               </div>
 
               <div className="hidden sm:block table-scroll">
-                {/* No service column: the API declares `service_names` but
-                    never fills it, and a column that is always a dash is worse
-                    than one that is not there. */}
                 <table className="ledger">
                   <thead>
                     <tr>
                       <th>Data</th>
+                      <th>Servizio</th>
                       <th>Operatore</th>
                       <th className="text-right">Importo</th>
                       <th className="text-right">Stato</th>
@@ -147,7 +145,10 @@ export default function ClientDetailPage() {
                             {' · '}{format(parseISO(a.start_time), 'HH:mm')}
                           </span>
                         </td>
-                        <td className="text-muted-foreground">{a.collaborator_name ?? '–'}</td>
+                        <td className="text-muted-foreground">
+                          {a.service_names?.length ? a.service_names.join(' + ') : '–'}
+                        </td>
+                        <td className="text-ink-3">{a.collaborator_name ?? '–'}</td>
                         <td className="num">
                           <span className="amount">€{(a.total_price ?? 0).toFixed(2)}</span>
                         </td>
@@ -166,7 +167,7 @@ export default function ClientDetailPage() {
                       <td className="font-heading uppercase tracking-[0.08em] text-foreground">
                         Totale
                       </td>
-                      <td />
+                      <td /><td />
                       <td className="num">
                         <span className="font-heading text-[17px] tabular-nums text-foreground">
                           €{totalSpent.toFixed(2)}
@@ -197,7 +198,8 @@ function VisitRow({ appointment: a }: { appointment: Appointment }) {
           </span>
         </p>
         <p className="text-[13px] text-muted-foreground truncate mt-1">
-          {a.collaborator_name ?? '–'}
+          {a.service_names?.length ? a.service_names.join(' + ') : '–'}
+          {a.collaborator_name && <span className="text-ink-3"> · {a.collaborator_name}</span>}
         </p>
       </div>
       <div className="text-right shrink-0 flex flex-col items-end gap-1.5">

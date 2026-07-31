@@ -2,7 +2,7 @@ import enum
 from datetime import datetime
 from typing import Optional, List
 from sqlalchemy import String, Enum, DateTime, Text, ForeignKey, func, Boolean
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, selectinload
 from app.database import Base
 
 
@@ -78,3 +78,24 @@ class AppointmentService(Base):
 
     appointment: Mapped["Appointment"] = relationship("Appointment", back_populates="appointment_services")
     service: Mapped["Service"] = relationship("Service", back_populates="appointment_services")
+
+
+def appointment_detail_loads():
+    """Everything `AppointmentOutWithNames.from_appointment` reads, in one place.
+
+    The projection walks client, collaborator and the service behind each booked
+    line; a query that eager-loads less either raises MissingGreenlet under
+    asyncio or quietly answers with an empty field. Keeping the pair together
+    means adding a relationship to the projection is one edit here, and every
+    endpoint that returns an appointment picks it up.
+
+    A function and not a module constant: `selectinload` inspects the mapper,
+    which configures the whole registry, and at import time of this module the
+    later models are not defined yet — `Client.communications` would fail to
+    resolve. Called from inside a request, everything is mapped.
+    """
+    return (
+        selectinload(Appointment.client),
+        selectinload(Appointment.collaborator),
+        selectinload(Appointment.appointment_services).selectinload(AppointmentService.service),
+    )

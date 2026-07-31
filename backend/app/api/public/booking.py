@@ -10,7 +10,10 @@ from app.database import get_db
 from app.models.client import ClientAccount, Client
 from app.models.service import Service
 from app.models.collaborator import Collaborator
-from app.models.appointment import Appointment, AppointmentService, AppointmentStatus, AppointmentOrigin
+from app.models.appointment import (
+    Appointment, AppointmentService, AppointmentStatus, AppointmentOrigin,
+    appointment_detail_loads,
+)
 from app.models.booking_config import BookingConfig
 from app.models.waitlist import WaitlistEntry, WaitlistStatus
 from app.schemas.service import ServiceOut
@@ -267,24 +270,12 @@ async def my_appointments(
 
     result = await db.execute(
         select(Appointment)
-        .options(
-            selectinload(Appointment.client),
-            selectinload(Appointment.collaborator),
-            selectinload(Appointment.appointment_services),
-        )
+        .options(*appointment_detail_loads())
         .where(Appointment.client_id == client.id)
         .order_by(Appointment.start_time.desc())
     )
     appointments = result.scalars().all()
-
-    out = []
-    for a in appointments:
-        item = AppointmentOutWithNames.model_validate(a)
-        item.client_name = f"{a.client.first_name} {a.client.last_name}" if a.client else ""
-        item.collaborator_name = f"{a.collaborator.first_name} {a.collaborator.last_name}" if a.collaborator else ""
-        item.total_price = sum(s.price_snapshot for s in a.appointment_services)
-        out.append(item)
-    return out
+    return [AppointmentOutWithNames.from_appointment(a) for a in appointments]
 
 
 @router.post("/appointments/{appointment_id}/cancel", response_model=MessageResponse)

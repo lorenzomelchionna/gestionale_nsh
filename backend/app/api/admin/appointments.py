@@ -3,9 +3,11 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_
-from sqlalchemy.orm import selectinload
 from app.database import get_db
-from app.models.appointment import Appointment, AppointmentService, AppointmentStatus, AppointmentOrigin
+from app.models.appointment import (
+    Appointment, AppointmentService, AppointmentStatus, AppointmentOrigin,
+    appointment_detail_loads,
+)
 from app.models.service import Service
 from app.models.client import Client
 from app.models.collaborator import Collaborator
@@ -32,11 +34,7 @@ def _trigger_booking_confirmation(appointment_id: int):
 async def _load_appointment(db: AsyncSession, appointment_id: int) -> Appointment:
     result = await db.execute(
         select(Appointment)
-        .options(
-            selectinload(Appointment.client),
-            selectinload(Appointment.collaborator),
-            selectinload(Appointment.appointment_services),
-        )
+        .options(*appointment_detail_loads())
         .where(Appointment.id == appointment_id)
     )
     a = result.scalar_one_or_none()
@@ -45,12 +43,7 @@ async def _load_appointment(db: AsyncSession, appointment_id: int) -> Appointmen
     return a
 
 
-def _enrich(a: Appointment) -> AppointmentOutWithNames:
-    out = AppointmentOutWithNames.model_validate(a)
-    out.client_name = f"{a.client.first_name} {a.client.last_name}" if a.client else ""
-    out.collaborator_name = f"{a.collaborator.first_name} {a.collaborator.last_name}" if a.collaborator else ""
-    out.total_price = sum(s.price_snapshot for s in a.appointment_services)
-    return out
+_enrich = AppointmentOutWithNames.from_appointment
 
 
 @router.get("", response_model=PaginatedResponse[AppointmentOutWithNames])
@@ -64,11 +57,7 @@ async def list_appointments(
     collaborator_id: Optional[int] = Query(None),
     status_filter: Optional[str] = Query(None, alias="status"),
 ):
-    q = select(Appointment).options(
-        selectinload(Appointment.client),
-        selectinload(Appointment.collaborator),
-        selectinload(Appointment.appointment_services),
-    )
+    q = select(Appointment).options(*appointment_detail_loads())
     if date_from:
         q = q.where(Appointment.start_time >= date_from)
     if date_to:
@@ -93,11 +82,7 @@ async def list_pending(
 ):
     result = await db.execute(
         select(Appointment)
-        .options(
-            selectinload(Appointment.client),
-            selectinload(Appointment.collaborator),
-            selectinload(Appointment.appointment_services),
-        )
+        .options(*appointment_detail_loads())
         .where(Appointment.status == AppointmentStatus.pending)
         .order_by(Appointment.created_at)
     )

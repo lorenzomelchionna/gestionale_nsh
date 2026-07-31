@@ -2,10 +2,9 @@ from typing import Annotated, List
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_
-from sqlalchemy.orm import selectinload
 from app.database import get_db
 from app.models.client import Client
-from app.models.appointment import Appointment
+from app.models.appointment import Appointment, appointment_detail_loads
 from app.models.user import User
 from app.schemas.client import ClientCreate, ClientUpdate, ClientOut
 from app.schemas.appointment import AppointmentOutWithNames
@@ -110,21 +109,9 @@ async def get_client_appointments(
 ):
     result = await db.execute(
         select(Appointment)
-        .options(
-            selectinload(Appointment.client),
-            selectinload(Appointment.collaborator),
-            selectinload(Appointment.appointment_services),
-        )
+        .options(*appointment_detail_loads())
         .where(Appointment.client_id == client_id)
         .order_by(Appointment.start_time.desc())
     )
     appointments = result.scalars().all()
-    return [_enrich(a) for a in appointments]
-
-
-def _enrich(a: Appointment) -> AppointmentOutWithNames:
-    base = AppointmentOutWithNames.model_validate(a)
-    base.client_name = f"{a.client.first_name} {a.client.last_name}" if a.client else ""
-    base.collaborator_name = f"{a.collaborator.first_name} {a.collaborator.last_name}" if a.collaborator else ""
-    base.total_price = sum(s.price_snapshot for s in a.appointment_services)
-    return base
+    return [AppointmentOutWithNames.from_appointment(a) for a in appointments]

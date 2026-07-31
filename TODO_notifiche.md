@@ -191,11 +191,11 @@ Note:
 ## TODO minori
 
 - [ ] `notify_new_booking` solo `print()` — implementare notifica reale allo staff per prenotazioni online
-- [ ] `service_names` è dichiarato in `backend/app/schemas/appointment.py:67`
-      ma **nessuno lo popola**: arriva sempre `[]`. Di conseguenza il frontend
-      non può mostrare che servizio è stato fatto — né nella scheda cliente né
-      nell'area del cliente. Va riempito nel router leggendo
-      `appointment_services` → `Service.name`, oppure va tolto dallo schema.
+- [x] ~~`service_names` non veniva mai popolato~~ — risolto. La proiezione sta
+      in `AppointmentOutWithNames.from_appointment` e i caricamenti eager in
+      `appointment_detail_loads()`: prima la regola era copiata in quattro
+      router e in tre di essi mancava questo campo. Coperto da
+      `tests/test_appointment_service_names.py`.
 - [x] ~~Togliere la pastiglia "online" dalle schede collaboratore~~ — fatto.
       Il campo `visible_online` resta e si cambia dal form di modifica: decide
       se il collaboratore è selezionabile nel portale pubblico.

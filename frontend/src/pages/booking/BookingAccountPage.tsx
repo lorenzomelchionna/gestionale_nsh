@@ -192,6 +192,7 @@ function WaitlistCard({ entry: w, onLeave }: { entry: WaitlistEntry; onLeave: ()
 
 function AppointmentCard({ appointment: a, onCancel }: { appointment: Appointment; onCancel?: () => void }) {
   const canCancel = onCancel && a.status === 'confirmed'
+  const services = a.service_names?.length ? a.service_names.join(' + ') : ''
   return (
     <div className="panel px-5 py-4 flex flex-col gap-1.5">
       <div className="flex items-baseline justify-between gap-3">
@@ -207,10 +208,11 @@ function AppointmentCard({ appointment: a, onCancel }: { appointment: Appointmen
       </div>
 
       <div className="flex items-baseline justify-between gap-3">
-        {/* The API declares `service_names` but never fills it, so the person
-            is the only thing there is to name here. */}
         <span className="text-[13px] text-muted-foreground truncate">
-          {a.collaborator_name}
+          {services || a.collaborator_name}
+          {services && a.collaborator_name && (
+            <span className="text-ink-3"> · {a.collaborator_name}</span>
+          )}
         </span>
         {a.total_price !== undefined && (
           <span className="text-[15px] tabular-nums text-primary-dark shrink-0">

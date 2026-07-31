@@ -62,7 +62,33 @@ class AppointmentOut(BaseModel):
 
 
 class AppointmentOutWithNames(AppointmentOut):
+    """An appointment with the names and the total the caller would otherwise
+    have to fetch one by one.
+
+    Every field below defaults to empty, so an endpoint that builds this by
+    hand and forgets one answers with a plausible-looking blank instead of
+    failing — which is exactly how `service_names` went out empty from every
+    route for as long as it existed. Build it with `from_appointment` and the
+    rule stays in one place.
+    """
+
     client_name: str = ""
     collaborator_name: str = ""
     service_names: List[str] = []
     total_price: float = 0.0
+
+    @classmethod
+    def from_appointment(cls, a) -> "AppointmentOutWithNames":
+        """Project an ORM appointment, with `appointment_detail_loads()` applied
+        to the query that fetched it."""
+        out = cls.model_validate(a)
+        out.client_name = f"{a.client.first_name} {a.client.last_name}" if a.client else ""
+        out.collaborator_name = (
+            f"{a.collaborator.first_name} {a.collaborator.last_name}" if a.collaborator else ""
+        )
+        # Booked order, not alphabetical: "Taglio + barba" is how it was sold.
+        out.service_names = [
+            s.service.name for s in a.appointment_services if s.service is not None
+        ]
+        out.total_price = sum(s.price_snapshot for s in a.appointment_services)
+        return out

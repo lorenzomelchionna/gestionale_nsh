@@ -1,9 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { format, parseISO } from 'date-fns'
-import {
-  Plus, KeyRound, ShieldCheck, User as UserIcon, Users, AlertTriangle, Check,
-} from 'lucide-react'
+import { Plus, KeyRound, Users, AlertTriangle, Check } from 'lucide-react'
 import {
   getTeam, createTeamMember, updateTeamMember, resetTeamPassword, changeOwnPassword,
   getCollaborators,
@@ -33,6 +31,17 @@ export default function TeamPage() {
     onSuccess: inv,
   })
 
+  // The two renderings of a row below take the same handlers; building them
+  // once keeps the phone list and the table from drifting apart.
+  const rowProps = (m: TeamMember) => ({
+    member: m,
+    isMe: m.id === me?.id,
+    busy: updateMut.isPending,
+    onToggleActive: () =>
+      updateMut.mutate({ id: m.id, data: { is_active: !m.is_active } }),
+    onReset: () => setResetting(m),
+  })
+
   return (
     <div className="space-y-5">
       <PageHeader
@@ -47,45 +56,54 @@ export default function TeamPage() {
 
       <button
         onClick={() => setShowOwnPassword(true)}
-        className="card-interactive w-full p-4 flex items-center gap-3 text-left"
+        className="card-interactive w-full px-4 py-3.5 flex items-center gap-3.5 text-left"
       >
-        <div className="w-10 h-10 rounded-lg bg-primary/12 flex items-center justify-center shrink-0">
-          <KeyRound className="w-[18px] h-[18px] text-primary" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="font-medium text-foreground">Cambia la mia password</p>
-          <p className="text-[13px] text-muted-foreground truncate">{me?.email}</p>
-        </div>
+        <span className="w-9 h-9 border border-border flex items-center justify-center shrink-0">
+          <KeyRound className="w-4 h-4 text-primary" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-heading text-[15px] tracking-[0.04em] text-foreground">
+            Cambia la mia password
+          </span>
+          <span className="block text-[13px] text-muted-foreground truncate">{me?.email}</span>
+        </span>
       </button>
 
       {isLoading ? (
         <SkeletonList rows={3} />
       ) : team.length === 0 ? (
-        <div className="card">
+        <div className="panel">
           <EmptyState icon={Users} title="Nessun accesso configurato" />
         </div>
       ) : (
-        <div className="card divide-y divide-border overflow-hidden">
-          {team.map(m => (
-            <MemberRow
-              key={m.id}
-              member={m}
-              isMe={m.id === me?.id}
-              busy={updateMut.isPending}
-              onToggleActive={() =>
-                updateMut.mutate({ id: m.id, data: { is_active: !m.is_active } })
-              }
-              onReset={() => setResetting(m)}
-            />
-          ))}
+        <div className="panel">
+          {/* Phones keep the row treatment: five columns plus two buttons
+              would only force the page sideways. */}
+          <div className="sm:hidden divide-y divide-rule-soft">
+            {team.map(m => <MemberCard key={m.id} {...rowProps(m)} />)}
+          </div>
+
+          <div className="hidden sm:block table-scroll">
+            <table className="ledger">
+              <thead>
+                <tr>
+                  <th>Account</th>
+                  <th>Ruolo</th>
+                  <th>Creato</th>
+                  <th>Stato</th>
+                  <th className="text-right"><span className="sr-only">Azioni</span></th>
+                </tr>
+              </thead>
+              {/* The panel edge closes the last line, so the row rule would double it. */}
+              <tbody className="[&_tr:last-child_td]:border-b-0">
+                {team.map(m => <MemberLine key={m.id} {...rowProps(m)} />)}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
-      {updateMut.isError && (
-        <p role="alert" className="text-[13px] text-danger bg-danger/10 px-3 py-2.5 rounded-lg">
-          {errorText(updateMut.error)}
-        </p>
-      )}
+      {updateMut.isError && <ErrorNote error={updateMut.error} />}
 
       {showCreate && (
         <CreateMemberSheet onClose={() => setShowCreate(false)} onDone={inv} />
@@ -108,61 +126,109 @@ function errorText(err: unknown): string {
   return 'Operazione non riuscita. Riprova.'
 }
 
-function MemberRow({ member: m, isMe, busy, onToggleActive, onReset }: {
+interface RowProps {
   member: TeamMember
   isMe: boolean
   busy: boolean
   onToggleActive: () => void
   onReset: () => void
-}) {
+}
+
+const roleLabel = (m: TeamMember) =>
+  m.role === 'admin' ? 'Amministratore' : 'Collaboratore'
+
+/** The two actions on a row, shared by the phone card and the table line.
+    Deactivating yourself, or the last admin, is refused by the API — the row
+    for your own account hides it so the option never looks available. */
+function RowActions({ isMe, busy, onToggleActive, onReset, member: m }: RowProps) {
   return (
-    <div className={clsx('p-4 flex items-start gap-3', !m.is_active && 'opacity-60')}>
-      <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center shrink-0">
-        {m.role === 'admin'
-          ? <ShieldCheck className="w-[18px] h-[18px] text-primary" />
-          : <UserIcon className="w-[18px] h-[18px] text-muted-foreground" />}
-      </div>
-
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2 flex-wrap">
-          <p className="font-medium text-foreground truncate">{m.email}</p>
-          {isMe && (
-            <span className="text-[10px] font-semibold bg-primary/12 text-primary px-1.5 py-0.5 rounded">
-              tu
-            </span>
-          )}
-          {!m.is_active && (
-            <span className="text-[10px] font-semibold bg-muted text-muted-foreground px-1.5 py-0.5 rounded">
-              disattivato
-            </span>
-          )}
-        </div>
-        <p className="text-[13px] text-muted-foreground mt-0.5">
-          {m.role === 'admin' ? 'Amministratore' : 'Collaboratore'}
-          {m.collaborator_name && ` · ${m.collaborator_name}`}
-        </p>
-        <p className="text-xs text-muted-foreground mt-1">
-          creato il {format(parseISO(m.created_at), 'dd/MM/yyyy')}
-        </p>
-      </div>
-
-      <div className="flex flex-col sm:flex-row gap-2 shrink-0">
-        <button onClick={onReset} className="btn-outline btn-sm">
-          <KeyRound className="w-4 h-4" /> Password
+    <>
+      <button onClick={onReset} className="btn-secondary btn-sm">
+        <KeyRound className="w-3.5 h-3.5" /> Password
+      </button>
+      {!isMe && (
+        <button
+          onClick={onToggleActive}
+          disabled={busy}
+          className={m.is_active ? 'btn-danger-outline btn-sm' : 'btn-secondary btn-sm'}
+        >
+          {m.is_active ? 'Disattiva' : 'Riattiva'}
         </button>
-        {/* Deactivating yourself, or the last admin, is refused by the API —
-            hide it for your own row so the option never looks available. */}
-        {!isMe && (
-          <button
-            onClick={onToggleActive}
-            disabled={busy}
-            className={clsx('btn-outline btn-sm', m.is_active && '!text-danger')}
-          >
-            {m.is_active ? 'Disattiva' : 'Riattiva'}
-          </button>
-        )}
+      )}
+    </>
+  )
+}
+
+/** Phone rendering: the same five facts, stacked instead of ruled across. */
+function MemberCard(props: RowProps) {
+  const { member: m, isMe } = props
+  return (
+    <div className={clsx('px-4 py-3.5 flex flex-col gap-2.5', !m.is_active && 'opacity-60')}>
+      <div className="flex items-baseline gap-2 flex-wrap">
+        <span className="font-heading text-[15px] tracking-[0.03em] text-foreground truncate">
+          {m.email}
+        </span>
+        {isMe && <span className="status-badge status-confirmed">tu</span>}
+        {!m.is_active && <span className="status-badge status-cancelled">disattivato</span>}
+      </div>
+      <div className="flex items-baseline gap-2 text-[13px] text-muted-foreground">
+        <span>{roleLabel(m)}</span>
+        {m.collaborator_name && <span className="text-ink-3">· {m.collaborator_name}</span>}
+        <span className="ml-auto text-xs text-ink-3 tabular-nums shrink-0">
+          {format(parseISO(m.created_at), 'dd/MM/yyyy')}
+        </span>
+      </div>
+      <div className="flex gap-2">
+        <RowActions {...props} />
       </div>
     </div>
+  )
+}
+
+/** Table rendering: account, role, date opened, state, actions. */
+function MemberLine(props: RowProps) {
+  const { member: m, isMe } = props
+  return (
+    <tr className={clsx(!m.is_active && 'opacity-60')}>
+      <td>
+        <span className="flex items-baseline gap-2">
+          <span className="font-heading text-[15px] tracking-[0.03em] text-foreground">
+            {m.email}
+          </span>
+          {isMe && <span className="status-badge status-confirmed">tu</span>}
+        </span>
+      </td>
+      <td className="text-muted-foreground">
+        {roleLabel(m)}
+        {m.collaborator_name && <span className="text-ink-3"> · {m.collaborator_name}</span>}
+      </td>
+      <td className="text-ink-3 tabular-nums">
+        {format(parseISO(m.created_at), 'dd/MM/yyyy')}
+      </td>
+      <td>
+        <span className={m.is_active ? 'status-badge status-confirmed' : 'status-badge status-cancelled'}>
+          {m.is_active ? 'attivo' : 'disattivato'}
+        </span>
+      </td>
+      <td>
+        <span className="flex justify-end gap-2">
+          <RowActions {...props} />
+        </span>
+      </td>
+    </tr>
+  )
+}
+
+/** A failed change, said on the spot rather than in a toast that scrolls away. */
+function ErrorNote({ error }: { error: unknown }) {
+  return (
+    <p
+      role="alert"
+      className="flex items-start gap-2 text-[13px] text-danger border-l-2 border-danger bg-danger/[0.08] px-3 py-2.5"
+    >
+      <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+      {errorText(error)}
+    </p>
   )
 }
 
@@ -261,7 +327,7 @@ function CreateMemberSheet({ onClose, onDone }: { onClose: () => void; onDone: (
         />
 
         {mut.isError && (
-          <p role="alert" className="text-[13px] text-danger bg-danger/10 px-3 py-2.5 rounded-lg">
+          <p role="alert" className="text-[13px] text-danger bg-danger/10 px-3 py-2.5">
             {errorText(mut.error)}
           </p>
         )}
@@ -305,7 +371,7 @@ function ResetPasswordSheet({ member, onClose }: { member: TeamMember; onClose: 
       }
     >
       {done ? (
-        <div className="flex items-start gap-2.5 text-[13px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 rounded-lg px-3 py-2.5">
+        <div className="flex items-start gap-2.5 text-[13px] bg-primary/10 text-primary-dark dark:text-primary px-3 py-2.5">
           <Check className="w-4 h-4 shrink-0 mt-0.5" />
           <p>Password aggiornata. Comunicala di persona: potrà cambiarla dopo l'accesso.</p>
         </div>
@@ -328,7 +394,7 @@ function ResetPasswordSheet({ member, onClose }: { member: TeamMember; onClose: 
             </p>
           </div>
           {mut.isError && (
-            <p role="alert" className="text-[13px] text-danger bg-danger/10 px-3 py-2.5 rounded-lg">
+            <p role="alert" className="text-[13px] text-danger bg-danger/10 px-3 py-2.5">
               {errorText(mut.error)}
             </p>
           )}
@@ -374,7 +440,7 @@ function OwnPasswordSheet({ onClose }: { onClose: () => void }) {
       }
     >
       {done ? (
-        <div className="flex items-start gap-2.5 text-[13px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 rounded-lg px-3 py-2.5">
+        <div className="flex items-start gap-2.5 text-[13px] bg-primary/10 text-primary-dark dark:text-primary px-3 py-2.5">
           <Check className="w-4 h-4 shrink-0 mt-0.5" />
           <p>Password aggiornata. Resti collegato su questo dispositivo.</p>
         </div>
@@ -417,7 +483,7 @@ function OwnPasswordSheet({ onClose }: { onClose: () => void }) {
           </div>
 
           {mut.isError && (
-            <p role="alert" className="flex items-start gap-2 text-[13px] text-danger bg-danger/10 px-3 py-2.5 rounded-lg">
+            <p role="alert" className="flex items-start gap-2 text-[13px] text-danger bg-danger/10 px-3 py-2.5">
               <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
               {errorText(mut.error)}
             </p>

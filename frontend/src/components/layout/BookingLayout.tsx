@@ -1,7 +1,8 @@
 import { Outlet, Link, NavLink, useNavigate } from 'react-router-dom'
-import { Scissors, User, LogOut, Home, CalendarPlus } from 'lucide-react'
+import { LogOut } from 'lucide-react'
 import clsx from 'clsx'
 import WelcomeDialog from '@/components/booking/WelcomeDialog'
+import Logo from '@/components/ui/Logo'
 
 // Simple client auth store (separate from admin)
 import { create } from 'zustand'
@@ -33,9 +34,9 @@ export const useClientAuth = create<ClientAuthState>()(
 )
 
 const clientTabs = [
-  { to: '/booking', end: true, icon: Home, label: 'Home' },
-  { to: '/booking/new', end: false, icon: CalendarPlus, label: 'Prenota' },
-  { to: '/booking/account', end: false, icon: User, label: 'Area mia' },
+  { to: '/booking', end: true, label: 'Home' },
+  { to: '/booking/new', end: false, label: 'Prenota' },
+  { to: '/booking/account', end: false, label: 'Area mia' },
 ]
 
 export default function BookingLayout() {
@@ -44,25 +45,35 @@ export default function BookingLayout() {
 
   return (
     <div className="min-h-[100dvh] bg-background flex flex-col">
-      <header className="bg-surface/85 backdrop-blur-md border-b border-border sticky top-0 z-30 pt-safe-t">
-        <div className="max-w-3xl mx-auto px-4 h-14 flex items-center justify-between gap-3">
-          <Link to="/booking" className="flex items-center gap-2.5 min-w-0">
-            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center shrink-0">
-              <Scissors className="w-4 h-4 text-primary-foreground" />
-            </div>
-            <span className="font-semibold text-foreground truncate">New Style Hair</span>
+      {/* The public face is paper, not chrome: the dark bar belongs to the
+          staff side of the door. */}
+      <header className="bg-surface border-b border-rule sticky top-0 z-30 pt-safe-t">
+        <div className="max-w-3xl mx-auto px-4 h-16 flex items-center gap-4">
+          <Link to="/booking" className="flex items-center gap-4 min-w-0 text-foreground">
+            <Logo height={26} />
+            <span className="hidden sm:inline text-[13px] text-ink-3 border-l border-border pl-4 whitespace-nowrap">
+              Via Etnea 214, Catania · 095 441 220
+            </span>
           </Link>
+
+          <div className="flex-1" />
+
           {token ? (
-            <button
-              onClick={() => { logout(); navigate('/booking') }}
-              className="btn-icon hover:text-danger"
-              aria-label="Esci"
-              title={email ?? 'Esci'}
-            >
-              <LogOut className="w-[18px] h-[18px]" />
-            </button>
+            <>
+              <span className="hidden sm:inline text-[13px] text-muted-foreground truncate max-w-[16rem]">
+                {email}
+              </span>
+              <button
+                onClick={() => { logout(); navigate('/booking') }}
+                className="btn-icon hover:text-danger"
+                aria-label="Esci"
+                title="Esci"
+              >
+                <LogOut className="w-[18px] h-[18px]" />
+              </button>
+            </>
           ) : (
-            <Link to="/login" className="btn-primary btn-sm">
+            <Link to="/login" className="btn-accent btn-sm">
               Accedi
             </Link>
           )}
@@ -86,25 +97,29 @@ export default function BookingLayout() {
       {/* Signed-in clients get thumb-level navigation; guests only ever see
           the login/booking funnel, so the bar would be noise. */}
       {token && (
-        <nav className="fixed bottom-0 inset-x-0 z-30 bg-surface/90 backdrop-blur-md border-t border-border pb-safe-b">
+        <nav className="fixed bottom-0 inset-x-0 z-30 bg-surface border-t border-rule pb-safe-b">
           <div className="max-w-3xl mx-auto h-[3.75rem] grid grid-cols-3">
-            {clientTabs.map(({ to, end, icon: Icon, label }) => (
+            {clientTabs.map(({ to, end, label }) => (
               <NavLink
                 key={to}
                 to={to}
                 end={end}
                 className={({ isActive }) =>
                   clsx(
-                    'flex flex-col items-center justify-center gap-1 text-[11px] font-medium transition-colors',
-                    isActive ? 'text-primary' : 'text-muted-foreground'
+                    'flex items-center justify-center -mt-px border-t-2 transition-colors',
+                    isActive ? 'border-primary' : 'border-transparent'
                   )
                 }
               >
                 {({ isActive }) => (
-                  <>
-                    <Icon className={clsx('w-[22px] h-[22px]', isActive && 'stroke-[2.4]')} />
-                    <span>{label}</span>
-                  </>
+                  <span
+                    className={clsx(
+                      'font-heading text-[11px] uppercase tracking-[0.08em]',
+                      isActive ? 'text-primary' : 'text-ink-3'
+                    )}
+                  >
+                    {label}
+                  </span>
                 )}
               </NavLink>
             ))}

@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { format, parseISO } from 'date-fns'
+import { differenceInMinutes, format, parseISO } from 'date-fns'
 import { it } from 'date-fns/locale'
-import { Check, X, Clock, User, CalendarDays } from 'lucide-react'
+import { Clock, CalendarDays, User, Check, X } from 'lucide-react'
 import {
   getPendingAppointments, confirmAppointment, rejectAppointment,
 } from '@/services/api'
@@ -114,7 +114,7 @@ function PendingCard({ appointment: a, busy, onConfirm, onReject }: {
           <button
             onClick={onConfirm}
             disabled={busy}
-            className="btn-primary btn-sm flex-1 !bg-emerald-600 hover:!bg-emerald-700"
+            className="btn-primary btn-sm flex-1 !bg-action hover:!bg-action"
           >
             <Check className="w-4 h-4" /> Conferma
           </button>

@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
+import { format, parseISO } from 'date-fns'
 import { Plus, ChevronRight, Users, Phone, Mail } from 'lucide-react'
 import { getClients, createClient } from '@/services/api'
 import type { Client } from '@/types'
@@ -9,9 +10,22 @@ import { PageHeader, SearchInput, EmptyState, SkeletonList, Pagination } from '@
 
 export default function ClientsPage() {
   const qc = useQueryClient()
-  const [search, setSearch] = useState('')
+  // Seeded from the URL so the search field in the top bar can hand a term
+  // over to this page, which is the one index that looks in name, phone and
+  // email at once.
+  const [params] = useSearchParams()
+  const [search, setSearch] = useState(params.get('q') ?? '')
   const [page, setPage] = useState(1)
   const [showCreate, setShowCreate] = useState(false)
+
+  // Searching again from the top bar while already on this page only changes
+  // the URL, so the term has to be picked up here as well as on mount.
+  const q = params.get('q')
+  useEffect(() => {
+    if (q === null) return
+    setSearch(q)
+    setPage(1)
+  }, [q])
 
   const { data, isLoading } = useQuery({
     queryKey: ['clients', page, search],
@@ -46,7 +60,7 @@ export default function ClientsPage() {
       {isLoading ? (
         <SkeletonList rows={5} />
       ) : clients.length === 0 ? (
-        <div className="card">
+        <div className="panel">
           <EmptyState
             icon={Users}
             title={search ? 'Nessun risultato' : 'Nessun cliente'}
@@ -111,35 +125,35 @@ export default function ClientsPage() {
             )}
           </div>
 
-          {/* Tablet and up: the table reads better with the extra width. */}
-          <div className="card overflow-hidden hidden sm:block">
-            <table className="w-full text-sm">
+          {/* Tablet and up: the archive reads as the index it is. */}
+          <div className="panel hidden sm:block">
+            <table className="ledger">
               <thead>
-                <tr className="border-b border-border bg-muted/40">
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Nome</th>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Telefono</th>
-                  <th className="text-left px-4 py-3 font-medium text-muted-foreground">Email</th>
+                <tr>
+                  <th>Nome</th>
+                  <th>Telefono</th>
+                  <th>Email</th>
                   <th className="w-10" />
                 </tr>
               </thead>
-              <tbody>
+              {/* The panel edge closes the last line, so the row rule would double it. */}
+              <tbody className="[&_tr:last-child_td]:border-b-0">
                 {clients.map(client => (
-                  <tr
-                    key={client.id}
-                    className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors"
-                  >
-                    <td className="px-4 py-3 font-medium">
+                  <tr key={client.id} className="transition-colors">
+                    <td>
                       <span className="flex items-center gap-2">
-                        {client.first_name} {client.last_name}
+                        <span className="font-heading text-[15px] tracking-[0.03em]">
+                          {client.first_name} {client.last_name}
+                        </span>
                         {client.account_id && <OnlineTag />}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-muted-foreground">{client.phone ?? '–'}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{client.email ?? '–'}</td>
-                    <td className="px-4 py-3">
+                    <td className="text-muted-foreground tabular-nums">{client.phone ?? '–'}</td>
+                    <td className="text-muted-foreground">{client.email ?? '–'}</td>
+                    <td>
                       <Link
                         to={`/admin/clients/${client.id}`}
-                        className="text-muted-foreground hover:text-foreground inline-flex"
+                        className="text-ink-3 hover:text-foreground inline-flex"
                         aria-label={`Apri scheda di ${client.first_name}`}
                       >
                         <ChevronRight className="w-4 h-4" />
@@ -174,10 +188,12 @@ export default function ClientsPage() {
   )
 }
 
+/** Initials in a ruled box — the register files a person under a label, it
+    does not give them a portrait. */
 function Avatar({ client }: { client: Client }) {
   return (
-    <div className="w-10 h-10 rounded-full bg-primary/12 flex items-center justify-center shrink-0">
-      <span className="text-primary text-[13px] font-semibold">
+    <div className="w-10 h-10 border border-border bg-band flex items-center justify-center shrink-0">
+      <span className="font-heading text-[13px] tracking-[0.06em] text-muted-foreground">
         {client.first_name?.[0]?.toUpperCase()}
         {client.last_name?.[0]?.toUpperCase()}
       </span>
@@ -185,11 +201,10 @@ function Avatar({ client }: { client: Client }) {
   )
 }
 
+/** Marks a client who signed up on the portal rather than at the counter. */
 function OnlineTag() {
   return (
-    <span className="text-[10px] font-semibold bg-info/12 text-info px-1.5 py-0.5 rounded shrink-0">
-      online
-    </span>
+    <span className="status-badge status-confirmed shrink-0">online</span>
   )
 }
 

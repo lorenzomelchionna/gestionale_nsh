@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react'
 import {
-  addMonths, eachDayOfInterval, endOfMonth, endOfWeek, format, isSameDay,
+  addMonths, eachDayOfInterval, endOfMonth, endOfWeek, format,
   isSameMonth, startOfMonth, startOfToday, startOfWeek, subMonths,
 } from 'date-fns'
 import { it } from 'date-fns/locale'
-import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import clsx from 'clsx'
 import { publicGetAvailabilityCalendar } from '@/services/publicApi'
@@ -65,43 +65,49 @@ export default function AvailabilityCalendar({
   const atFirstMonth = isSameMonth(month, today)
 
   return (
-    <div className="card p-3 sm:p-4">
-      <div className="flex items-center justify-between mb-3">
-        <button
-          type="button"
-          onClick={() => setMonth(m => subMonths(m, 1))}
-          disabled={atFirstMonth}
-          className="btn-icon disabled:opacity-30 disabled:pointer-events-none"
-          aria-label="Mese precedente"
+    <div className="panel">
+      {/* The month named on its band, with the steppers squared into it. */}
+      <div className="band flex items-center gap-3 px-4 py-2.5">
+        <div className="flex border border-border">
+          <button
+            type="button"
+            onClick={() => setMonth(m => subMonths(m, 1))}
+            disabled={atFirstMonth}
+            className="px-3 py-1.5 text-muted-foreground hover:bg-foreground/[0.05]
+                       disabled:opacity-30 disabled:pointer-events-none transition-colors"
+            aria-label="Mese precedente"
+          >
+            ‹
+          </button>
+          <button
+            type="button"
+            onClick={() => setMonth(m => addMonths(m, 1))}
+            className="px-3 py-1.5 text-muted-foreground border-l border-border
+                       hover:bg-foreground/[0.05] transition-colors"
+            aria-label="Mese successivo"
+          >
+            ›
+          </button>
+        </div>
+        <p
+          className="font-heading text-[17px] tracking-[0.03em] text-foreground first-letter:uppercase"
+          aria-live="polite"
         >
-          <ChevronLeft className="w-5 h-5" />
-        </button>
-        <p className="font-semibold capitalize" aria-live="polite">
           {format(month, 'MMMM yyyy', { locale: it })}
         </p>
-        <button
-          type="button"
-          onClick={() => setMonth(m => addMonths(m, 1))}
-          className="btn-icon"
-          aria-label="Mese successivo"
-        >
-          <ChevronRight className="w-5 h-5" />
-        </button>
       </div>
 
-      <div className="grid grid-cols-7 gap-1 mb-1">
+      <div className="grid grid-cols-7 border-b border-rule">
         {WEEKDAYS.map((d, i) => (
-          <div
-            key={i}
-            aria-hidden="true"
-            className="text-center text-[11px] font-semibold text-muted-foreground py-1"
-          >
+          <div key={i} aria-hidden="true" className="kicker text-center py-2">
             {d}
           </div>
         ))}
       </div>
 
-      <div className="grid grid-cols-7 gap-1">
+      {/* Hairlines between the cells rather than gaps: the month reads as a
+          ruled sheet, the way a wall calendar is printed. */}
+      <div className="grid grid-cols-7 gap-px bg-rule-soft">
         {days.map(day => {
           const key = format(day, 'yyyy-MM-dd')
           const slots = slotsByDay.get(key) ?? 0
@@ -122,39 +128,42 @@ export default function AvailabilityCalendar({
               }`}
               aria-pressed={selected}
               className={clsx(
-                'relative min-h-touch rounded-lg text-sm tabular-nums transition-colors',
+                'relative min-h-touch py-2 text-[15px] tabular-nums transition-colors',
                 'flex flex-col items-center justify-center gap-0.5',
-                outsideMonth && 'opacity-40',
-                selected && 'bg-primary text-primary-foreground font-bold',
-                !selected && selectable &&
-                  'font-semibold text-foreground hover:bg-primary/10 hover:text-primary',
-                !selected && !selectable && 'text-muted-foreground/50'
+                outsideMonth && 'opacity-45',
+                selected
+                  ? 'bg-action text-action-foreground'
+                  : selectable
+                    ? 'bg-surface text-foreground hover:bg-primary/10 hover:text-primary-dark'
+                    : 'bg-surface text-ink-3'
               )}
             >
               {format(day, 'd')}
-              {/* Presence of room, not the exact count — the number itself is
-                  noise at this size and reads as a price or a time. */}
+              {/* How much room, not merely that there is some: the count is the
+                  one thing that makes a day worth choosing over another. */}
               <span
                 aria-hidden="true"
                 className={clsx(
-                  'w-1 h-1 rounded-full',
-                  selected ? 'bg-primary-foreground' : selectable ? 'bg-primary' : 'bg-transparent'
+                  'text-[10px] leading-none',
+                  selected ? 'text-action-foreground/80' : 'text-ink-3'
                 )}
-              />
+              >
+                {selectable ? slots : ' '}
+              </span>
             </button>
           )
         })}
       </div>
 
       {isLoading && (
-        <p className="flex items-center justify-center gap-2 text-xs text-muted-foreground pt-3">
-          <Loader2 className="w-3.5 h-3.5 animate-spin" /> Controllo le disponibilità...
+        <p className="flex items-center justify-center gap-2 text-xs text-muted-foreground py-3">
+          <Loader2 className="w-3.5 h-3.5 animate-spin" /> Controllo le disponibilità…
         </p>
       )}
       {!isLoading && data && !data.some(d => d.slots > 0) && (
-        <p className="text-center text-[13px] text-muted-foreground pt-3">
-          Nessuna disponibilità in {format(month, 'MMMM', { locale: it })}.
-          Prova il mese successivo.
+        <p className="ledger-foot text-center">
+          Nessuna disponibilità in {format(month, 'MMMM', { locale: it })}. Prova
+          il mese successivo.
         </p>
       )}
     </div>

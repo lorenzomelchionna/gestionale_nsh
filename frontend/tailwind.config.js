@@ -15,36 +15,55 @@ export default {
         surface: 'hsl(var(--surface) / <alpha-value>)',
         // Raised panels (sheets, popovers) that must read above `surface`.
         elevated: 'hsl(var(--elevated) / <alpha-value>)',
+        // Tinted strip behind table headers and toolbars.
+        band: 'hsl(var(--band) / <alpha-value>)',
+        // Recessed ground inside form fields.
+        field: 'hsl(var(--field) / <alpha-value>)',
         border: 'hsl(var(--border) / <alpha-value>)',
+        // Two lighter rules under `border`: section divider, then row divider.
+        rule: 'hsl(var(--rule) / <alpha-value>)',
+        'rule-soft': 'hsl(var(--rule-soft) / <alpha-value>)',
         muted: 'hsl(var(--muted) / <alpha-value>)',
         'muted-foreground': 'hsl(var(--muted-foreground) / <alpha-value>)',
         foreground: 'hsl(var(--foreground) / <alpha-value>)',
+        // Ink ramp between `foreground` and the page: body copy, then captions.
+        'ink-2': 'hsl(var(--ink-2) / <alpha-value>)',
+        'ink-3': 'hsl(var(--ink-3) / <alpha-value>)',
+        // The dark bar, and everything that sits on it.
+        chrome: 'hsl(var(--chrome) / <alpha-value>)',
+        'chrome-ink': 'hsl(var(--chrome-ink) / <alpha-value>)',
+        'chrome-dim': 'hsl(var(--chrome-dim) / <alpha-value>)',
+        'on-chrome': 'hsl(var(--on-chrome) / <alpha-value>)',
+        // The single filled action on a screen: ink by day, gold by night.
+        action: {
+          DEFAULT: 'hsl(var(--action) / <alpha-value>)',
+          foreground: 'hsl(var(--action-foreground) / <alpha-value>)',
+        },
         // Semantic feedback colours
         success: 'hsl(var(--success) / <alpha-value>)',
         warning: 'hsl(var(--warning) / <alpha-value>)',
         danger: 'hsl(var(--danger) / <alpha-value>)',
         info: 'hsl(var(--info) / <alpha-value>)',
-        // Appointment status colors (fixed, no dark mode variant needed)
-        'status-pending': '#F59E0B',
-        'status-confirmed': '#10B981',
-        'status-completed': '#6B7280',
-        'status-cancelled': '#EF4444',
-        'status-rejected': '#DC2626',
-        'status-rescheduled': '#3B82F6',
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
+        // Lora sets the body; Cormorant Garamond is the display face for
+        // headings, buttons and figures.
+        sans: ['Lora', 'Georgia', 'serif'],
+        heading: ['"Cormorant Garamond"', 'Georgia', 'serif'],
       },
       fontSize: {
         // Fluid titles — small phones to desktop without breakpoint juggling.
-        'title-lg': ['clamp(1.375rem, 1.15rem + 1.1vw, 1.875rem)', { lineHeight: '1.2' }],
-        title: ['clamp(1.125rem, 1rem + 0.6vw, 1.5rem)', { lineHeight: '1.25' }],
+        // Larger than the old sans scale: Cormorant is drawn small on the body.
+        'title-lg': ['clamp(1.625rem, 1.3rem + 1.5vw, 2.25rem)', { lineHeight: '1.1' }],
+        title: ['clamp(1.3rem, 1.1rem + 0.8vw, 1.7rem)', { lineHeight: '1.15' }],
       },
       borderRadius: {
-        xl: '1rem',
-        lg: '0.75rem',
-        md: '0.5rem',
-        sm: '0.375rem',
+        // The ledger is square. What is left only takes the die-cut off a badge.
+        '2xl': '4px',
+        xl: '3px',
+        lg: '2px',
+        md: '2px',
+        sm: '2px',
       },
       spacing: {
         // iOS notch / home-indicator insets.
@@ -56,9 +75,11 @@ export default {
         touch: '2.75rem',
       },
       boxShadow: {
-        card: '0 1px 2px 0 rgb(0 0 0 / 0.04), 0 1px 3px 0 rgb(0 0 0 / 0.06)',
-        raised: '0 4px 12px -2px rgb(0 0 0 / 0.10), 0 2px 6px -2px rgb(0 0 0 / 0.06)',
-        sheet: '0 -8px 32px -8px rgb(0 0 0 / 0.20)',
+        // Ink-tinted and shallow: paper lying on paper, not glass floating.
+        card: '0 1px 2px rgb(60 45 32 / 0.08)',
+        raised: '0 3px 10px rgb(60 45 32 / 0.13)',
+        sheet: '0 -8px 32px -8px rgb(33 26 21 / 0.28)',
+        dialog: '0 12px 40px rgb(33 26 21 / 0.28)',
       },
       keyframes: {
         'fade-in': { from: { opacity: '0' }, to: { opacity: '1' } },

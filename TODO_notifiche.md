@@ -191,6 +191,16 @@ Note:
 ## TODO minori
 
 - [ ] `notify_new_booking` solo `print()` — implementare notifica reale allo staff per prenotazioni online
+- [ ] `service_names` è dichiarato in `backend/app/schemas/appointment.py:67`
+      ma **nessuno lo popola**: arriva sempre `[]`. Di conseguenza il frontend
+      non può mostrare che servizio è stato fatto — né nella scheda cliente né
+      nell'area del cliente. Va riempito nel router leggendo
+      `appointment_services` → `Service.name`, oppure va tolto dallo schema.
+- [ ] Togliere la pastiglia "online" dalle schede collaboratore
+      (`frontend/src/pages/admin/CollaboratorsPage.tsx`): al salone non
+      interessa sapere chi è visibile online. Il campo `visible_online` resta —
+      decide se il collaboratore è selezionabile nel portale pubblico — va via
+      solo il badge sulla scheda.
 
 ---
 

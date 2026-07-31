@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { format, parseISO } from 'date-fns'
 import { it } from 'date-fns/locale'
 import { Link } from 'react-router-dom'
-import { Calendar, X, Check, Clock } from 'lucide-react'
+import { X, Check } from 'lucide-react'
 import {
   getMyAppointments, cancelMyAppointment, acceptAlternative, rejectAlternative,
   getMyWaitlist, leaveWaitlist,
@@ -52,52 +52,51 @@ export default function BookingAccountPage() {
   ) ?? []
 
   return (
-    <div className="space-y-7">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <h2 className="text-title-lg font-bold">La mia area</h2>
-        <Link to="/booking/new" className="btn-primary btn-sm">
+    <div className="flex flex-col gap-8">
+      <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-3 border-b border-rule pb-3.5">
+        <h1 className="text-title-lg text-foreground">La mia area</h1>
+        <Link to="/booking/new" className="btn-accent btn-sm">
           Nuova prenotazione
         </Link>
       </div>
 
-      {/* Rescheduled – action required */}
+      {/* A proposed time is the one thing on this page that asks something of
+          the client, so it leads and it is the only gold-edged panel. */}
       {upcoming.filter(a => a.status === 'rescheduled').map(a => (
-        <div key={a.id} className="bg-info/10 border border-info/30 rounded-xl p-4">
-          <p className="text-sm font-semibold text-info mb-1">
-            Il salone ha proposto un orario alternativo
+        <div key={a.id} className="panel border-primary bg-primary/10 p-5 flex flex-col gap-2.5">
+          <span className="kicker text-primary-dark">Nuovo orario proposto</span>
+          <p className="font-heading text-[19px] leading-snug tracking-[0.03em] text-foreground first-letter:uppercase">
+            {format(parseISO(a.alternative_time!), 'EEEE d MMMM', { locale: it })} alle{' '}
+            <span className="tabular-nums">
+              {format(parseISO(a.alternative_time!), 'HH:mm')}
+            </span>
+            {a.collaborator_name && `, con ${a.collaborator_name}`}
           </p>
-          <p className="text-sm text-foreground">
-            <strong>{a.collaborator_name}</strong> –{' '}
-            {format(parseISO(a.alternative_time!), 'EEEE d MMMM HH:mm', { locale: it })}
-          </p>
-          <div className="flex gap-2 mt-3">
+          <div className="flex gap-2 mt-1">
             <button
               onClick={() => acceptMut.mutate(a.id)}
-              className="btn-primary btn-sm flex-1 !bg-emerald-600 hover:!bg-emerald-700"
+              className="btn-primary btn-sm flex-1"
             >
-              <Check className="w-4 h-4" /> Accetta
+              <Check className="w-3.5 h-3.5" /> Accetta
             </button>
             <button
               onClick={() => rejectMut.mutate(a.id)}
-              className="btn-outline btn-sm flex-1 !text-danger"
+              className="btn-danger-outline btn-sm flex-1"
             >
-              <X className="w-4 h-4" /> Rifiuta
+              <X className="w-3.5 h-3.5" /> Rifiuta
             </button>
           </div>
         </div>
       ))}
 
-      {/* Upcoming */}
-      <section>
-        <h3 className="font-semibold mb-3 flex items-center gap-2">
-          <Calendar className="w-4 h-4 text-primary" /> Prossimi appuntamenti
-        </h3>
+      <section className="flex flex-col gap-3">
+        <span className="kicker">Prossimi</span>
         {isLoading ? (
-          <p className="text-muted-foreground text-sm">Caricamento...</p>
-        ) : upcoming.length === 0 ? (
-          <p className="text-muted-foreground text-sm">Nessun appuntamento in programma</p>
+          <p className="note">Caricamento…</p>
+        ) : upcoming.filter(a => a.status !== 'rescheduled').length === 0 ? (
+          <p className="note">Nessun appuntamento in programma.</p>
         ) : (
-          <div className="space-y-3">
+          <div className="flex flex-col gap-3">
             {upcoming.filter(a => a.status !== 'rescheduled').map(a => (
               <AppointmentCard
                 key={a.id}
@@ -109,13 +108,10 @@ export default function BookingAccountPage() {
         )}
       </section>
 
-      {/* Waitlist */}
       {activeWaitlist.length > 0 && (
-        <section>
-          <h3 className="font-semibold mb-3 flex items-center gap-2">
-            <Clock className="w-4 h-4 text-amber-500" /> Lista d'attesa
-          </h3>
-          <div className="space-y-2">
+        <section className="flex flex-col gap-3">
+          <span className="kicker">Lista d'attesa</span>
+          <div className="flex flex-col gap-2.5">
             {activeWaitlist.map(w => (
               <WaitlistCard
                 key={w.id}
@@ -127,13 +123,30 @@ export default function BookingAccountPage() {
         </section>
       )}
 
-      {/* Past */}
+      {/* Past visits are a record, not a list of things to act on — they read
+          as ruled lines rather than as panels. */}
       {past.length > 0 && (
-        <section>
-          <h3 className="font-semibold mb-3 text-muted-foreground">Storico</h3>
-          <div className="space-y-2">
+        <section className="flex flex-col gap-3">
+          <span className="kicker">Storico</span>
+          <div className="flex flex-col">
             {past.slice(0, 10).map(a => (
-              <AppointmentCard key={a.id} appointment={a} />
+              <div
+                key={a.id}
+                className="flex items-baseline gap-3 py-3 border-b border-rule-soft last:border-b-0"
+              >
+                <span className="flex-1 min-w-0 text-[13px] leading-relaxed text-ink-2">
+                  <span className="tabular-nums first-letter:uppercase">
+                    {format(parseISO(a.start_time), 'd MMM yyyy', { locale: it })}
+                    {' · '}
+                    {format(parseISO(a.start_time), 'HH:mm')}
+                  </span>
+                  <br />
+                  <span className="text-ink-3">{a.collaborator_name}</span>
+                </span>
+                <span className="text-[13px] tabular-nums text-muted-foreground shrink-0">
+                  {a.total_price !== undefined ? `€${a.total_price.toFixed(2)}` : '–'}
+                </span>
+              </div>
             ))}
           </div>
         </section>
@@ -143,29 +156,33 @@ export default function BookingAccountPage() {
 }
 
 function WaitlistCard({ entry: w, onLeave }: { entry: WaitlistEntry; onLeave: () => void }) {
+  const notified = w.status === 'notified'
   return (
-    <div className={clsx('card p-4 flex items-center justify-between gap-4', w.status === 'notified' && 'border-blue-300 bg-blue-50')}>
-      <div className="space-y-0.5">
-        {w.status === 'notified' && (
-          <p className="text-xs font-semibold text-blue-700 mb-1">
-            🔔 Il salone ha uno slot disponibile per te!
-          </p>
+    <div
+      className={clsx(
+        'panel px-5 py-4 flex items-center justify-between gap-4',
+        notified && 'border-primary bg-primary/10'
+      )}
+    >
+      <div className="min-w-0 flex flex-col gap-1">
+        {notified && (
+          <span className="kicker text-primary-dark">Si è liberato un posto</span>
         )}
-        {w.preferred_date ? (
-          <p className="text-sm font-medium">
-            Data preferita: {format(parseISO(w.preferred_date), 'd MMMM yyyy', { locale: it })}
-          </p>
-        ) : (
-          <p className="text-sm font-medium">Prima disponibilità</p>
-        )}
-        {w.notes && <p className="text-xs text-muted-foreground italic">"{w.notes}"</p>}
-        <p className="text-xs text-muted-foreground">
-          Iscritto il {format(parseISO(w.created_at), 'd MMM yyyy', { locale: it })}
-        </p>
+        <span className="font-heading text-[17px] tracking-[0.03em] text-foreground">
+          {w.preferred_date
+            ? <span className="tabular-nums">
+                {format(parseISO(w.preferred_date), 'd MMMM yyyy', { locale: it })}
+              </span>
+            : 'Prima disponibilità'}
+        </span>
+        {w.notes && <span className="note">{w.notes}</span>}
+        <span className="text-xs text-ink-3 tabular-nums">
+          iscritto il {format(parseISO(w.created_at), 'd MMM yyyy', { locale: it })}
+        </span>
       </div>
       <button
         onClick={onLeave}
-        className="text-xs text-red-500 hover:text-red-700 flex-shrink-0"
+        className="text-[13px] text-danger hover:underline shrink-0"
       >
         Rimuovi
       </button>
@@ -174,31 +191,36 @@ function WaitlistCard({ entry: w, onLeave }: { entry: WaitlistEntry; onLeave: ()
 }
 
 function AppointmentCard({ appointment: a, onCancel }: { appointment: Appointment; onCancel?: () => void }) {
-  const isPast = a.status === 'completed' || a.status === 'cancelled' || a.status === 'rejected'
   const canCancel = onCancel && a.status === 'confirmed'
   return (
-    <div className={clsx('card p-4', isPast && 'opacity-70')}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="font-medium text-foreground">
-            {format(parseISO(a.start_time), 'EEEE d MMMM', { locale: it })}
-            <span className="text-muted-foreground font-normal">
-              {' · '}{format(parseISO(a.start_time), 'HH:mm')}
-            </span>
-          </p>
-          <p className="text-[13px] text-muted-foreground mt-0.5">{a.collaborator_name}</p>
-          {a.total_price !== undefined && (
-            <p className="text-[13px] font-medium text-foreground mt-1 tabular-nums">
-              €{a.total_price.toFixed(2)}
-            </p>
-          )}
-        </div>
+    <div className="panel px-5 py-4 flex flex-col gap-1.5">
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="font-heading text-[19px] leading-tight tracking-[0.03em] text-foreground first-letter:uppercase">
+          {format(parseISO(a.start_time), 'EEEE d MMMM', { locale: it })}
+          <span className="text-ink-3 tabular-nums">
+            {' · '}{format(parseISO(a.start_time), 'HH:mm')}
+          </span>
+        </span>
         <span className={clsx('status-badge shrink-0', `status-${a.status}`)}>
           {STATUS_LABELS[a.status]}
         </span>
       </div>
+
+      <div className="flex items-baseline justify-between gap-3">
+        {/* The API declares `service_names` but never fills it, so the person
+            is the only thing there is to name here. */}
+        <span className="text-[13px] text-muted-foreground truncate">
+          {a.collaborator_name}
+        </span>
+        {a.total_price !== undefined && (
+          <span className="text-[15px] tabular-nums text-primary-dark shrink-0">
+            €{a.total_price.toFixed(2)}
+          </span>
+        )}
+      </div>
+
       {canCancel && (
-        <button onClick={onCancel} className="btn-outline btn-sm w-full mt-3 !text-danger">
+        <button onClick={onCancel} className="btn-danger-outline btn-sm w-full mt-2.5">
           Annulla appuntamento
         </button>
       )}

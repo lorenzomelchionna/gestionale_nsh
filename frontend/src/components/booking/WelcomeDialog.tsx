@@ -34,11 +34,11 @@ export default function WelcomeDialog() {
   return (
     <Sheet open onClose={() => setOpen(false)} size="sm">
       <div className="text-center pt-2 pb-1">
-        <div className="w-14 h-14 rounded-2xl bg-primary/15 flex items-center justify-center mx-auto mb-4">
+        <div className="w-14 h-14 bg-primary/15 flex items-center justify-center mx-auto mb-4">
           <Sparkles className="w-7 h-7 text-primary" />
         </div>
 
-        <h2 className="text-title font-bold text-foreground">
+        <h2 className="text-title text-foreground">
           Benvenuto in New Style Hair
         </h2>
         <p className="text-[13px] text-muted-foreground mt-2">

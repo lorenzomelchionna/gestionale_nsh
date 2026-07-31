@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Scissors, AlertCircle, Eye, EyeOff, Loader2 } from 'lucide-react'
+import { AlertCircle, Eye, EyeOff, Loader2 } from 'lucide-react'
 import clsx from 'clsx'
 import { useAuthStore } from '@/store/authStore'
 import { useClientAuth } from '@/components/layout/BookingLayout'
 import { getMe, setTokens } from '@/services/api'
+import Logo from '@/components/ui/Logo'
 import {
   signIn, clientRegister, verifyEmail, resendVerificationCode,
 } from '@/services/publicApi'
@@ -14,6 +15,12 @@ type Mode = 'signin' | 'register' | 'verify'
 // Caps the date picker so a future birthday cannot be chosen at all, rather
 // than being rejected only once the form is submitted.
 const TODAY = new Date().toISOString().slice(0, 10)
+
+const TITLES: Record<Mode, { title: string; sub: string }> = {
+  signin: { title: 'Accesso riservato', sub: 'Inserisci le tue credenziali.' },
+  register: { title: 'Crea il tuo account', sub: 'Bastano nome, telefono ed email.' },
+  verify: { title: 'Conferma il tuo indirizzo', sub: 'Abbiamo mandato sei cifre alla tua email.' },
+}
 
 /**
  * One door for staff and clients.
@@ -166,263 +173,281 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-[100dvh] bg-background flex flex-col justify-center items-center p-5 pt-safe-t pb-safe-b">
+    <div className="min-h-[100dvh] bg-background flex flex-col lg:flex-row">
+      {/* ── The plate ────────────────────────────────────────────────
+          A full-height ink panel carrying the mark and what the salon is,
+          so the door says whose it is before it asks for anything. On
+          phones it condenses to a band; the form must stay above the fold. */}
       <div
-        aria-hidden="true"
-        className="pointer-events-none fixed inset-x-0 top-0 h-72 bg-gradient-to-b from-primary/[0.10] to-transparent"
-      />
+        className="bg-chrome text-on-chrome shrink-0 pt-safe-t border-b border-border lg:border-b-0 lg:border-r px-6 py-6 flex items-center gap-4 lg:w-[34rem] lg:px-[3.25rem] lg:py-14 lg:flex-col lg:items-stretch lg:justify-between"
+      >
+        <Logo height={28} className="text-chrome-ink lg:!h-[5.5rem] lg:!w-[13rem]" />
 
-      <div className="relative w-full max-w-sm">
-        <div className="text-center mb-7">
-          <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center mx-auto mb-5 shadow-raised">
-            <Scissors className="w-8 h-8 text-primary-foreground" />
-          </div>
-          <h1 className="text-title-lg font-bold text-foreground">New Style Hair</h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            {mode === 'signin' && 'Accedi al tuo account'}
-            {mode === 'register' && 'Crea il tuo account'}
-            {mode === 'verify' && 'Conferma il tuo indirizzo'}
+        <div className="hidden lg:flex flex-col gap-5">
+          <span className="w-11 h-px bg-chrome-ink" />
+          <p className="font-heading text-[27px] leading-[1.4] text-on-chrome">
+            Il registro del salone: appuntamenti, incassi e clienti in un unico
+            posto.
           </p>
+          <p className="text-sm text-chrome-dim">Via Etnea 214, Catania</p>
         </div>
 
-        {mode === 'verify' ? (
-          <VerifyCard
-            email={email}
-            code={code}
-            setCode={setCode}
-            notice={notice}
-            error={error}
-            loading={loading}
-            onSubmit={handleVerify}
-            onResend={handleResend}
-            onBack={() => switchMode('signin')}
-          />
-        ) : (
-        <div className="card p-5 sm:p-6">
-          <div
-            role="tablist"
-            aria-label="Accedi o registrati"
-            className="grid grid-cols-2 gap-1 p-1 bg-muted/40 rounded-xl mb-5"
-          >
-            {(['signin', 'register'] as Mode[]).map(m => (
-              <button
-                key={m}
-                role="tab"
-                type="button"
-                aria-selected={mode === m}
-                onClick={() => switchMode(m)}
-                className={clsx(
-                  'min-h-touch rounded-lg text-sm font-semibold transition-colors',
-                  mode === m
-                    ? 'bg-surface text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                )}
-              >
-                {m === 'signin' ? 'Accedi' : 'Registrati'}
-              </button>
-            ))}
+        <span className="text-xs text-chrome-dim lg:mt-0 ml-auto lg:ml-0 text-right lg:text-left">
+          Assistenza 095 441 220
+        </span>
+      </div>
+
+      {/* ── The form ─────────────────────────────────────────────── */}
+      <div className="flex-1 flex items-center justify-center px-5 py-10 lg:px-24 pb-safe-b">
+        <div className="w-full max-w-[400px] flex flex-col gap-6">
+          <div className="flex flex-col gap-2">
+            <h1 className="font-heading text-[34px] leading-tight text-foreground">
+              {TITLES[mode].title}
+            </h1>
+            <p className="note">{TITLES[mode].sub}</p>
           </div>
 
-          <form
-            onSubmit={mode === 'signin' ? handleSignIn : handleRegister}
-            className="space-y-4"
-          >
-            {mode === 'register' && (
-              <>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label htmlFor="first_name" className="label">Nome</label>
-                    <input
-                      id="first_name"
-                      className="input"
-                      required
-                      autoComplete="given-name"
-                      autoCapitalize="words"
-                      value={form.first_name}
-                      onChange={e => setForm({ ...form, first_name: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="last_name" className="label">Cognome</label>
-                    <input
-                      id="last_name"
-                      className="input"
-                      required
-                      autoComplete="family-name"
-                      autoCapitalize="words"
-                      value={form.last_name}
-                      onChange={e => setForm({ ...form, last_name: e.target.value })}
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label htmlFor="phone" className="label">Telefono</label>
-                  <input
-                    id="phone"
-                    className="input"
-                    type="tel"
-                    inputMode="tel"
-                    autoComplete="tel"
-                    placeholder="333 1234567"
-                    required
-                    value={form.phone}
-                    onChange={e => setForm({ ...form, phone: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label htmlFor="birth_date" className="label">Data di nascita</label>
-                  <input
-                    id="birth_date"
-                    className="input"
-                    type="date"
-                    autoComplete="bday"
-                    required
-                    max={TODAY}
-                    value={form.birth_date}
-                    onChange={e => setForm({ ...form, birth_date: e.target.value })}
-                  />
-                </div>
-              </>
-            )}
-
-            <div>
-              <label htmlFor="email" className="label">Email</label>
-              <input
-                id="email"
-                type="email"
-                inputMode="email"
-                autoComplete={mode === 'signin' ? 'username' : 'email'}
-                autoCapitalize="none"
-                className="input"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                placeholder="nome@esempio.it"
-                required
-              />
-            </div>
-
-            <div>
-              <label htmlFor="password" className="label">Password</label>
-              <div className="relative">
-                <input
-                  id="password"
-                  type={showPassword ? 'text' : 'password'}
-                  autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
-                  className="input pr-12"
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  minLength={mode === 'register' ? 6 : undefined}
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(s => !s)}
-                  className="absolute right-1 top-1/2 -translate-y-1/2 btn-icon !w-10 !h-10"
-                  aria-label={showPassword ? 'Nascondi password' : 'Mostra password'}
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
+          {mode === 'verify' ? (
+            <VerifyForm
+              code={code}
+              setCode={setCode}
+              notice={notice}
+              error={error}
+              loading={loading}
+              onSubmit={handleVerify}
+              onResend={handleResend}
+              onBack={() => switchMode('signin')}
+            />
+          ) : (
+            <>
+              {/* Two named options rather than a pill switch: the ledger
+                  labels its choices and marks the live one with a rule. */}
+              <div role="tablist" aria-label="Accedi o registrati" className="flex border-b border-rule">
+                {(['signin', 'register'] as Mode[]).map(m => (
+                  <button
+                    key={m}
+                    role="tab"
+                    type="button"
+                    aria-selected={mode === m}
+                    onClick={() => switchMode(m)}
+                    className={clsx(
+                      'font-heading text-[13px] uppercase tracking-[0.12em] px-4 pb-2.5 -mb-px border-b-2 transition-colors',
+                      mode === m
+                        ? 'border-primary text-foreground'
+                        : 'border-transparent text-ink-3 hover:text-foreground'
+                    )}
+                  >
+                    {m === 'signin' ? 'Accedi' : 'Registrati'}
+                  </button>
+                ))}
               </div>
-              {mode === 'register' && (
-                <p className="text-xs text-muted-foreground mt-1.5">Almeno 6 caratteri.</p>
-              )}
-            </div>
 
-            {mode === 'register' && (
-              <div>
-                <label htmlFor="confirm_password" className="label">Ripeti password</label>
-                <input
-                  id="confirm_password"
-                  // Same visibility toggle as the field above, so someone who
-                  // chose to see what they are typing sees both.
-                  type={showPassword ? 'text' : 'password'}
-                  autoComplete="new-password"
-                  className="input"
-                  value={confirmPassword}
-                  onChange={e => setConfirmPassword(e.target.value)}
-                  placeholder="••••••••"
-                  required
-                />
-                {/* Said as soon as it is knowable rather than on submit: a typo
-                    is easiest to fix while the keyboard is still open. */}
-                {confirmPassword && password !== confirmPassword && (
-                  <p className="text-xs text-danger mt-1.5">
-                    Le due password non coincidono.
-                  </p>
-                )}
-                {confirmPassword && password === confirmPassword && (
-                  <p className="text-xs text-emerald-600 dark:text-emerald-500 mt-1.5">
-                    Le password coincidono.
-                  </p>
-                )}
-              </div>
-            )}
-
-            {/* Placed once, above the button, rather than as a hint under each
-                contact field: it explains what both of them are collected for. */}
-            {mode === 'register' && (
-              <p className="text-xs text-muted-foreground">
-                Riceverai le comunicazioni sui tuoi appuntamenti via email e
-                WhatsApp.
-              </p>
-            )}
-
-            {error && (
-              <p
-                role="alert"
-                className="flex items-start gap-2 text-[13px] text-danger bg-danger/10 px-3 py-2.5 rounded-lg"
+              <form
+                onSubmit={mode === 'signin' ? handleSignIn : handleRegister}
+                className="flex flex-col gap-4"
               >
-                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                {error}
-              </p>
-            )}
+                {mode === 'register' && (
+                  <>
+                    <div className="grid grid-cols-2 gap-3.5">
+                      <div>
+                        <label htmlFor="first_name" className="label">Nome</label>
+                        <input
+                          id="first_name"
+                          className="input"
+                          required
+                          autoComplete="given-name"
+                          autoCapitalize="words"
+                          value={form.first_name}
+                          onChange={e => setForm({ ...form, first_name: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="last_name" className="label">Cognome</label>
+                        <input
+                          id="last_name"
+                          className="input"
+                          required
+                          autoComplete="family-name"
+                          autoCapitalize="words"
+                          value={form.last_name}
+                          onChange={e => setForm({ ...form, last_name: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label htmlFor="phone" className="label">Telefono</label>
+                      <input
+                        id="phone"
+                        className="input"
+                        type="tel"
+                        inputMode="tel"
+                        autoComplete="tel"
+                        placeholder="333 1234567"
+                        required
+                        value={form.phone}
+                        onChange={e => setForm({ ...form, phone: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="birth_date" className="label">Data di nascita</label>
+                      <input
+                        id="birth_date"
+                        className="input"
+                        type="date"
+                        autoComplete="bday"
+                        required
+                        max={TODAY}
+                        value={form.birth_date}
+                        onChange={e => setForm({ ...form, birth_date: e.target.value })}
+                      />
+                    </div>
+                  </>
+                )}
 
-            <button
-              type="submit"
-              disabled={loading || (mode === 'register' && password !== confirmPassword)}
-              className="btn-primary w-full"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  {mode === 'signin' ? 'Accesso in corso...' : 'Registrazione...'}
-                </>
-              ) : mode === 'signin' ? (
-                'Accedi'
-              ) : (
-                'Crea account'
-              )}
-            </button>
-          </form>
-        </div>
-        )}
+                <div>
+                  <label htmlFor="email" className="label">Email</label>
+                  <input
+                    id="email"
+                    type="email"
+                    inputMode="email"
+                    autoComplete={mode === 'signin' ? 'username' : 'email'}
+                    autoCapitalize="none"
+                    className="input"
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                    placeholder="nome@esempio.it"
+                    required
+                  />
+                </div>
 
-        {mode !== 'verify' && (
-          <p className="text-center text-xs text-muted-foreground mt-6">
-            {mode === 'signin' ? (
-              <>
-                Non hai un account?{' '}
+                <div>
+                  <label htmlFor="password" className="label">Password</label>
+                  <div className="relative">
+                    <input
+                      id="password"
+                      type={showPassword ? 'text' : 'password'}
+                      autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
+                      className="input pr-12"
+                      value={password}
+                      onChange={e => setPassword(e.target.value)}
+                      placeholder="••••••••"
+                      minLength={mode === 'register' ? 6 : undefined}
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(s => !s)}
+                      className="absolute right-0.5 top-1/2 -translate-y-1/2 btn-icon !w-10 !h-10"
+                      aria-label={showPassword ? 'Nascondi password' : 'Mostra password'}
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  {mode === 'register' && (
+                    <p className="text-xs text-ink-3 mt-1.5">Almeno 6 caratteri.</p>
+                  )}
+                </div>
+
+                {mode === 'register' && (
+                  <div>
+                    <label htmlFor="confirm_password" className="label">Ripeti password</label>
+                    <input
+                      id="confirm_password"
+                      // Same visibility toggle as the field above, so someone who
+                      // chose to see what they are typing sees both.
+                      type={showPassword ? 'text' : 'password'}
+                      autoComplete="new-password"
+                      className="input"
+                      value={confirmPassword}
+                      onChange={e => setConfirmPassword(e.target.value)}
+                      placeholder="••••••••"
+                      required
+                    />
+                    {/* Said as soon as it is knowable rather than on submit: a typo
+                        is easiest to fix while the keyboard is still open. */}
+                    {confirmPassword && password !== confirmPassword && (
+                      <p className="text-xs text-danger mt-1.5">
+                        Le due password non coincidono.
+                      </p>
+                    )}
+                    {confirmPassword && password === confirmPassword && (
+                      <p className="text-xs text-primary-dark mt-1.5">
+                        Le password coincidono.
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Placed once, above the button, rather than as a hint under each
+                    contact field: it explains what both of them are collected for. */}
+                {mode === 'register' && (
+                  <p className="text-xs text-ink-3">
+                    Riceverai le comunicazioni sui tuoi appuntamenti via email e
+                    WhatsApp.
+                  </p>
+                )}
+
+                <ErrorNote error={error} />
+
                 <button
-                  type="button"
-                  onClick={() => switchMode('register')}
-                  className="text-primary font-medium hover:underline"
+                  type="submit"
+                  disabled={loading || (mode === 'register' && password !== confirmPassword)}
+                  className="btn-primary w-full mt-1"
                 >
-                  Registrati
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      {mode === 'signin' ? 'Accesso in corso…' : 'Registrazione…'}
+                    </>
+                  ) : mode === 'signin' ? (
+                    'Entra'
+                  ) : (
+                    'Crea account'
+                  )}
                 </button>
-              </>
-            ) : (
-              <>Lavori nel salone? Il tuo accesso lo crea l'amministratore.</>
-            )}
-          </p>
-        )}
+              </form>
+
+              <p className="text-[13px] text-ink-3 border-t border-rule pt-4">
+                {mode === 'signin' ? (
+                  <>
+                    Non hai un account?{' '}
+                    <button
+                      type="button"
+                      onClick={() => switchMode('register')}
+                      className="text-primary-dark hover:underline"
+                    >
+                      Registrati
+                    </button>{' '}
+                    per prenotare online.
+                  </>
+                ) : (
+                  <>Lavori nel salone? Il tuo accesso lo crea l'amministratore.</>
+                )}
+              </p>
+            </>
+          )}
+        </div>
       </div>
     </div>
   )
 }
 
+/* ── Error note ──────────────────────────────────────────────────── */
+
+function ErrorNote({ error }: { error: string }) {
+  if (!error) return null
+  return (
+    <p
+      role="alert"
+      className="flex items-start gap-2 text-[13px] text-danger border-l-2 border-danger bg-danger/[0.08] px-3 py-2.5"
+    >
+      <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+      {error}
+    </p>
+  )
+}
+
 interface VerifyProps {
-  email: string
   code: string
   setCode: (v: string) => void
   notice: string
@@ -439,23 +464,21 @@ interface VerifyProps {
  * Kept deliberately bare: at this point the person is holding a phone in one
  * hand and their inbox in the other, and anything beyond the code is in the way.
  */
-function VerifyCard({
-  email, code, setCode, notice, error, loading, onSubmit, onResend, onBack,
+function VerifyForm({
+  code, setCode, notice, error, loading, onSubmit, onResend, onBack,
 }: VerifyProps) {
   return (
-    <div className="card p-5 sm:p-6">
-      <form onSubmit={onSubmit} className="space-y-4">
+    <>
+      <form onSubmit={onSubmit} className="flex flex-col gap-4">
         {/* Only what the caller set: when a send failed there is an error to
             show instead, and claiming a code is on its way would contradict it. */}
-        {notice && (
-          <p className="text-[13px] text-muted-foreground">{notice}</p>
-        )}
+        {notice && <p className="text-[13px] text-muted-foreground">{notice}</p>}
 
         <div>
           <label htmlFor="code" className="label">Codice di verifica</label>
           <input
             id="code"
-            className="input text-center text-2xl tracking-[0.4em] tabular-nums"
+            className="input text-center font-heading text-3xl tracking-[0.4em] tabular-nums py-3"
             // A numeric keypad on phones, and the OS offer to fill the code
             // straight from the notification.
             inputMode="numeric"
@@ -468,51 +491,41 @@ function VerifyCard({
             value={code}
             onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
           />
-          <p className="text-xs text-muted-foreground mt-1.5">
-            Sei cifre, valido per 15 minuti.
-          </p>
+          <p className="text-xs text-ink-3 mt-1.5">Sei cifre, valido per 15 minuti.</p>
         </div>
 
-        {error && (
-          <p
-            role="alert"
-            className="flex items-start gap-2 text-[13px] text-danger bg-danger/10 px-3 py-2.5 rounded-lg"
-          >
-            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-            {error}
-          </p>
-        )}
+        <ErrorNote error={error} />
 
         <button
           type="submit"
           disabled={loading || code.length < 6}
-          className="btn-primary w-full"
+          className="btn-primary w-full mt-1"
         >
           {loading ? (
-            <><Loader2 className="w-4 h-4 animate-spin" /> Verifica in corso...</>
+            <><Loader2 className="w-4 h-4 animate-spin" /> Verifica in corso…</>
           ) : (
             'Conferma'
           )}
         </button>
       </form>
 
-      <div className="flex items-center justify-between gap-3 mt-5">
+      <div className="flex items-center justify-between gap-3 border-t border-rule pt-4">
         <button
           type="button"
           onClick={onResend}
           disabled={loading}
-          className="text-xs text-primary font-medium hover:underline disabled:opacity-50"
+          className="text-[13px] text-primary-dark hover:underline disabled:opacity-50"
         >
           Invia un nuovo codice
         </button>
         <button
           type="button"
           onClick={onBack}
-          className="text-xs text-muted-foreground hover:text-foreground"
+          className="text-[13px] text-ink-3 hover:text-foreground"
         >
           Torna indietro
         </button>
       </div>
-    </div>
+    </>
   )
 }

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { Send, Eye, Users, Mail, MessageCircle } from 'lucide-react'
+import { Send, Eye, Mail, MessageCircle } from 'lucide-react'
 import { getProducts, previewMessage, sendMessage } from '@/services/api'
 import type { MessageFilter, FilterType } from '@/types'
 import { PageHeader } from '@/components/ui'
@@ -19,6 +19,40 @@ const MONTHS = [
   'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
   'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre',
 ]
+
+/** A titled sheet: the section named on its band, the controls underneath. */
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="panel">
+      <div className="band px-5 py-3">
+        <span className="kicker">{title}</span>
+      </div>
+      <div className="p-5 flex flex-col gap-4">{children}</div>
+    </div>
+  )
+}
+
+/** A squared option cell; the chosen one is marked in gold, as everywhere. */
+function Option({ on, onClick, children }: {
+  on: boolean
+  onClick: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      onClick={onClick}
+      aria-pressed={on}
+      className={clsx(
+        'flex items-center justify-center gap-2 px-3 py-2.5 min-h-touch border text-[13px] transition-colors text-center',
+        on
+          ? 'border-primary bg-primary/10 text-primary-dark'
+          : 'border-border text-muted-foreground hover:bg-foreground/[0.05]'
+      )}
+    >
+      {children}
+    </button>
+  )
+}
 
 export default function MessagingPage() {
   const [subject, setSubject] = useState('')
@@ -51,31 +85,22 @@ export default function MessagingPage() {
     <div className="space-y-5 max-w-2xl">
       <PageHeader title="Messaggi ai clienti" />
 
-      <div className="card p-4 sm:p-5 space-y-4">
-        <h2 className="font-semibold text-xs text-muted-foreground uppercase tracking-wider">Destinatari</h2>
-
-        {/* Filter type */}
-        <div className="grid grid-cols-2 gap-2">
+      <Section title="Destinatari">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {FILTER_OPTIONS.map(opt => (
-            <button
+            <Option
               key={opt.value}
+              on={filter.type === opt.value}
               onClick={() => setFilter({ type: opt.value })}
-              className={clsx(
-                'px-3 py-2.5 min-h-touch rounded-lg border text-[13px] text-left transition-colors',
-                filter.type === opt.value
-                  ? 'border-primary bg-primary/10 text-primary font-medium'
-                  : 'border-border hover:bg-muted'
-              )}
             >
               {opt.label}
-            </button>
+            </Option>
           ))}
         </div>
 
-        {/* Filter params */}
         {filter.type === 'product_buyers' && (
           <div>
-            <label className="label block mb-1">Prodotto</label>
+            <label className="label">Prodotto</label>
             <select
               className="input"
               value={filter.product_id ?? ''}
@@ -91,9 +116,9 @@ export default function MessagingPage() {
 
         {filter.type === 'inactive' && (
           <div>
-            <label className="label block mb-1">Inattivi da almeno (giorni)</label>
+            <label className="label">Inattivi da almeno (giorni)</label>
             <input
-              type="number" min={1} className="input w-32"
+              type="number" min={1} className="input w-32 tabular-nums"
               value={filter.inactive_days ?? 90}
               onChange={e => setFilter({ ...filter, inactive_days: Number(e.target.value) })}
             />
@@ -102,7 +127,7 @@ export default function MessagingPage() {
 
         {filter.type === 'birthday_month' && (
           <div>
-            <label className="label block mb-1">Mese di compleanno</label>
+            <label className="label">Mese di compleanno</label>
             <select
               className="input"
               value={filter.birthday_month ?? ''}
@@ -115,47 +140,41 @@ export default function MessagingPage() {
             </select>
           </div>
         )}
-      </div>
+      </Section>
 
-      <div className="card p-4 sm:p-5 space-y-4">
-        <h2 className="font-semibold text-xs text-muted-foreground uppercase tracking-wider">Canale</h2>
-        {/* Icon above label so three options fit a 375px row without clipping. */}
+      <Section title="Canale">
         <div className="grid grid-cols-3 gap-2">
           {([
-            { value: 'email',    label: 'Email',      icon: Mail },
-            { value: 'whatsapp', label: 'WhatsApp',   icon: MessageCircle },
-            { value: 'both',     label: 'Entrambi',   icon: Send },
+            { value: 'email',    label: 'Email',    icon: Mail },
+            { value: 'whatsapp', label: 'WhatsApp', icon: MessageCircle },
+            { value: 'both',     label: 'Entrambi', icon: Send },
           ] as const).map(opt => {
             const Icon = opt.icon
             return (
-              <button
+              <Option
                 key={opt.value}
+                on={channel === opt.value}
                 onClick={() => setChannel(opt.value)}
-                className={clsx(
-                  'flex flex-col sm:flex-row items-center justify-center gap-1.5 px-2 py-2.5 min-h-touch rounded-lg border text-[13px] transition-colors',
-                  channel === opt.value
-                    ? 'border-primary bg-primary/10 text-primary font-medium'
-                    : 'border-border hover:bg-muted'
-                )}
               >
                 <Icon className="w-4 h-4 shrink-0" />
                 {opt.label}
-              </button>
+              </Option>
             )
           })}
         </div>
-        <p className="text-xs text-muted-foreground">
+        <p className="note">
           {channel === 'email' && "Solo i clienti con email riceveranno il messaggio."}
           {channel === 'whatsapp' && "Solo i clienti con telefono riceveranno il messaggio (WhatsApp deve essere abilitato in Impostazioni)."}
           {channel === 'both' && "Ogni cliente riceverà su entrambi i canali se ha email e telefono."}
         </p>
-      </div>
+      </Section>
 
-      <div className="card p-5 space-y-4">
-        <h2 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide">Messaggio</h2>
+      <Section title="Messaggio">
         {channel !== 'whatsapp' && (
           <div>
-            <label className="label block mb-1">Oggetto {channel === 'both' && <span className="text-xs text-muted-foreground">(solo email)</span>}</label>
+            <label className="label">
+              Oggetto {channel === 'both' && <span className="normal-case tracking-normal">(solo email)</span>}
+            </label>
             <input
               className="input"
               placeholder="Es. Offerta speciale per te!"
@@ -165,7 +184,7 @@ export default function MessagingPage() {
           </div>
         )}
         <div>
-          <label className="label block mb-1">Testo</label>
+          <label className="label">Testo</label>
           <textarea
             className="input"
             rows={5}
@@ -178,17 +197,16 @@ export default function MessagingPage() {
             onChange={e => setBody(e.target.value)}
           />
           {channel === 'whatsapp' && (
-            <p className="text-xs text-muted-foreground mt-1">
+            <p className="text-xs text-ink-3 mt-1.5">
               WA non supporta HTML — il testo viene inviato così com'è.
             </p>
           )}
         </div>
-      </div>
+      </Section>
 
-      {/* Actions */}
-      <div className="flex gap-3">
+      <div className="flex gap-2.5">
         <button
-          className="btn-secondary flex items-center gap-2"
+          className="btn-secondary"
           disabled={!canSend || previewMut.isPending}
           onClick={() => previewMut.mutate()}
         >
@@ -196,7 +214,7 @@ export default function MessagingPage() {
           {previewMut.isPending ? 'Caricamento…' : 'Anteprima destinatari'}
         </button>
         <button
-          className="btn-primary flex items-center gap-2"
+          className="btn-primary"
           disabled={!canSend || sendMut.isPending}
           onClick={() => sendMut.mutate()}
         >
@@ -205,47 +223,83 @@ export default function MessagingPage() {
         </button>
       </div>
 
-      {/* Preview result */}
+      {/* Who would receive it — the list is capped at ten, and says so, rather
+          than quietly showing a slice as if it were the whole. */}
       {previewResult && (
-        <div className="card p-4 space-y-3">
-          <div className="flex items-center gap-2 text-sm font-medium">
-            <Users className="w-4 h-4 text-primary" />
-            <span>{previewResult.count} destinatari trovati</span>
+        <div className="panel">
+          <div className="band px-5 py-3 flex items-baseline gap-2">
+            <span className="kicker">Destinatari trovati</span>
+            <span className="ml-auto font-heading text-lg text-foreground tabular-nums">
+              {previewResult.count}
+            </span>
           </div>
           {previewResult.count > 0 && (
-            <div className="divide-y divide-border">
+            <>
               {previewResult.recipients.slice(0, 10).map(r => (
-                <div key={r.id} className="py-1.5 flex items-center justify-between text-sm">
-                  <span>{r.first_name} {r.last_name}</span>
-                  <span className="text-muted-foreground text-xs">{r.email ?? 'nessuna email'}</span>
+                <div
+                  key={r.id}
+                  className="flex items-baseline justify-between gap-3 px-5 py-2.5 border-b border-rule-soft"
+                >
+                  <span className="text-sm text-foreground truncate">
+                    {r.first_name} {r.last_name}
+                  </span>
+                  <span className="text-[13px] text-ink-3 truncate">
+                    {r.email ?? 'nessuna email'}
+                  </span>
                 </div>
               ))}
               {previewResult.count > 10 && (
-                <p className="pt-2 text-xs text-muted-foreground">…e altri {previewResult.count - 10}</p>
+                <p className="ledger-foot">…e altri {previewResult.count - 10}</p>
               )}
-            </div>
+            </>
           )}
         </div>
       )}
 
-      {/* Send result */}
       {sendResult && (
-        <div className="card p-4 space-y-1 text-sm">
-          <p className="text-emerald-600 font-medium">Messaggio inviato!</p>
-          <p>Clienti raggiunti: <span className="font-medium">{sendResult.sent}</span></p>
-          {sendResult.sent_email !== undefined && (
-            <p className="text-xs text-muted-foreground">
-              Email: {sendResult.sent_email} · WhatsApp: {sendResult.sent_whatsapp ?? 0}
-            </p>
-          )}
-          {sendResult.skipped > 0 && (
-            <p className="text-amber-600">Saltati (senza contatti validi): {sendResult.skipped}</p>
-          )}
-          {sendResult.errors > 0 && (
-            <p className="text-red-600">Errori: {sendResult.errors}</p>
-          )}
+        <div className="panel">
+          <div className="band px-5 py-3">
+            <span className="kicker">Esito dell'invio</span>
+          </div>
+          <div className="divide-y divide-rule-soft">
+            <ResultRow label="Clienti raggiunti" value={sendResult.sent} strong />
+            {sendResult.sent_email !== undefined && (
+              <>
+                <ResultRow label="Via email" value={sendResult.sent_email} />
+                <ResultRow label="Via WhatsApp" value={sendResult.sent_whatsapp ?? 0} />
+              </>
+            )}
+            {sendResult.skipped > 0 && (
+              <ResultRow label="Saltati (senza contatti validi)" value={sendResult.skipped} />
+            )}
+            {sendResult.errors > 0 && (
+              <ResultRow label="Errori" value={sendResult.errors} danger />
+            )}
+          </div>
         </div>
       )}
+    </div>
+  )
+}
+
+function ResultRow({ label, value, strong = false, danger = false }: {
+  label: string
+  value: number
+  strong?: boolean
+  danger?: boolean
+}) {
+  return (
+    <div className="flex items-baseline justify-between gap-3 px-5 py-3">
+      <span className="text-sm text-muted-foreground">{label}</span>
+      <span
+        className={clsx(
+          'tabular-nums font-heading',
+          strong ? 'text-[19px]' : 'text-[15px]',
+          danger ? 'text-danger' : strong ? 'text-primary-dark' : 'text-foreground'
+        )}
+      >
+        {value}
+      </span>
     </div>
   )
 }

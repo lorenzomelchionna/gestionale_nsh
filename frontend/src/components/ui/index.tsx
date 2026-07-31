@@ -2,8 +2,10 @@ import { Search, X } from 'lucide-react'
 import clsx from 'clsx'
 
 /* ── PageHeader ────────────────────────────────────────────────────
-   Title + optional action. On phones the action drops to a full-width
-   button under the title instead of being squeezed beside it. */
+   The head of a page in the register: the name set large in the display
+   face, the count or date beside it in italics, actions to the right, and
+   a rule underneath closing the block. On phones the action drops to a
+   full-width button under the title instead of being squeezed beside it. */
 
 export function PageHeader({
   title,
@@ -15,12 +17,13 @@ export function PageHeader({
   action?: React.ReactNode
 }) {
   return (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <div className="min-w-0">
-        <h1 className="text-title-lg font-bold text-foreground truncate">{title}</h1>
-        {subtitle && <p className="text-sm text-muted-foreground mt-0.5">{subtitle}</p>}
-      </div>
-      {action && <div className="flex items-center gap-2 [&>*]:flex-1 sm:[&>*]:flex-none">{action}</div>}
+    <div className="flex flex-col gap-3 border-b border-rule pb-3.5 sm:flex-row sm:items-baseline sm:gap-4">
+      <h1 className="text-title-lg text-foreground truncate">{title}</h1>
+      {subtitle && <p className="note truncate">{subtitle}</p>}
+      <div className="sm:flex-1" />
+      {action && (
+        <div className="flex items-center gap-2 [&>*]:flex-1 sm:[&>*]:flex-none">{action}</div>
+      )}
     </div>
   )
 }
@@ -38,7 +41,7 @@ export function SearchInput({
 }) {
   return (
     <div className="relative">
-      <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+      <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-3 pointer-events-none" />
       <input
         type="search"
         className="input pl-10 pr-10"
@@ -49,7 +52,7 @@ export function SearchInput({
       {value && (
         <button
           onClick={() => onChange('')}
-          className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-muted-foreground hover:text-foreground"
+          className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-ink-3 hover:text-foreground"
           aria-label="Cancella ricerca"
         >
           <X className="w-4 h-4" />
@@ -75,7 +78,7 @@ export function Segmented<T extends string>({
   className?: string
 }) {
   return (
-    <div className={clsx('segmented max-w-full overflow-x-auto scroll-x !mx-0 !px-1', className)}>
+    <div className={clsx('segmented max-w-full overflow-x-auto', className)}>
       {options.map(o => (
         <button
           key={o.value}
@@ -106,33 +109,36 @@ export function EmptyState({
   return (
     <div className="flex flex-col items-center justify-center text-center py-14 px-6">
       {Icon && (
-        <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-4">
-          <Icon className="w-6 h-6 text-muted-foreground" />
+        <div className="w-12 h-12 border border-border flex items-center justify-center mb-4">
+          <Icon className="w-5 h-5 text-ink-3" />
         </div>
       )}
-      <p className="font-semibold text-foreground">{title}</p>
-      {description && (
-        <p className="text-sm text-muted-foreground mt-1 max-w-xs">{description}</p>
-      )}
+      <p className="font-heading text-xl text-foreground">{title}</p>
+      {description && <p className="note mt-1.5 max-w-xs">{description}</p>}
       {action && <div className="mt-5">{action}</div>}
     </div>
   )
 }
 
 /* ── Loading skeletons ────────────────────────────────────────────
-   Placeholders that match the shape of the content being loaded, so the
-   layout does not jump when data lands. */
+   Ruled blanks in the shape of the rows that are coming, so the page does
+   not jump when the data lands — the register drawn before it is filled. */
 
 export function SkeletonList({ rows = 4 }: { rows?: number }) {
   return (
-    <div className="space-y-2" aria-busy="true" aria-label="Caricamento">
+    <div className="panel" aria-busy="true" aria-label="Caricamento">
+      <div className="band flex items-center gap-3.5 px-4 py-3">
+        <span className="skeleton h-2.5 w-40" />
+        <span className="skeleton h-2.5 w-24" />
+      </div>
       {Array.from({ length: rows }, (_, i) => (
-        <div key={i} className="card p-4 flex items-center gap-3">
-          <div className="skeleton w-10 h-10 rounded-full shrink-0" />
+        <div key={i} className="flex items-center gap-3.5 px-4 py-4 border-b border-rule-soft last:border-b-0">
+          <span className="skeleton w-9 h-9 shrink-0" />
           <div className="flex-1 space-y-2">
-            <div className="skeleton h-3.5 w-1/3" />
-            <div className="skeleton h-3 w-1/2" />
+            <span className="skeleton block h-3 w-1/3" />
+            <span className="skeleton block h-2.5 w-1/2" />
           </div>
+          <span className="skeleton h-3 w-16 shrink-0" />
         </div>
       ))}
     </div>
@@ -141,12 +147,15 @@ export function SkeletonList({ rows = 4 }: { rows?: number }) {
 
 export function SkeletonCards({ count = 4 }: { count?: number }) {
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3" aria-busy="true">
+    <div className="panel grid grid-cols-2 lg:grid-cols-4" aria-busy="true">
       {Array.from({ length: count }, (_, i) => (
-        <div key={i} className="card p-4 space-y-3">
-          <div className="skeleton w-9 h-9 rounded-lg" />
-          <div className="skeleton h-3 w-2/3" />
-          <div className="skeleton h-5 w-1/2" />
+        <div
+          key={i}
+          className="p-5 space-y-3 border-r border-b border-rule-soft last:border-r-0 lg:border-b-0"
+        >
+          <span className="skeleton block h-2.5 w-2/3" />
+          <span className="skeleton block h-7 w-1/2" />
+          <span className="skeleton block h-2.5 w-3/4" />
         </div>
       ))}
     </div>
@@ -154,8 +163,8 @@ export function SkeletonCards({ count = 4 }: { count?: number }) {
 }
 
 /* ── Pagination ───────────────────────────────────────────────────
-   Prev/next with a page counter. The old build rendered one button per
-   page, which overflowed as soon as there were more than a handful. */
+   Prev/next with a page counter, set on the foot band of the table it
+   belongs to. */
 
 export function Pagination({
   page,
@@ -172,23 +181,23 @@ export function Pagination({
 }) {
   if (pages <= 1) return null
   return (
-    <div className="flex items-center justify-between gap-3 px-4 py-3 border-t border-border">
-      <p className="text-[13px] text-muted-foreground">
+    <div className="flex items-center justify-between gap-3 px-4 py-3 bg-band border-t border-rule">
+      <p className="text-[13px] text-muted-foreground tabular-nums">
         {total} {unit}
       </p>
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-2">
         <button
-          className="btn-outline btn-sm"
+          className="btn-secondary btn-sm"
           disabled={page <= 1}
           onClick={() => onChange(page - 1)}
         >
           Prec
         </button>
-        <span className="text-[13px] text-muted-foreground tabular-nums px-2">
+        <span className="text-[13px] text-muted-foreground tabular-nums px-1">
           {page} / {pages}
         </span>
         <button
-          className="btn-outline btn-sm"
+          className="btn-secondary btn-sm"
           disabled={page >= pages}
           onClick={() => onChange(page + 1)}
         >

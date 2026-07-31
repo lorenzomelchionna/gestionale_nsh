@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Pencil, Scissors, Clock, Globe } from 'lucide-react'
+import { Plus, Pencil, Scissors } from 'lucide-react'
 import { getServices, createService, updateService } from '@/services/api'
 import type { Service } from '@/types'
 import Sheet from '@/components/ui/Sheet'
@@ -56,7 +56,7 @@ export default function ServicesPage() {
       {isLoading ? (
         <SkeletonList rows={4} />
       ) : services.length === 0 ? (
-        <div className="card">
+        <div className="panel">
           <EmptyState
             icon={Scissors}
             title="Nessun servizio"
@@ -69,47 +69,72 @@ export default function ServicesPage() {
           />
         </div>
       ) : (
-        byCategory.map(({ category, items }) => (
-          <section key={category} className="space-y-2">
-            <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">
-              {category}
-            </h2>
-            {/* Card rows read cleanly at any width; the old 5-column table
-                overflowed horizontally on phones. */}
-            <div className="card divide-y divide-border overflow-hidden">
-              {items.map(s => (
-                <button
-                  key={s.id}
-                  onClick={() => { setSelected(s); setShowForm(true) }}
-                  className="w-full text-left p-4 flex items-center gap-3 hover:bg-muted/30 transition-colors"
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className={clsx('font-medium truncate', !s.is_active && 'text-muted-foreground line-through')}>
-                      {s.name}
-                    </p>
-                    {s.description && (
-                      <p className="text-xs text-muted-foreground truncate mt-0.5">{s.description}</p>
-                    )}
-                    <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <Clock className="w-3 h-3" /> {s.duration_slots * 30} min
-                      </span>
-                      {s.bookable_online && (
-                        <span className="flex items-center gap-1 text-info">
-                          <Globe className="w-3 h-3" /> online
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <p className="font-semibold tabular-nums">€{s.price.toFixed(2)}</p>
-                    <Pencil className="w-3.5 h-3.5 text-muted-foreground inline-block mt-1.5" />
-                  </div>
-                </button>
+        /* One ledger for the whole listino rather than a panel per category:
+           the categories are band rows inside it, so every price in the salon
+           still lines up down a single column. Only three columns show on a
+           phone, which is what kept the old table from fitting there. */
+        <div className="panel table-scroll">
+          <table className="ledger [&_tbody_tr:last-child_td]:border-b-0">
+            <thead>
+              <tr>
+                <th>Servizio</th>
+                <th className="num">Durata</th>
+                <th className="num">Prezzo</th>
+                <th className="w-px" />
+              </tr>
+            </thead>
+            <tbody>
+              {byCategory.map(({ category, items }) => (
+                <Fragment key={category}>
+                  <tr>
+                    <td colSpan={4} className="bg-band border-y border-rule py-1.5">
+                      <span className="kicker">{category}</span>
+                    </td>
+                  </tr>
+                  {items.map(s => (
+                    <tr
+                      key={s.id}
+                      onClick={() => { setSelected(s); setShowForm(true) }}
+                      className="cursor-pointer"
+                    >
+                      <td>
+                        <div className="flex items-baseline gap-2.5">
+                          <span className={clsx(!s.is_active && 'text-ink-3 line-through')}>
+                            {s.name}
+                          </span>
+                          {s.bookable_online && (
+                            <span className="kicker text-primary-dark shrink-0">online</span>
+                          )}
+                          {!s.is_active && <span className="kicker shrink-0">non attivo</span>}
+                        </div>
+                        {s.description && (
+                          <p className="text-[13px] text-ink-3 line-clamp-1 mt-0.5">
+                            {s.description}
+                          </p>
+                        )}
+                      </td>
+                      <td className="num text-muted-foreground whitespace-nowrap">
+                        {s.duration_slots * 30} min
+                      </td>
+                      <td className="num">
+                        <span className="amount">€{s.price.toFixed(2)}</span>
+                      </td>
+                      <td className="w-px">
+                        <button
+                          onClick={() => { setSelected(s); setShowForm(true) }}
+                          className="btn-icon"
+                          aria-label={`Modifica ${s.name}`}
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </Fragment>
               ))}
-            </div>
-          </section>
-        ))
+            </tbody>
+          </table>
+        </div>
       )}
 
       {showForm && (
@@ -203,7 +228,7 @@ function ServiceFormModal({ service, onClose, onSave, loading }: {
               value={form.duration_slots}
               onChange={e => setForm({ ...form, duration_slots: Number(e.target.value) })}
             />
-            <p className="text-xs text-muted-foreground mt-1.5">
+            <p className="note tabular-nums mt-1.5">
               {form.duration_slots} slot = {form.duration_slots * 30} minuti
             </p>
           </div>
@@ -251,24 +276,24 @@ export function Toggle({ label, description, checked, onChange }: {
       role="switch"
       aria-checked={checked}
       onClick={() => onChange(!checked)}
-      className="w-full flex items-center gap-3 p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors text-left"
+      className="w-full flex items-center gap-3 p-3 border border-border bg-field hover:bg-foreground/[0.05] transition-colors text-left"
     >
       <span className="min-w-0 flex-1">
-        <span className="block text-sm font-medium text-foreground">{label}</span>
-        {description && (
-          <span className="block text-xs text-muted-foreground mt-0.5">{description}</span>
-        )}
+        <span className="block text-sm text-foreground">{label}</span>
+        {description && <span className="block text-xs text-ink-3 mt-0.5">{description}</span>}
       </span>
+      {/* A square shuttle in a ruled track: the switch is a marker sliding in
+          a box, not a pill. */}
       <span
         className={clsx(
-          'relative w-11 h-6 rounded-full transition-colors shrink-0',
-          checked ? 'bg-primary' : 'bg-border'
+          'relative w-10 h-5 border transition-colors shrink-0',
+          checked ? 'border-primary bg-primary/10' : 'border-border bg-surface'
         )}
       >
         <span
           className={clsx(
-            'absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform',
-            checked && 'translate-x-5'
+            'absolute top-[3px] left-[3px] w-3 h-3 transition-transform',
+            checked ? 'bg-primary translate-x-5' : 'bg-border'
           )}
         />
       </span>

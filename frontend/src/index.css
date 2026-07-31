@@ -2,52 +2,108 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ═══════════════════════════════════════════════════════════════════════
+   Direzione Registro — the salon's ledger.
+
+   Warm paper, ink-dark chrome, a single gold accent, hairline rules and
+   square corners. Values come from the approved design document
+   ("Gestionale NSH.dc.html"); the names below are the ones the rest of the
+   app already speaks, so retuning the palette here moves every page.
+
+   Status is carried by form as much as by colour — a gold left rule for
+   done, a dashed edge for awaiting confirmation, a strikethrough for
+   cancelled — because the ledger only owns one hue.
+   ═══════════════════════════════════════════════════════════════════ */
+
 @layer base {
   :root {
-    --radius: 0.75rem;
+    /* Square by conviction: the ledger has no rounded corners. What little
+       radius survives is on badges, where 2px only softens the die-cut. */
+    --radius: 2px;
 
-    /* Light theme — warm whites */
-    --background: 40 14% 97%;
-    --surface: 0 0% 100%;
-    --elevated: 0 0% 100%;
-    --border: 33 17% 88%;
-    --muted: 36 20% 95%;
-    --muted-foreground: 30 10% 44%;
-    --foreground: 24 12% 12%;
+    /* ── Ground ─────────────────────────────────────────────────── */
+    --background: 34 50% 95%;  /* #f8f2ea — paper */
+    --surface: 36 71% 97%;     /* #fdf9f3 — panel */
+    --elevated: 36 71% 97%;    /* panels sit on paper, not above it */
+    --band: 36 40% 90%;        /* #f0e8dc — table headers, toolbars */
+    --muted: 36 40% 90%;
+    --field: 34 50% 95%;       /* #f8f2ea — input wells */
 
-    /* Primary — gold/tan */
-    --primary: 36 45% 52%;
-    --primary-dark: 34 44% 42%;
-    --primary-light: 38 46% 84%;
-    --primary-foreground: 0 0% 100%;
+    /* ── Rules ──────────────────────────────────────────────────── */
+    --border: 34 28% 78%;      /* #d6c8b6 — panel edge */
+    --rule: 35 32% 84%;        /* #e3d8c9 — section divider */
+    --rule-soft: 35 37% 88%;   /* #ece3d6 — row divider */
 
-    /* Semantic */
-    --success: 158 64% 34%;
-    --warning: 32 90% 44%;
-    --danger: 0 68% 50%;
-    --info: 213 80% 50%;
+    /* ── Ink ────────────────────────────────────────────────────── */
+    --foreground: 25 28% 14%;      /* #2c2119 */
+    --ink-2: 27 24% 24%;           /* #4b3b2e — body copy */
+    --muted-foreground: 28 14% 38%;/* #6f6053 */
+    --ink-3: 31 13% 54%;           /* #9a8b7b — labels, captions */
+
+    /* ── Chrome (the dark bar and the primary action) ───────────── */
+    --chrome: 25 22% 11%;      /* #211a15 */
+    --chrome-ink: 38 54% 84%;  /* #ecdcc0 — brand cream on chrome */
+    --chrome-dim: 32 16% 61%;  /* #ab9c8b — secondary text on chrome */
+    --on-chrome: 37 61% 93%;   /* #f7efe2 — body text on chrome */
+
+    /* The one filled, committing action on a screen. On paper that is ink;
+       at night ink on ink is invisible, so it becomes the gold instead —
+       hence its own token rather than a hard reference to either. */
+    --action: 25 22% 11%;
+    --action-foreground: 37 61% 93%;
+
+    /* ── Gold ───────────────────────────────────────────────────── */
+    --primary: 34 49% 46%;         /* #b07d3c — the accent itself */
+    --primary-dark: 33 56% 31%;    /* #7a5322 — accent text, passes AA */
+    --primary-light: 40 44% 73%;   /* #d8c39a — accent hairline */
+    --primary-foreground: 37 61% 93%;
+
+    /* ── Semantic ───────────────────────────────────────────────── */
+    /* Warning is the accent on purpose: in the ledger, "da confermare"
+       and "gold" are the same idea. */
+    --success: 140 25% 32%;
+    --warning: 34 49% 46%;
+    --danger: 10 44% 40%;      /* #94493a */
+    --info: 205 25% 40%;
   }
 
   .dark {
-    /* Dark theme — warm darks */
-    --background: 24 8% 9%;
-    --surface: 24 7% 13%;
-    --elevated: 24 7% 17%;
-    --border: 24 6% 23%;
-    --muted: 24 7% 18%;
-    --muted-foreground: 30 8% 65%;
-    --foreground: 35 20% 94%;
+    /* Night ledger: the paper darkens, the gold lifts to hold contrast
+       against it, and the chrome stays darker still so the bar keeps
+       reading as a separate plane. */
+    --background: 26 18% 9%;
+    --surface: 26 18% 12%;
+    --elevated: 28 17% 15%;
+    --band: 28 17% 16%;
+    --muted: 28 17% 16%;
+    --field: 26 18% 10%;
 
-    /* Primary lifts slightly in dark for contrast on dark surfaces */
-    --primary: 38 48% 62%;
-    --primary-dark: 38 48% 72%;
-    --primary-light: 35 30% 34%;
-    --primary-foreground: 24 10% 10%;
+    --border: 28 18% 26%;
+    --rule: 28 17% 21%;
+    --rule-soft: 28 16% 17%;
 
-    --success: 158 58% 48%;
-    --warning: 36 88% 58%;
-    --danger: 0 72% 62%;
-    --info: 213 82% 64%;
+    --foreground: 38 42% 90%;
+    --ink-2: 34 24% 80%;
+    --muted-foreground: 32 18% 66%;
+    --ink-3: 31 14% 55%;
+
+    --chrome: 25 24% 8%;
+    --chrome-ink: 38 54% 84%;
+    --chrome-dim: 32 16% 61%;
+    --on-chrome: 37 61% 93%;
+
+    --action: 36 55% 60%;
+    --action-foreground: 25 22% 11%;
+
+    --primary: 36 55% 60%;
+    --primary-dark: 38 60% 70%;
+    --primary-light: 34 25% 32%;
+    --primary-foreground: 25 22% 11%;
+
+    --success: 140 20% 55%;
+    --warning: 36 55% 60%;
+    --danger: 8 45% 58%;
+    --info: 205 25% 60%;
   }
 
   * {
@@ -68,8 +124,27 @@
     @apply bg-background text-foreground font-sans antialiased;
     margin: 0;
     padding: 0;
+    font-size: 15px;
+    line-height: 1.55;
     /* Prevent horizontal scroll on small screens */
     overflow-x: hidden;
+  }
+
+  /* Headings are the display face, set at the normal cut. Cormorant is
+     drawn light; adding weight to it at these sizes only muddies it. */
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-heading;
+    font-weight: 400;
+    line-height: 1.12;
+    letter-spacing: 0.01em;
+  }
+
+  /* Figures line up down a column — every price, time and count in the
+     app sits in a table sooner or later. */
+  input[type='number'],
+  time,
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
   }
 
   /* iOS zooms the viewport when focusing an input under 16px. Keep inputs at
@@ -84,7 +159,11 @@
 
   /* Visible, consistent keyboard focus. Mouse clicks stay clean. */
   :focus-visible {
-    @apply outline-none ring-2 ring-primary/60 ring-offset-2 ring-offset-background;
+    @apply outline-none ring-2 ring-primary/70 ring-offset-2 ring-offset-background;
+  }
+
+  ::selection {
+    background: hsl(var(--primary) / 0.28);
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -107,7 +186,7 @@
       @apply bg-transparent;
     }
     ::-webkit-scrollbar-thumb {
-      @apply bg-border rounded-full;
+      @apply bg-border;
     }
     ::-webkit-scrollbar-thumb:hover {
       @apply bg-muted-foreground/40;
@@ -117,71 +196,141 @@
 
 @layer components {
   /* ── Buttons ─────────────────────────────────────────────────────
-     min-h-touch keeps every button at a comfortable tap size on phones. */
+     Set in the display face, uppercase and letterspaced, the way a
+     printed form labels its actions. min-h-touch keeps every one of them
+     at a comfortable tap size on phones. */
   .btn {
-    @apply inline-flex items-center justify-center gap-2 min-h-touch px-4 rounded-lg
-           text-sm font-semibold transition-all active:scale-[0.98]
-           disabled:opacity-50 disabled:pointer-events-none select-none;
+    @apply inline-flex items-center justify-center gap-2 min-h-touch px-4
+           font-heading text-[13px] font-semibold uppercase tracking-[0.12em]
+           transition-colors select-none
+           disabled:opacity-45 disabled:pointer-events-none;
   }
+  /* The primary action is ink, not gold — gold is for emphasis, ink is for
+     commitment. This is the "Entra" / "Salva" / "Incassa" button. */
   .btn-primary {
-    @apply btn bg-primary text-primary-foreground hover:bg-primary-dark shadow-sm;
+    @apply btn bg-action text-action-foreground border border-action hover:bg-action/90;
+  }
+  /* Gold outline: the affirmative action inside a page that already has a
+     primary elsewhere ("Nuovo appuntamento"). */
+  .btn-accent {
+    @apply btn border border-primary text-primary bg-transparent hover:bg-primary/10;
   }
   .btn-secondary {
-    @apply btn bg-muted text-foreground hover:bg-border;
+    @apply btn border border-border text-muted-foreground bg-transparent hover:bg-foreground/[0.05];
   }
   .btn-outline {
-    @apply btn border border-border bg-surface text-foreground hover:bg-muted;
+    @apply btn border border-border text-muted-foreground bg-surface hover:bg-foreground/[0.05];
   }
   .btn-ghost {
-    @apply btn text-muted-foreground hover:bg-muted hover:text-foreground;
+    @apply btn border border-transparent text-muted-foreground hover:bg-foreground/[0.05] hover:text-foreground;
   }
   .btn-danger {
-    @apply btn bg-danger text-white hover:brightness-110 shadow-sm;
+    @apply btn border border-danger bg-danger text-white hover:bg-danger/90;
+  }
+  /* Outlined danger — destructive but not yet confirmed ("Esci"). */
+  .btn-danger-outline {
+    @apply btn border border-danger text-danger bg-transparent hover:bg-danger/10;
   }
   /* Compact variant for dense toolbars — still 40px tall, thumb-friendly. */
   .btn-sm {
-    @apply min-h-[2.5rem] px-3 text-[13px];
+    @apply min-h-[2.5rem] px-3 text-[11px] tracking-[0.1em];
   }
-  /* Square icon-only button */
+  /* Square icon-only button — square, like everything else here. */
   .btn-icon {
-    @apply inline-flex items-center justify-center w-touch h-touch rounded-lg
-           text-muted-foreground hover:bg-muted hover:text-foreground
-           transition-colors active:scale-95 shrink-0;
+    @apply inline-flex items-center justify-center w-touch h-touch
+           text-muted-foreground hover:bg-foreground/[0.05] hover:text-foreground
+           transition-colors shrink-0;
   }
 
-  /* ── Surfaces ────────────────────────────────────────────────── */
-  .card {
-    @apply bg-surface border border-border rounded-xl shadow-card;
+  /* ── Surfaces ──────────────────────────────────────────────────
+     A panel is a sheet of paper with a ruled edge. No shadow: depth here
+     comes from the rule, not from a glow. */
+  .card,
+  .panel {
+    @apply bg-surface border border-border;
   }
-  /* Tappable card (list rows on mobile) */
+  /* Tappable row/panel */
   .card-interactive {
-    @apply card transition-all hover:border-primary/40 hover:shadow-raised
-           active:scale-[0.99] cursor-pointer;
+    @apply card transition-colors hover:border-primary cursor-pointer;
+  }
+  /* The tinted strip that heads a table or a toolbar. */
+  .band {
+    @apply bg-band border-b border-rule;
   }
 
-  /* ── Forms ───────────────────────────────────────────────────── */
+  /* ── Type ──────────────────────────────────────────────────────
+     The small uppercase label that names a field, a column or a section.
+     It appears more than any other single element in the design. */
+  .kicker {
+    @apply block font-sans text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-3;
+  }
+  /* Display heading, for page and panel titles. */
+  .h-display {
+    @apply font-heading font-normal text-foreground;
+  }
+  /* Editorial aside — the italic Lora line under a title. */
+  .note {
+    @apply italic text-[13px] leading-relaxed text-ink-3;
+  }
+
+  /* ── Forms ─────────────────────────────────────────────────────
+     A field is a well cut into the paper: recessed ground, ruled edge,
+     no rounding. */
   .input {
-    @apply w-full min-h-touch border border-border rounded-lg px-3.5 py-2.5 text-sm
-           bg-surface text-foreground placeholder:text-muted-foreground/70
+    @apply w-full min-h-touch border border-border px-3.5 py-2.5 text-sm
+           bg-field text-foreground placeholder:text-ink-3
            transition-colors focus:outline-none focus:border-primary
-           focus:ring-2 focus:ring-primary/25 disabled:opacity-60;
+           disabled:opacity-60;
   }
   textarea.input {
     @apply py-2.5 leading-relaxed;
   }
   .label {
-    @apply block text-[13px] font-medium text-muted-foreground mb-1.5;
+    @apply kicker mb-1.5;
   }
-  /* Segmented control — the mobile-friendly replacement for button rows */
+  /* Segmented control — squared, hairline-divided, gold for the live option. */
   .segmented {
-    @apply inline-flex items-center gap-1 p-1 bg-muted rounded-lg;
+    @apply inline-flex items-stretch border border-border bg-surface;
   }
   .segmented-item {
-    @apply px-3 py-1.5 text-[13px] font-medium rounded-md text-muted-foreground
-           transition-colors whitespace-nowrap hover:text-foreground;
+    @apply px-3.5 py-2 font-heading text-[12px] uppercase tracking-[0.1em]
+           text-muted-foreground transition-colors whitespace-nowrap
+           border-l border-border first:border-l-0
+           hover:bg-foreground/[0.05];
   }
   .segmented-item-active {
-    @apply bg-surface text-foreground shadow-sm;
+    @apply bg-primary/10 text-primary hover:bg-primary/10;
+  }
+
+  /* ── Ledger tables ─────────────────────────────────────────────
+     The spine of the admin side: a banded header, hairline rows, figures
+     right-aligned on tabular numerals, and a summed foot. */
+  .ledger {
+    @apply w-full border-collapse text-sm;
+  }
+  .ledger thead th,
+  .ledger-head {
+    @apply bg-band border-b border-rule px-4 py-2.5 text-left
+           font-sans text-[10px] font-semibold uppercase tracking-[0.14em] text-ink-3;
+  }
+  .ledger tbody td,
+  .ledger-cell {
+    @apply border-b border-rule-soft px-4 py-3 text-foreground align-middle;
+  }
+  .ledger tbody tr:hover {
+    @apply bg-foreground/[0.05];
+  }
+  .ledger tfoot td,
+  .ledger-foot {
+    @apply bg-band px-4 py-3 text-[13px] text-muted-foreground;
+  }
+  /* Figures column. */
+  .num {
+    @apply text-right tabular-nums;
+  }
+  /* A money figure, set in the display face like the totals on a receipt. */
+  .amount {
+    @apply font-heading text-[15px] tabular-nums text-foreground;
   }
 
   /* ── Layout helpers ──────────────────────────────────────────── */
@@ -200,16 +349,36 @@
     -webkit-overflow-scrolling: touch;
   }
 
-  /* ── Status badges ───────────────────────────────────────────── */
+  /* ── Status badges ─────────────────────────────────────────────
+     One hue, four shapes. The design distinguishes states by edge and
+     weight rather than by colour, so these stay legible when printed and
+     do not import a second palette into the ledger. */
   .status-badge {
-    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold;
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-sm
+           font-sans text-[11px] font-semibold whitespace-nowrap;
   }
-  .status-pending   { @apply bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300; }
-  .status-confirmed { @apply bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300; }
-  .status-completed { @apply bg-gray-100 text-gray-700 dark:bg-gray-500/15 dark:text-gray-300; }
-  .status-cancelled { @apply bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300; }
-  .status-rejected  { @apply bg-red-200 text-red-900 dark:bg-red-500/25 dark:text-red-200; }
-  .status-rescheduled { @apply bg-blue-100 text-blue-800 dark:bg-blue-500/15 dark:text-blue-300; }
+  /* Awaiting a decision — dashed, the way an unposted line is pencilled in. */
+  .status-pending {
+    @apply border border-dashed border-primary text-primary-dark bg-primary/[0.08];
+  }
+  /* Agreed but not yet served — solid hairline. */
+  .status-confirmed {
+    @apply border border-primary-light text-primary-dark bg-primary/[0.08];
+  }
+  /* Served and posted — filled, the strongest mark on the row. */
+  .status-completed {
+    @apply border border-action bg-action text-action-foreground;
+  }
+  /* Struck from the register. */
+  .status-cancelled {
+    @apply border border-border text-ink-3 line-through;
+  }
+  .status-rejected {
+    @apply border border-danger text-danger bg-danger/[0.08];
+  }
+  .status-rescheduled {
+    @apply border border-border text-muted-foreground bg-band;
+  }
 }
 
 @layer utilities {
@@ -220,8 +389,8 @@
   .snap-start {
     scroll-snap-align: start;
   }
-  /* Skeleton shimmer */
+  /* Skeleton — a ruled blank, not a shimmering pill. */
   .skeleton {
-    @apply bg-muted rounded-md animate-pulse;
+    @apply bg-rule animate-pulse;
   }
 }

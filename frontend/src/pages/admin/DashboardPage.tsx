@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { TrendingUp, DollarSign, Calendar, Clock, ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import {
   AreaChart, Area, BarChart, Bar as RBar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Legend,
@@ -8,6 +8,7 @@ import {
 import { getDashboardStats, getRevenueChart, getYearlyChart } from '@/services/api'
 import { useUIStore } from '@/store/uiStore'
 import { PageHeader, Segmented, SkeletonCards } from '@/components/ui'
+import clsx from 'clsx'
 
 type Period = 'today' | 'week' | 'month' | 'year'
 
@@ -18,11 +19,27 @@ const PERIOD_OPTIONS: { value: Period; label: string }[] = [
   { value: 'year', label: 'Anno' },
 ]
 
-const CHART_COLORS = {
-  revenue: '#C8A96E',
-  expenses: '#F87171',
-  margin: '#34D399',
-  appointments: '#818CF8',
+/* Recharts writes colours into SVG attributes, so a chart cannot inherit the
+   CSS variables the rest of the page reads — the ledger tokens are repeated
+   here as literals, one set per theme, copied from index.css. The charts keep
+   the register's rule: money is gold, everything counted is ink. */
+const LEDGER_LIGHT = {
+  gold:  'hsl(34, 49%, 46%)',   /* --primary */
+  ink:   'hsl(25, 28%, 14%)',   /* --foreground */
+  ink2:  'hsl(27, 24%, 24%)',   /* --ink-2 */
+  ink3:  'hsl(31, 13%, 54%)',   /* --ink-3 */
+  rule:  'hsl(35, 32%, 84%)',   /* --rule */
+  panel: 'hsl(36, 71%, 97%)',   /* --surface */
+  edge:  'hsl(34, 28%, 78%)',   /* --border */
+}
+const LEDGER_DARK = {
+  gold:  'hsl(36, 55%, 60%)',
+  ink:   'hsl(38, 42%, 90%)',
+  ink2:  'hsl(34, 24%, 80%)',
+  ink3:  'hsl(31, 14%, 55%)',
+  rule:  'hsl(28, 17%, 21%)',
+  panel: 'hsl(26, 18%, 12%)',
+  edge:  'hsl(28, 18%, 26%)',
 }
 
 export default function DashboardPage() {
@@ -30,16 +47,14 @@ export default function DashboardPage() {
   const [year, setYear] = useState(new Date().getFullYear())
   const isDark = useUIStore(s => s.isDark)
 
-  // Charts are drawn on canvas, so they cannot inherit CSS variables the way
-  // the rest of the UI does — resolve the few colours they need per theme.
-  const axisColor = isDark ? '#8a8178' : '#8b8378'
-  const gridColor = isDark ? '#3a3733' : '#E5E0D8'
+  const ink = isDark ? LEDGER_DARK : LEDGER_LIGHT
+  const axisTick = { fontSize: 10, fill: ink.ink3 }
   const tooltipStyle = {
-    backgroundColor: isDark ? '#2b2825' : '#ffffff',
-    border: `1px solid ${gridColor}`,
-    borderRadius: 12,
+    backgroundColor: ink.panel,
+    border: `1px solid ${ink.edge}`,
+    borderRadius: 0,
     fontSize: 12,
-    color: isDark ? '#f0eae1' : '#1f1c19',
+    color: ink.ink,
   }
 
   const { data: stats, isLoading } = useQuery({
@@ -96,34 +111,29 @@ export default function DashboardPage() {
       {isLoading ? (
         <SkeletonCards count={4} />
       ) : (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <StatCard
-            icon={<DollarSign className="w-[18px] h-[18px]" />}
+        /* One sheet ruled into four cells, not four floating cards: the
+           figures are meant to be read across, like a summary line. */
+        <div className="panel grid grid-cols-2 lg:grid-cols-4">
+          <Figure
             label="Incassi totali"
             value={fmt(stats?.total_revenue ?? 0)}
             sub={period === 'year' ? `Spese: ${fmt(stats?.total_expenses ?? 0)}` : `Contanti: ${fmt(stats?.cash_revenue ?? 0)}`}
-            tone="success"
+            gold
           />
-          <StatCard
-            icon={<TrendingUp className="w-[18px] h-[18px]" />}
+          <Figure
             label="Margine netto"
             value={fmt(stats?.net_margin ?? 0)}
             sub={`Spese: ${fmt(stats?.total_expenses ?? 0)}`}
-            tone="info"
           />
-          <StatCard
-            icon={<Calendar className="w-[18px] h-[18px]" />}
+          <Figure
             label="Appuntamenti"
             value={String(stats?.appointment_count ?? 0)}
             sub="confermati / completati"
-            tone="primary"
           />
-          <StatCard
-            icon={<Clock className="w-[18px] h-[18px]" />}
+          <Figure
             label="In attesa"
             value={String(stats?.pending_appointments ?? 0)}
             sub="da confermare"
-            tone="warning"
           />
         </div>
       )}
@@ -131,43 +141,43 @@ export default function DashboardPage() {
       {period !== 'year' && (
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div className="card p-4">
-              <h3 className="text-sm font-semibold text-foreground mb-3">Incassi per tipo</h3>
+            <div className="panel p-5">
+              <h3 className="font-heading text-lg text-foreground border-b border-rule pb-2.5 mb-4">Incassi per tipo</h3>
               <div className="space-y-3">
                 <Bar label="Servizi" value={stats?.service_revenue ?? 0} total={stats?.total_revenue ?? 1} color="bg-primary" />
                 <Bar label="Prodotti" value={stats?.product_revenue ?? 0} total={stats?.total_revenue ?? 1} color="bg-primary-dark" />
               </div>
             </div>
-            <div className="card p-4">
-              <h3 className="text-sm font-semibold text-foreground mb-3">Metodo di pagamento</h3>
+            <div className="panel p-5">
+              <h3 className="font-heading text-lg text-foreground border-b border-rule pb-2.5 mb-4">Metodo di pagamento</h3>
               <div className="space-y-3">
-                <Bar label="Contanti" value={stats?.cash_revenue ?? 0} total={stats?.total_revenue ?? 1} color="bg-emerald-500" />
-                <Bar label="Carta" value={stats?.card_revenue ?? 0} total={stats?.total_revenue ?? 1} color="bg-blue-500" />
+                <Bar label="Contanti" value={stats?.cash_revenue ?? 0} total={stats?.total_revenue ?? 1} color="bg-primary" />
+                <Bar label="Carta" value={stats?.card_revenue ?? 0} total={stats?.total_revenue ?? 1} color="bg-ink-3" />
               </div>
             </div>
           </div>
 
-          <div className="card p-4">
-            <h3 className="text-sm font-semibold text-foreground mb-4">Incassi ultimi 30 giorni</h3>
+          <div className="panel p-5">
+            <h3 className="font-heading text-lg text-foreground border-b border-rule pb-2.5 mb-4">Incassi ultimi 30 giorni</h3>
             <ResponsiveContainer width="100%" height={180} className="sm:!h-[220px]">
               <AreaChart data={chartData ?? []} margin={{ top: 4, right: 4, bottom: 0, left: -18 }}>
                 <defs>
                   <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={CHART_COLORS.revenue} stopOpacity={0.35} />
-                    <stop offset="95%" stopColor={CHART_COLORS.revenue} stopOpacity={0} />
+                    <stop offset="5%" stopColor={ink.gold} stopOpacity={0.35} />
+                    <stop offset="95%" stopColor={ink.gold} stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke={ink.rule} vertical={false} />
                 <XAxis
                   dataKey="date"
-                  tick={{ fontSize: 10, fill: axisColor }}
+                  tick={axisTick}
                   tickLine={false}
                   axisLine={false}
                   minTickGap={24}
                   tickFormatter={d => `${d.slice(8)}/${d.slice(5, 7)}`}
                 />
                 <YAxis
-                  tick={{ fontSize: 10, fill: axisColor }}
+                  tick={axisTick}
                   tickLine={false}
                   axisLine={false}
                   width={52}
@@ -177,7 +187,7 @@ export default function DashboardPage() {
                 <Area
                   type="monotone"
                   dataKey="total"
-                  stroke={CHART_COLORS.revenue}
+                  stroke={ink.gold}
                   strokeWidth={2}
                   fill="url(#colorRevenue)"
                 />
@@ -189,15 +199,15 @@ export default function DashboardPage() {
 
       {period === 'year' && (
         <>
-          <div className="card p-4">
-            <h3 className="text-sm font-semibold text-foreground mb-4">
+          <div className="panel p-5">
+            <h3 className="font-heading text-lg text-foreground border-b border-rule pb-2.5 mb-4">
               Ricavi e spese mensili — {year}
             </h3>
             <ResponsiveContainer width="100%" height={220} className="sm:!h-[260px]">
               <BarChart data={yearlyData ?? []} barCategoryGap="25%" margin={{ top: 4, right: 4, bottom: 0, left: -18 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
-                <XAxis dataKey="month" tick={{ fontSize: 10, fill: axisColor }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
-                <YAxis tick={{ fontSize: 10, fill: axisColor }} tickLine={false} axisLine={false} width={52} tickFormatter={fmtCompact} />
+                <CartesianGrid strokeDasharray="3 3" stroke={ink.rule} vertical={false} />
+                <XAxis dataKey="month" tick={axisTick} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+                <YAxis tick={axisTick} tickLine={false} axisLine={false} width={52} tickFormatter={fmtCompact} />
                 <Tooltip
                   contentStyle={tooltipStyle}
                   formatter={(v: number, name: string) => [
@@ -209,28 +219,28 @@ export default function DashboardPage() {
                   formatter={name =>
                     name === 'revenue' ? 'Ricavi' : name === 'expenses' ? 'Spese' : 'Margine netto'
                   }
-                  iconType="circle"
+                  iconType="square"
                   iconSize={8}
                   wrapperStyle={{ fontSize: 11 }}
                 />
-                <RBar dataKey="revenue" fill={CHART_COLORS.revenue} radius={[3, 3, 0, 0]} />
-                <RBar dataKey="expenses" fill={CHART_COLORS.expenses} radius={[3, 3, 0, 0]} />
-                <RBar dataKey="net_margin" fill={CHART_COLORS.margin} radius={[3, 3, 0, 0]} />
+                <RBar dataKey="revenue" fill={ink.gold} radius={0} />
+                <RBar dataKey="expenses" fill={ink.ink3} radius={0} />
+                <RBar dataKey="net_margin" fill={ink.ink2} radius={0} />
               </BarChart>
             </ResponsiveContainer>
           </div>
 
-          <div className="card p-4">
-            <h3 className="text-sm font-semibold text-foreground mb-4">
+          <div className="panel p-5">
+            <h3 className="font-heading text-lg text-foreground border-b border-rule pb-2.5 mb-4">
               Appuntamenti mensili — {year}
             </h3>
             <ResponsiveContainer width="100%" height={170} className="sm:!h-[190px]">
               <BarChart data={yearlyData ?? []} barCategoryGap="30%" margin={{ top: 4, right: 4, bottom: 0, left: -24 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
-                <XAxis dataKey="month" tick={{ fontSize: 10, fill: axisColor }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
-                <YAxis tick={{ fontSize: 10, fill: axisColor }} tickLine={false} axisLine={false} width={40} allowDecimals={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke={ink.rule} vertical={false} />
+                <XAxis dataKey="month" tick={axisTick} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+                <YAxis tick={axisTick} tickLine={false} axisLine={false} width={40} allowDecimals={false} />
                 <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => [v, 'Appuntamenti']} />
-                <RBar dataKey="appointments" fill={CHART_COLORS.appointments} radius={[3, 3, 0, 0]} />
+                <RBar dataKey="appointments" fill={ink.ink2} radius={0} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -262,13 +272,13 @@ function YearlySummary({
   )
 
   return (
-    <div className="card overflow-hidden">
+    <div className="panel overflow-hidden">
       <div className="px-4 pt-4 pb-2">
-        <h3 className="text-sm font-semibold text-foreground">Riepilogo mensile {year}</h3>
+        <h3 className="font-heading text-lg text-foreground">Riepilogo mensile {year}</h3>
       </div>
 
       {/* Phones */}
-      <div className="sm:hidden divide-y divide-border">
+      <div className="sm:hidden divide-y divide-rule-soft">
         {rows.map(row => (
           <div key={row.month_num} className="px-4 py-3">
             <div className="flex items-center justify-between mb-1.5">
@@ -277,39 +287,39 @@ function YearlySummary({
             </div>
             <div className="grid grid-cols-3 gap-2 text-[13px]">
               <div>
-                <p className="text-[11px] text-muted-foreground">Ricavi</p>
-                <p className="font-medium text-emerald-600 dark:text-emerald-400">{fmt(row.revenue)}</p>
+                <p className="kicker">Ricavi</p>
+                <p className="font-medium text-primary-dark">{fmt(row.revenue)}</p>
               </div>
               <div>
-                <p className="text-[11px] text-muted-foreground">Spese</p>
-                <p className="font-medium text-red-500">{fmt(row.expenses)}</p>
+                <p className="kicker">Spese</p>
+                <p className="font-medium text-danger">{fmt(row.expenses)}</p>
               </div>
               <div>
-                <p className="text-[11px] text-muted-foreground">Margine</p>
-                <p className={`font-semibold ${row.net_margin >= 0 ? 'text-blue-600 dark:text-blue-400' : 'text-red-600'}`}>
+                <p className="kicker">Margine</p>
+                <p className={`font-semibold ${row.net_margin >= 0 ?'text-foreground' : 'text-danger'}`}>
                   {fmt(row.net_margin)}
                 </p>
               </div>
             </div>
           </div>
         ))}
-        <div className="px-4 py-3 bg-muted/50">
+        <div className="px-4 py-3 bg-band">
           <div className="flex items-center justify-between mb-1.5">
             <span className="font-semibold text-foreground">Totale</span>
             <span className="text-xs text-muted-foreground">{totals.appointments} appunt.</span>
           </div>
           <div className="grid grid-cols-3 gap-2 text-[13px]">
             <div>
-              <p className="text-[11px] text-muted-foreground">Ricavi</p>
-              <p className="font-semibold text-emerald-600 dark:text-emerald-400">{fmt(totals.revenue)}</p>
+              <p className="kicker">Ricavi</p>
+              <p className="font-semibold text-primary-dark">{fmt(totals.revenue)}</p>
             </div>
             <div>
-              <p className="text-[11px] text-muted-foreground">Spese</p>
-              <p className="font-semibold text-red-500">{fmt(totals.expenses)}</p>
+              <p className="kicker">Spese</p>
+              <p className="font-semibold text-danger">{fmt(totals.expenses)}</p>
             </div>
             <div>
-              <p className="text-[11px] text-muted-foreground">Margine</p>
-              <p className="font-bold text-blue-600 dark:text-blue-400">{fmt(totals.net_margin)}</p>
+              <p className="kicker">Margine</p>
+              <p className="font-bold text-foreground">{fmt(totals.net_margin)}</p>
             </div>
           </div>
         </div>
@@ -319,21 +329,21 @@ function YearlySummary({
       <div className="hidden sm:block table-scroll">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-border">
-              <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Mese</th>
-              <th className="px-4 py-2 text-right text-xs font-medium text-muted-foreground">Ricavi</th>
-              <th className="px-4 py-2 text-right text-xs font-medium text-muted-foreground">Spese</th>
-              <th className="px-4 py-2 text-right text-xs font-medium text-muted-foreground">Margine</th>
-              <th className="px-4 py-2 text-right text-xs font-medium text-muted-foreground">Appuntamenti</th>
+            <tr className="border-b border-rule">
+              <th className="px-4 py-2 text-left kicker">Mese</th>
+              <th className="px-4 py-2 text-right kicker">Ricavi</th>
+              <th className="px-4 py-2 text-right kicker">Spese</th>
+              <th className="px-4 py-2 text-right kicker">Margine</th>
+              <th className="px-4 py-2 text-right kicker">Appuntamenti</th>
             </tr>
           </thead>
           <tbody>
             {rows.map(row => (
-              <tr key={row.month_num} className="border-b border-border last:border-0 hover:bg-muted/40 transition-colors">
+              <tr key={row.month_num} className="border-b border-rule-soft last:border-0 hover:bg-foreground/[0.05] transition-colors">
                 <td className="px-4 py-2.5 font-medium text-foreground">{row.month}</td>
-                <td className="px-4 py-2.5 text-right text-emerald-600 dark:text-emerald-400 font-medium tabular-nums">{fmt(row.revenue)}</td>
-                <td className="px-4 py-2.5 text-right text-red-500 tabular-nums">{fmt(row.expenses)}</td>
-                <td className={`px-4 py-2.5 text-right font-semibold tabular-nums ${row.net_margin >= 0 ? 'text-blue-600 dark:text-blue-400' : 'text-red-600'}`}>
+                <td className="px-4 py-2.5 text-right text-primary-dark font-medium tabular-nums">{fmt(row.revenue)}</td>
+                <td className="px-4 py-2.5 text-right text-danger tabular-nums">{fmt(row.expenses)}</td>
+                <td className={`px-4 py-2.5 text-right font-semibold tabular-nums ${row.net_margin >= 0 ?'text-foreground' : 'text-danger'}`}>
                   {fmt(row.net_margin)}
                 </td>
                 <td className="px-4 py-2.5 text-right text-muted-foreground tabular-nums">{row.appointments}</td>
@@ -341,11 +351,11 @@ function YearlySummary({
             ))}
           </tbody>
           <tfoot>
-            <tr className="bg-muted/50">
+            <tr className="bg-band">
               <td className="px-4 py-2.5 font-semibold text-foreground">Totale</td>
-              <td className="px-4 py-2.5 text-right text-emerald-600 dark:text-emerald-400 font-semibold tabular-nums">{fmt(totals.revenue)}</td>
-              <td className="px-4 py-2.5 text-right text-red-500 font-semibold tabular-nums">{fmt(totals.expenses)}</td>
-              <td className="px-4 py-2.5 text-right text-blue-600 dark:text-blue-400 font-bold tabular-nums">{fmt(totals.net_margin)}</td>
+              <td className="px-4 py-2.5 text-right text-primary-dark font-semibold tabular-nums">{fmt(totals.revenue)}</td>
+              <td className="px-4 py-2.5 text-right text-danger font-semibold tabular-nums">{fmt(totals.expenses)}</td>
+              <td className="px-4 py-2.5 text-right text-foreground font-bold tabular-nums">{fmt(totals.net_margin)}</td>
               <td className="px-4 py-2.5 text-right text-muted-foreground font-semibold tabular-nums">{totals.appointments}</td>
             </tr>
           </tfoot>
@@ -355,28 +365,26 @@ function YearlySummary({
   )
 }
 
-const TONES = {
-  success: 'bg-emerald-500/12 text-emerald-600 dark:text-emerald-400',
-  info: 'bg-blue-500/12 text-blue-600 dark:text-blue-400',
-  primary: 'bg-primary/12 text-primary',
-  warning: 'bg-amber-500/12 text-amber-600 dark:text-amber-400',
-}
-
-function StatCard({ icon, label, value, sub, tone }: {
-  icon: React.ReactNode
+/* A cell of the summary sheet: what it counts, the figure, and the note that
+   qualifies it. Money leads in gold; everything counted stays ink. */
+function Figure({ label, value, sub, gold = false }: {
   label: string
   value: string
   sub: string
-  tone: keyof typeof TONES
+  gold?: boolean
 }) {
   return (
-    <div className="card p-3.5 sm:p-4">
-      <div className={`w-9 h-9 ${TONES[tone]} rounded-lg flex items-center justify-center mb-3`}>
-        {icon}
-      </div>
-      <p className="text-xs text-muted-foreground truncate">{label}</p>
-      <p className="text-lg sm:text-xl font-bold text-foreground mt-0.5 tabular-nums">{value}</p>
-      <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{sub}</p>
+    <div className="p-5 border-r border-b border-rule-soft last:border-r-0 lg:border-b-0 [&:nth-child(2)]:border-r-0 lg:[&:nth-child(2)]:border-r">
+      <span className="kicker truncate">{label}</span>
+      <p
+        className={clsx(
+          'font-heading text-[32px] leading-none mt-2 tabular-nums',
+          gold ? 'text-primary-dark' : 'text-foreground'
+        )}
+      >
+        {value}
+      </p>
+      <p className="text-xs text-muted-foreground mt-2 truncate">{sub}</p>
     </div>
   )
 }
@@ -391,8 +399,8 @@ function Bar({ label, value, total, color }: {
         <span className="text-muted-foreground">{label}</span>
         <span className="font-medium tabular-nums">€{value.toFixed(2)}</span>
       </div>
-      <div className="h-2 bg-muted rounded-full overflow-hidden">
-        <div className={`h-full ${color} rounded-full transition-all`} style={{ width: `${pct}%` }} />
+      <div className="h-2 bg-muted overflow-hidden">
+        <div className={`h-full ${color} transition-all`} style={{ width: `${pct}%` }} />
       </div>
     </div>
   )

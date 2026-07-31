@@ -91,9 +91,8 @@ export default function ClientsPage() {
               >
                 <Avatar client={client} />
                 <div className="min-w-0 flex-1">
-                  <p className="font-medium text-foreground truncate flex items-center gap-1.5">
+                  <p className="font-medium text-foreground truncate">
                     {client.first_name} {client.last_name}
-                    {client.account_id && <OnlineTag />}
                   </p>
                   <div className="flex items-center gap-3 mt-0.5 text-[13px] text-muted-foreground">
                     {client.phone && (
@@ -141,11 +140,8 @@ export default function ClientsPage() {
                 {clients.map(client => (
                   <tr key={client.id} className="transition-colors">
                     <td>
-                      <span className="flex items-center gap-2">
-                        <span className="font-heading text-[15px] tracking-[0.03em]">
-                          {client.first_name} {client.last_name}
-                        </span>
-                        {client.account_id && <OnlineTag />}
+                      <span className="font-heading text-[15px] tracking-[0.03em]">
+                        {client.first_name} {client.last_name}
                       </span>
                     </td>
                     <td className="text-muted-foreground tabular-nums">{client.phone ?? '–'}</td>
@@ -198,13 +194,6 @@ function Avatar({ client }: { client: Client }) {
         {client.last_name?.[0]?.toUpperCase()}
       </span>
     </div>
-  )
-}
-
-/** Marks a client who signed up on the portal rather than at the counter. */
-function OnlineTag() {
-  return (
-    <span className="status-badge status-confirmed shrink-0">online</span>
   )
 }
 

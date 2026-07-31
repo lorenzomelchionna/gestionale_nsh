@@ -50,9 +50,6 @@ export default function ClientDetailPage() {
         <h1 className="text-title text-foreground truncate">
           {client.first_name} {client.last_name}
         </h1>
-        {client.account_id && (
-          <span className="status-badge status-confirmed">account online</span>
-        )}
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[22rem_1fr] items-start">

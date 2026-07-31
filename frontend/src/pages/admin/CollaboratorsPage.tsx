@@ -170,10 +170,12 @@ function CollaboratorCard({ collaborator: c, services, onEdit, onUpdateSchedule,
           <p className="text-xs text-ink-3 truncate">{c.email ?? c.phone ?? '–'}</p>
         </div>
         <div className="flex items-center gap-1.5">
+          {/* Only whether they still work here. Being pickable in the public
+              flow is a setting, not a state worth reporting on every card —
+              it lives in the edit form, where it can be changed. */}
           {!c.is_active && (
             <span className="status-badge border border-border text-ink-3">inattivo</span>
           )}
-          {c.visible_online && <span className="status-badge status-confirmed">online</span>}
           <button onClick={onEdit} className="btn-icon !w-9 !h-9 -mr-1.5">
             <Edit className="w-4 h-4" />
           </button>

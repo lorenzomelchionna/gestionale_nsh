@@ -196,11 +196,9 @@ Note:
       non può mostrare che servizio è stato fatto — né nella scheda cliente né
       nell'area del cliente. Va riempito nel router leggendo
       `appointment_services` → `Service.name`, oppure va tolto dallo schema.
-- [ ] Togliere la pastiglia "online" dalle schede collaboratore
-      (`frontend/src/pages/admin/CollaboratorsPage.tsx`): al salone non
-      interessa sapere chi è visibile online. Il campo `visible_online` resta —
-      decide se il collaboratore è selezionabile nel portale pubblico — va via
-      solo il badge sulla scheda.
+- [x] ~~Togliere la pastiglia "online" dalle schede collaboratore~~ — fatto.
+      Il campo `visible_online` resta e si cambia dal form di modifica: decide
+      se il collaboratore è selezionabile nel portale pubblico.
 
 ---
 

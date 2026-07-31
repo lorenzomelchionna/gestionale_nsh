@@ -199,6 +199,14 @@ Note:
 - [x] ~~Togliere la pastiglia "online" dalle schede collaboratore~~ — fatto.
       Il campo `visible_online` resta e si cambia dal form di modifica: decide
       se il collaboratore è selezionabile nel portale pubblico.
+- [ ] Togliere la pastiglia "online" **anche dai clienti**: la `OnlineTag` in
+      `ClientsPage.tsx` (scheda su telefono + riga di tabella) e il badge
+      "account online" nell'intestazione di `ClientDetailPage.tsx`.
+      Il gestionale non ha modo di sapere chi è connesso e non lo vuole
+      mostrare. Nota per chi lo fa: lì "online" non significava presenza ma
+      "si è registrato dal portale" (`account_id` valorizzato) — il campo resta,
+      è quello che collega il cliente al suo account. Va via solo l'etichetta,
+      che dice una cosa diversa da quella che sembra.
 
 ---
 

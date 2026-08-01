@@ -35,6 +35,8 @@ fallback SMTP (solo dev locale). Mittente verificato: `newstylehair2019@gmail.co
   succederebbe nulla: `seed_demo()` esce subito se esiste almeno un servizio,
   e in produzione ce ne sono 19 reali coi prezzi del salone.
 - [ ] (Opz.) Dominio + branding `noreply@newstylehair.it` (ora From = Gmail).
+- [ ] `notify_new_booking` è solo un `print()`: una prenotazione online non
+  avvisa nessuno dello staff. Si scopre solo aprendo "In attesa".
 
 ---
 
@@ -74,7 +76,11 @@ Passi WhatsApp produzione (qualunque scenario):
   Password temporanee generate e comunicate a voce, da cambiare al primo accesso
   da Team e accessi. Permessi verificati in produzione per tutti: calendario,
   clienti e chat sì; dashboard, incassi, spese, team e impostazioni no.
-- [ ] Servizi assegnati a ciascun collaboratore (dopo che Flavia inserisce il listino)
+- [x] ~~Servizi assegnati a ciascun collaboratore~~ — verificato 2026-08-01 su
+  produzione: **19 servizi su 19** hanno almeno un operatore, quindi nessuno
+  può scegliere un servizio e trovare il passo "Con chi" vuoto.
+  Flavia 16 (colore, taglio, trattamenti), Raffaella 8 (colore e styling),
+  Vincenzo 7 (barbiere: barba, taglio uomo/bambino, taglio+barba).
 - [x] Telefoni clienti in E.164 — 2026-07-29: normalizzati automaticamente in
   scrittura (`app/utils/phone.py`), si possono digitare in qualunque formato.
   Serviva perché la registrazione online e la chat WhatsApp cercano il cliente
@@ -139,6 +145,10 @@ Passi WhatsApp produzione (qualunque scenario):
 
 # (storico) — note di setup precedenti
 
+> ⚠️ **Istantanea superata.** Quanto segue fotografa una situazione
+> passata. Le caselle non spuntate qui sotto **non sono lavoro da fare**:
+> lo stato vero è in cima al documento. Non modificare, serve da cronologia.
+
 Stato attuale: codice pronto e funzionante. Entrambi i canali in **stub mode**
 (nessun invio reale) finché le credenziali non sono configurate.
 
@@ -191,9 +201,8 @@ Note:
 | Reset password | richiesta reset cliente | email + WA |
 | Messaggio custom | pagina Messaggi admin | canale scelto |
 
-## TODO minori
+## TODO minori (storici — le voci vive stanno nella Roadmap in cima)
 
-- [ ] `notify_new_booking` solo `print()` — implementare notifica reale allo staff per prenotazioni online
 - [x] ~~`service_names` non veniva mai popolato~~ — risolto. La proiezione sta
       in `AppointmentOutWithNames.from_appointment` e i caricamenti eager in
       `appointment_detail_loads()`: prima la regola era copiata in quattro
@@ -210,6 +219,10 @@ Note:
 ---
 
 # Stato produzione Railway (verificato 2026-05-30)
+
+> ⚠️ **Istantanea superata.** Quanto segue fotografa una situazione
+> passata. Le caselle non spuntate qui sotto **non sono lavoro da fare**:
+> lo stato vero è in cima al documento. Non modificare, serve da cronologia.
 
 Progetto: **zucchini-blessing** (id `88babcdd-d33d-4130-bb22-0a8c3d5d5037`)
 Env: **production** (id `b92d9278-66c0-42a4-91d3-714e731f2669`)

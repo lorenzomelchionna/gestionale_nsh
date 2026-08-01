@@ -30,7 +30,10 @@ fallback SMTP (solo dev locale). Mittente verificato: `newstylehair2019@gmail.co
 ### Restano (NON bloccanti)
 - [ ] **WhatsApp produzione**: ora è Sandbox (solo numeri che fanno `join`, scade 72h).
   Per clienti reali serve numero WhatsApp Business + template Meta approvati.
-- [ ] `SEED_DEMO=true` sul backend → disattivare prima del go-live reale.
+- [x] ~~`SEED_DEMO` da disattivare~~ — verificato 2026-08-01: `SEED_DEMO=false`
+  sul backend, non impostata sul worker. Anche se tornasse `true` non
+  succederebbe nulla: `seed_demo()` esce subito se esiste almeno un servizio,
+  e in produzione ce ne sono 19 reali coi prezzi del salone.
 - [ ] (Opz.) Dominio + branding `noreply@newstylehair.it` (ora From = Gmail).
 
 ---

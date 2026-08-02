@@ -35,8 +35,14 @@ fallback SMTP (solo dev locale). Mittente verificato: `newstylehair2019@gmail.co
   succederebbe nulla: `seed_demo()` esce subito se esiste almeno un servizio,
   e in produzione ce ne sono 19 reali coi prezzi del salone.
 - [ ] (Opz.) Dominio + branding `noreply@newstylehair.it` (ora From = Gmail).
-- [ ] `notify_new_booking` è solo un `print()`: una prenotazione online non
-  avvisa nessuno dello staff. Si scopre solo aprendo "In attesa".
+- [x] ~~`notify_new_booking` è solo un `print()`~~ — fatto 2026-08-02. Erano tre
+  bug in fila, non uno: l'endpoint non accodava niente, il task stampava e
+  basta, e accodare prima del commit avrebbe fatto trovare al worker una
+  prenotazione che ancora non esiste. Ora la richiesta parte via email a tutti
+  gli admin attivi + al collaboratore prenotato (chiunque possa rispondere:
+  confermare è un permesso `staff`, non solo admin). Niente WhatsApp allo
+  staff: passerebbe dalla stessa Sandbox Twilio che parla solo con chi ha
+  mandato `join`, quindi sarebbe un canale che perde i messaggi in silenzio.
 
 ---
 
@@ -104,6 +110,14 @@ Passi WhatsApp produzione (qualunque scenario):
   **Prerequisito**: WhatsApp fuori dalla Sandbox Twilio, altrimenti il codice
   arriva solo a chi ha già fatto il `join` (vedi sezione WhatsApp produzione).
   In alternativa SMS Twilio, che si paga a messaggio.
+- [ ] **Stessa gara di commit sul lato admin** — trovata il 2026-08-02 mentre si
+  sistemava `notify_new_booking`. In `api/admin/appointments.py`
+  `_trigger_booking_confirmation` viene chiamata dopo `flush()` ma prima che
+  `get_db` faccia commit: il worker gira in un'altra transazione, quindi alla
+  creazione di un appuntamento può non trovare la riga e la conferma al cliente
+  non parte mai, in silenzio. Il fix è lo stesso già applicato al portale
+  (`await db.commit()` prima di accodare) e il test di regressione da copiare è
+  `tests/test_new_booking_alert.py::TestTheBookingIsReadableWhenTheAlertIsQueued`.
 - [x] Dati reali: collaboratori creati con orari lun–ven 08:00–19:00
 - [x] Cambiare password admin demo (`admin123`) — 2026-07-28: email → `newstylehair2019@gmail.com`,
   password ruotata (generata e mostrata una volta in chat, da salvare in un password manager)

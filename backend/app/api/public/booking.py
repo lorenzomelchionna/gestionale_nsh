@@ -37,6 +37,21 @@ class DayAvailability(BaseModel):
     slots: int
 
 
+def _trigger_new_booking_alert(appointment_id: int):
+    """Fire-and-forget staff alert for a booking made from the portal.
+
+    Queueing must never sink the booking itself: the client did nothing wrong
+    if Redis is unreachable, and the request is safely in the database by the
+    time we get here — worst case the salon finds it under "In attesa", which
+    is exactly the situation before this alert existed.
+    """
+    try:
+        from app.tasks.reminders import notify_new_booking
+        notify_new_booking.delay(appointment_id)
+    except Exception as e:
+        print(f"[NOTIFY] Could not queue staff alert for appointment {appointment_id}: {e}")
+
+
 # ── Public (no auth) ──────────────────────────────────────────────
 
 @router.get("/services", response_model=List[ServiceOut])
@@ -250,8 +265,12 @@ async def book_appointment(
     await db.flush()
     await db.refresh(appt, ["appointment_services"])
 
-    # WA confirmation queued (sent only when admin confirms — status is pending here,
-    # so we fire at confirmation time via admin endpoint instead)
+    # The client's confirmation is not sent here: the booking is `pending` and
+    # only the salon can promise a slot, so that message fires from the admin
+    # confirm endpoint. What has to leave now is the other direction — telling
+    # the salon a stranger is waiting for an answer.
+    await db.commit()
+    _trigger_new_booking_alert(appt.id)
 
     return AppointmentOut.model_validate(appt)
 

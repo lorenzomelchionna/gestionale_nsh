@@ -1,4 +1,5 @@
 """Email utility — Brevo HTTP API (preferred) with SMTP fallback."""
+import html
 import smtplib
 import socket
 from email.mime.text import MIMEText
@@ -147,6 +148,53 @@ async def send_booking_confirmation_email(appointment) -> None:
     <p>Ti aspettiamo!</p>
     """
     await send_email(client.email, subject, body)
+
+
+async def send_new_booking_staff_email(to_email: str, appointment) -> None:
+    """Tell the salon that a client booked online and is waiting for an answer.
+
+    This is the only message in this module that goes to staff rather than to a
+    client, and the only one carrying text a stranger typed: the client's own
+    name and notes. Everything interpolated here is escaped, because the
+    recipient is an inbox we control and an unescaped `<a href>` in a booking
+    note would be a phishing link with the salon's own sender on it.
+    """
+    client = appointment.client
+    collab = appointment.collaborator
+    start = appointment.start_time.strftime("%d/%m/%Y alle %H:%M")
+
+    client_name = f"{client.first_name} {client.last_name}" if client else "Cliente sconosciuto"
+    collab_name = f"{collab.first_name} {collab.last_name}" if collab else "—"
+    services = " + ".join(
+        s.service.name for s in appointment.appointment_services if s.service
+    ) or "—"
+
+    e = html.escape
+    rows = [
+        f"<li>Cliente: <strong>{e(client_name)}</strong></li>",
+        f"<li>Quando: <strong>{e(start)}</strong></li>",
+        f"<li>Con: <strong>{e(collab_name)}</strong></li>",
+        f"<li>Servizi: <strong>{e(services)}</strong></li>",
+    ]
+    if client and client.phone:
+        rows.insert(1, f"<li>Telefono: <strong>{e(client.phone)}</strong></li>")
+
+    note_block = (
+        f"<p>Note del cliente: <em>{e(appointment.notes)}</em></p>"
+        if appointment.notes else ""
+    )
+    pending_url = f"{settings.FRONTEND_URL.rstrip('/')}/admin/appointments/pending"
+
+    subject = f"Nuova prenotazione online – {start} – {client_name}"
+    body = f"""
+    <h2>New Style Hair</h2>
+    <p><strong>Nuova prenotazione online</strong>, in attesa di conferma.</p>
+    <ul>{''.join(rows)}</ul>
+    {note_block}
+    <p><a href="{e(pending_url)}">Apri le richieste in attesa</a></p>
+    <p>Il cliente non riceve conferma finché la richiesta non viene accettata.</p>
+    """
+    await send_email(to_email, subject, body)
 
 
 async def send_password_reset_email(to_email: str, first_name: str, reset_url: str) -> None:

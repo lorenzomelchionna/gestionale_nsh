@@ -150,11 +150,47 @@ Passi WhatsApp produzione (qualunque scenario):
   Comandi utili: `railway usage`, `railway usage projects`,
   `railway usage limit status`.
 
-### Allineamento da controllare
+### Allineamento da controllare (go-live)
 - [x] `closed_weekdays` allineato — 2026-07-29: confermato chiuso **domenica e
   lunedì**. Orario dei 3 collaboratori aggiornato da lun–ven a **mar–sab
   08:00–19:00** (nessun appuntamento attivo di lunedì nel DB, nessuna
   prenotazione persa).
+
+---
+
+## Funzionalità richieste
+
+Non bloccano il go-live: il gestionale funziona senza. Stanno qui separate
+apposta, così le caselle aperte qui sotto non si confondono con quelle della
+roadmap sopra.
+
+### Immagini dei prodotti — richiesta 2026-08-02
+
+- [ ] Caricare una foto per ogni prodotto e mostrarla in magazzino.
+
+**Il campo c'è già**: `products.photo_url` (`String(500)`, nullable) esiste nel
+modello, nello schema Pydantic e nei tipi TypeScript — e lo stesso vale per
+`collaborators.photo_url`. Nessuno dei due viene mai scritto né letto: non
+esiste un endpoint di upload (`UploadFile` non compare da nessuna parte) e
+`ProductsPage.tsx` non nomina mai il campo. Quindi **niente migration**, il
+lavoro è tutto intorno.
+
+**La decisione vera è dove finiscono i file.** Il campo è lungo 500 caratteri,
+cioè è pensato per un URL, non per un blob — e il filesystem dei container
+Railway è effimero: quello che ci scrivi sparisce al primo redeploy, che qui
+avviene a ogni push su `main`. Quindi il disco locale è escluso a meno di non
+montare un volume.
+
+| Opzione | Costo | Nota |
+|---|---|---|
+| Volume Railway | si paga a GB | il consumo oggi è ~$2/mese ed è quasi tutto RAM; hard limit a $10 |
+| Object storage esterno (S3, R2, Cloudinary) | free tier ampi | serve una chiave in più da gestire |
+| Base64 nel database | "gratis" | gonfia ogni query sui prodotti, sconsigliato |
+
+Da valutare anche: ridimensionamento lato server (una foto da telefono è 4–8 MB
+e nessuno la guarda a quella risoluzione), limite di dimensione e tipo MIME
+accettato — un upload senza controlli è un endpoint che accetta qualunque file
+da chiunque abbia un login.
 
 ---
 

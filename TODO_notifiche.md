@@ -110,14 +110,15 @@ Passi WhatsApp produzione (qualunque scenario):
   **Prerequisito**: WhatsApp fuori dalla Sandbox Twilio, altrimenti il codice
   arriva solo a chi ha già fatto il `join` (vedi sezione WhatsApp produzione).
   In alternativa SMS Twilio, che si paga a messaggio.
-- [ ] **Stessa gara di commit sul lato admin** — trovata il 2026-08-02 mentre si
-  sistemava `notify_new_booking`. In `api/admin/appointments.py`
-  `_trigger_booking_confirmation` viene chiamata dopo `flush()` ma prima che
-  `get_db` faccia commit: il worker gira in un'altra transazione, quindi alla
-  creazione di un appuntamento può non trovare la riga e la conferma al cliente
-  non parte mai, in silenzio. Il fix è lo stesso già applicato al portale
-  (`await db.commit()` prima di accodare) e il test di regressione da copiare è
-  `tests/test_new_booking_alert.py::TestTheBookingIsReadableWhenTheAlertIsQueued`.
+- [x] ~~Stessa gara di commit sul lato admin~~ — fatto 2026-08-02, trovata
+  mentre si sistemava `notify_new_booking`. In `api/admin/appointments.py`
+  `_trigger_booking_confirmation` partiva dopo `flush()` ma prima che `get_db`
+  facesse commit: alla creazione di un appuntamento il worker poteva non
+  trovare la riga e la conferma al cliente non partiva mai, senza una riga di
+  log. Alla conferma di una richiesta il difetto era più sottile — la riga
+  c'era, ma con lo stato ancora `pending`. Ora entrambe committano prima di
+  accodare. Regressione in `tests/test_admin_confirmation_commit.py`, che legge
+  da una connessione separata nell'istante in cui l'id viene passato.
 - [x] Dati reali: collaboratori creati con orari lun–ven 08:00–19:00
 - [x] Cambiare password admin demo (`admin123`) — 2026-07-28: email → `newstylehair2019@gmail.com`,
   password ruotata (generata e mostrata una volta in chat, da salvare in un password manager)

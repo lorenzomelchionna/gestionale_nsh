@@ -122,9 +122,11 @@ async def create_appointment(
             service_id=svc.id,
             price_snapshot=float(svc.price),
         ))
-    await db.flush()
-
-    # WA confirmation (admin-created appointments are immediately confirmed)
+    # Committed before the hand-off, not after: the worker reads the
+    # appointment from its own transaction, so an id queued while this one is
+    # still open points at a row it cannot see — and the client's confirmation
+    # is dropped in silence.
+    await db.commit()
     _trigger_booking_confirmation(appt.id)
 
     return _enrich(await _load_appointment(db, appt.id))
@@ -187,7 +189,11 @@ async def confirm_appointment(
     if a.status != AppointmentStatus.pending:
         raise HTTPException(status_code=400, detail="Solo gli appuntamenti 'in attesa' possono essere confermati")
     a.status = AppointmentStatus.confirmed
-    await db.flush()
+    # The row already exists here, so the worker would find it — but with the
+    # old status. Committing first also means a request that fails afterwards
+    # cannot leave the client holding a confirmation for an appointment that
+    # was rolled back.
+    await db.commit()
     _trigger_booking_confirmation(appointment_id)
     return _enrich(await _load_appointment(db, appointment_id))
 

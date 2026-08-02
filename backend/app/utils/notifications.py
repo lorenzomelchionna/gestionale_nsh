@@ -65,6 +65,47 @@ async def notify_appointment_reminder(db: AsyncSession, appointment) -> None:
             print(f"[NOTIFY:reminder:wa] appt={appointment.id} err={e}")
 
 
+async def notify_staff_new_booking(db: AsyncSession, appointment) -> list[str]:
+    """Sent when a client books online — the request lands as `pending` and
+    nobody in the salon is told unless this runs.
+
+    Goes to everyone who can actually answer it: the admins, plus the
+    collaborator the slot was booked with, since confirming is a `staff`-level
+    action and not an admin-only one. Email only — WhatsApp reaches staff
+    through the same Twilio Sandbox that only talks to numbers which have sent
+    `join`, so it would be a channel that silently drops messages.
+
+    Returns the addresses written to, so the caller can log an empty salon
+    instead of assuming it worked.
+    """
+    from app.models.user import User, UserRole
+
+    recipients: list[str] = []
+    seen: set[str] = set()
+
+    admins = await db.execute(
+        select(User).where(User.role == UserRole.admin, User.is_active == True)  # noqa: E712
+    )
+    for user in admins.scalars().all():
+        if user.email and user.email.lower() not in seen:
+            seen.add(user.email.lower())
+            recipients.append(user.email)
+
+    collab = appointment.collaborator
+    if collab and collab.email and collab.email.lower() not in seen:
+        seen.add(collab.email.lower())
+        recipients.append(collab.email)
+
+    sent: list[str] = []
+    for address in recipients:
+        try:
+            await email_util.send_new_booking_staff_email(address, appointment)
+            sent.append(address)
+        except Exception as e:
+            print(f"[NOTIFY:new-booking:email] appt={appointment.id} to={address} err={e}")
+    return sent
+
+
 async def notify_birthday(db: AsyncSession, client) -> None:
     """Sent every morning to clients whose birthday is today."""
     cfg = await _get_config(db)

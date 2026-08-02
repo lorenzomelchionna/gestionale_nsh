@@ -148,7 +148,30 @@ def notify_new_booking(appointment_id: int):
 
 
 async def _async_notify_new_booking(appointment_id: int):
-    print(f"New online booking: appointment #{appointment_id}")
+    from app.database import create_task_session_factory
+    from app.models.appointment import Appointment, appointment_detail_loads
+    from app.utils.notifications import notify_staff_new_booking
+
+    task_engine, session_factory = create_task_session_factory()
+    try:
+        async with session_factory() as db:
+            result = await db.execute(
+                select(Appointment)
+                .options(*appointment_detail_loads())
+                .where(Appointment.id == appointment_id)
+            )
+            appt = result.scalar_one_or_none()
+            if not appt:
+                print(f"[NEW-BOOKING] appointment {appointment_id} vanished before notifying")
+                return
+            sent = await notify_staff_new_booking(db, appt)
+            # An online booking nobody hears about is the failure this task
+            # exists to prevent, so a silent salon is logged as a problem
+            # rather than as a successful run.
+            if not sent:
+                print(f"[NEW-BOOKING] appointment {appointment_id}: no staff address to notify")
+    finally:
+        await task_engine.dispose()
 
 
 # Backwards compat alias (old call site used send_whatsapp_confirmation)

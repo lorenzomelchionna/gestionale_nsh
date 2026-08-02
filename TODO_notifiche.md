@@ -30,8 +30,19 @@ fallback SMTP (solo dev locale). Mittente verificato: `newstylehair2019@gmail.co
 ### Restano (NON bloccanti)
 - [ ] **WhatsApp produzione**: ora è Sandbox (solo numeri che fanno `join`, scade 72h).
   Per clienti reali serve numero WhatsApp Business + template Meta approvati.
-- [ ] `SEED_DEMO=true` sul backend → disattivare prima del go-live reale.
+- [x] ~~`SEED_DEMO` da disattivare~~ — verificato 2026-08-01: `SEED_DEMO=false`
+  sul backend, non impostata sul worker. Anche se tornasse `true` non
+  succederebbe nulla: `seed_demo()` esce subito se esiste almeno un servizio,
+  e in produzione ce ne sono 19 reali coi prezzi del salone.
 - [ ] (Opz.) Dominio + branding `noreply@newstylehair.it` (ora From = Gmail).
+- [x] ~~`notify_new_booking` è solo un `print()`~~ — fatto 2026-08-02. Erano tre
+  bug in fila, non uno: l'endpoint non accodava niente, il task stampava e
+  basta, e accodare prima del commit avrebbe fatto trovare al worker una
+  prenotazione che ancora non esiste. Ora la richiesta parte via email a tutti
+  gli admin attivi + al collaboratore prenotato (chiunque possa rispondere:
+  confermare è un permesso `staff`, non solo admin). Niente WhatsApp allo
+  staff: passerebbe dalla stessa Sandbox Twilio che parla solo con chi ha
+  mandato `join`, quindi sarebbe un canale che perde i messaggi in silenzio.
 
 ---
 
@@ -71,7 +82,11 @@ Passi WhatsApp produzione (qualunque scenario):
   Password temporanee generate e comunicate a voce, da cambiare al primo accesso
   da Team e accessi. Permessi verificati in produzione per tutti: calendario,
   clienti e chat sì; dashboard, incassi, spese, team e impostazioni no.
-- [ ] Servizi assegnati a ciascun collaboratore (dopo che Flavia inserisce il listino)
+- [x] ~~Servizi assegnati a ciascun collaboratore~~ — verificato 2026-08-01 su
+  produzione: **19 servizi su 19** hanno almeno un operatore, quindi nessuno
+  può scegliere un servizio e trovare il passo "Con chi" vuoto.
+  Flavia 16 (colore, taglio, trattamenti), Raffaella 8 (colore e styling),
+  Vincenzo 7 (barbiere: barba, taglio uomo/bambino, taglio+barba).
 - [x] Telefoni clienti in E.164 — 2026-07-29: normalizzati automaticamente in
   scrittura (`app/utils/phone.py`), si possono digitare in qualunque formato.
   Serviva perché la registrazione online e la chat WhatsApp cercano il cliente
@@ -95,6 +110,14 @@ Passi WhatsApp produzione (qualunque scenario):
   **Prerequisito**: WhatsApp fuori dalla Sandbox Twilio, altrimenti il codice
   arriva solo a chi ha già fatto il `join` (vedi sezione WhatsApp produzione).
   In alternativa SMS Twilio, che si paga a messaggio.
+- [ ] **Stessa gara di commit sul lato admin** — trovata il 2026-08-02 mentre si
+  sistemava `notify_new_booking`. In `api/admin/appointments.py`
+  `_trigger_booking_confirmation` viene chiamata dopo `flush()` ma prima che
+  `get_db` faccia commit: il worker gira in un'altra transazione, quindi alla
+  creazione di un appuntamento può non trovare la riga e la conferma al cliente
+  non parte mai, in silenzio. Il fix è lo stesso già applicato al portale
+  (`await db.commit()` prima di accodare) e il test di regressione da copiare è
+  `tests/test_new_booking_alert.py::TestTheBookingIsReadableWhenTheAlertIsQueued`.
 - [x] Dati reali: collaboratori creati con orari lun–ven 08:00–19:00
 - [x] Cambiare password admin demo (`admin123`) — 2026-07-28: email → `newstylehair2019@gmail.com`,
   password ruotata (generata e mostrata una volta in chat, da salvare in un password manager)
@@ -135,6 +158,10 @@ Passi WhatsApp produzione (qualunque scenario):
 ---
 
 # (storico) — note di setup precedenti
+
+> ⚠️ **Istantanea superata.** Quanto segue fotografa una situazione
+> passata. Le caselle non spuntate qui sotto **non sono lavoro da fare**:
+> lo stato vero è in cima al documento. Non modificare, serve da cronologia.
 
 Stato attuale: codice pronto e funzionante. Entrambi i canali in **stub mode**
 (nessun invio reale) finché le credenziali non sono configurate.
@@ -188,9 +215,8 @@ Note:
 | Reset password | richiesta reset cliente | email + WA |
 | Messaggio custom | pagina Messaggi admin | canale scelto |
 
-## TODO minori
+## TODO minori (storici — le voci vive stanno nella Roadmap in cima)
 
-- [ ] `notify_new_booking` solo `print()` — implementare notifica reale allo staff per prenotazioni online
 - [x] ~~`service_names` non veniva mai popolato~~ — risolto. La proiezione sta
       in `AppointmentOutWithNames.from_appointment` e i caricamenti eager in
       `appointment_detail_loads()`: prima la regola era copiata in quattro
@@ -207,6 +233,10 @@ Note:
 ---
 
 # Stato produzione Railway (verificato 2026-05-30)
+
+> ⚠️ **Istantanea superata.** Quanto segue fotografa una situazione
+> passata. Le caselle non spuntate qui sotto **non sono lavoro da fare**:
+> lo stato vero è in cima al documento. Non modificare, serve da cronologia.
 
 Progetto: **zucchini-blessing** (id `88babcdd-d33d-4130-bb22-0a8c3d5d5037`)
 Env: **production** (id `b92d9278-66c0-42a4-91d3-714e731f2669`)

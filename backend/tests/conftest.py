@@ -133,9 +133,13 @@ def no_celery(monkeypatch):
     log and continue, but stubbing it keeps tests fast and deterministic.
     """
     import app.api.admin.appointments as appointments_api
+    import app.api.public.booking as booking_api
 
     monkeypatch.setattr(
         appointments_api, "_trigger_booking_confirmation", lambda appointment_id: None
+    )
+    monkeypatch.setattr(
+        booking_api, "_trigger_new_booking_alert", lambda appointment_id: None
     )
 
 

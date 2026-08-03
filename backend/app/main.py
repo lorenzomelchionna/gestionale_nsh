@@ -38,6 +38,7 @@ from app.api.auth import router as unified_auth_router
 from app.api.public.auth import router as public_auth_router
 from app.api.public.booking import router as booking_router
 from app.api.public.whatsapp import router as whatsapp_router
+from app.api.public.product_images import router as product_images_router
 
 
 @asynccontextmanager
@@ -106,6 +107,7 @@ app.include_router(unified_auth_router, prefix="/api")
 app.include_router(public_auth_router, prefix=PUBLIC_PREFIX)
 app.include_router(booking_router, prefix=PUBLIC_PREFIX)
 app.include_router(whatsapp_router, prefix=PUBLIC_PREFIX)
+app.include_router(product_images_router, prefix=PUBLIC_PREFIX)
 
 
 @app.get("/health")

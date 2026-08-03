@@ -1,7 +1,10 @@
 import enum
 from datetime import datetime
 from typing import Optional, List
-from sqlalchemy import String, Enum, DateTime, Integer, Numeric, Text, ForeignKey, func, Boolean
+from sqlalchemy import (
+    String, Enum, DateTime, Integer, LargeBinary, Numeric, Text, ForeignKey,
+    func, Boolean,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
 
@@ -34,6 +37,45 @@ class Product(Base):
     movements: Mapped[List["ProductMovement"]] = relationship(
         "ProductMovement", back_populates="product"
     )
+    # Never eager-loaded: see ProductImage for why the bytes stay out of the way.
+    image: Mapped[Optional["ProductImage"]] = relationship(
+        "ProductImage", back_populates="product", cascade="all, delete-orphan",
+        uselist=False,
+    )
+
+
+class ProductImage(Base):
+    """The photo of a product, deliberately not a column on `products`.
+
+    Two decisions are baked in here, and both are about how the image gets
+    read rather than how it gets stored.
+
+    It lives in its own table because a blob on the product row would be
+    dragged into every inventory listing — the magazzino page fetches twenty
+    products at a time and wants none of the bytes.
+
+    The URL carries `token` and not `product_id` because an `<img>` tag cannot
+    send an Authorization header, so whatever serves the file has to be
+    reachable without one. A public endpoint keyed by a sequential id would let
+    anyone walk the whole catalogue; an unguessable token gives the browser
+    something it can fetch on its own without publishing what the salon stocks.
+    Replacing the photo mints a new token, which doubles as cache busting.
+    """
+
+    __tablename__ = "product_images"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    product_id: Mapped[int] = mapped_column(
+        ForeignKey("products.id", ondelete="CASCADE"), unique=True, nullable=False
+    )
+    token: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
+    content_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    data: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    byte_size: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    product: Mapped["Product"] = relationship("Product", back_populates="image")
 
 
 class ProductMovement(Base):

@@ -35,5 +35,9 @@ httpx==0.28.1
 python-dateutil==2.9.0
 pytz==2024.2
 
+# Image processing — every uploaded product photo is decoded and re-encoded by
+# Pillow, so what gets stored is a file we produced rather than one we received.
+pillow==11.0.0
+
 # Monitoring
 sentry-sdk[fastapi]==2.19.2

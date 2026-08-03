@@ -164,33 +164,39 @@ Non bloccano il go-live: il gestionale funziona senza. Stanno qui separate
 apposta, così le caselle aperte qui sotto non si confondono con quelle della
 roadmap sopra.
 
-### Immagini dei prodotti — richiesta 2026-08-02
+### Immagini dei prodotti — richiesta 2026-08-02, fatta 2026-08-03
 
-- [ ] Caricare una foto per ogni prodotto e mostrarla in magazzino.
+- [x] ~~Caricare una foto per ogni prodotto e mostrarla in magazzino~~, anche
+  sui prodotti già registrati.
 
-**Il campo c'è già**: `products.photo_url` (`String(500)`, nullable) esiste nel
-modello, nello schema Pydantic e nei tipi TypeScript — e lo stesso vale per
-`collaborators.photo_url`. Nessuno dei due viene mai scritto né letto: non
-esiste un endpoint di upload (`UploadFile` non compare da nessuna parte) e
-`ProductsPage.tsx` non nomina mai il campo. Quindi **niente migration**, il
-lavoro è tutto intorno.
+**Dove finiscono i file**: in Postgres, in `product_images`, non su disco. Il
+filesystem dei container Railway è effimero — sparisce a ogni push su `main` —
+quindi il disco era escluso senza montare un volume, e un volume è infrastruttura
+in più, non compresa nei backup del database. I byte stanno in una tabella
+separata e non in una colonna di `products`, altrimenti ogni listino di
+magazzino se li trascinerebbe dietro.
 
-**La decisione vera è dove finiscono i file.** Il campo è lungo 500 caratteri,
-cioè è pensato per un URL, non per un blob — e il filesystem dei container
-Railway è effimero: quello che ci scrivi sparisce al primo redeploy, che qui
-avviene a ogni push su `main`. Quindi il disco locale è escluso a meno di non
-montare un volume.
+**Perché l'URL contiene un token e non l'id**: un tag `<img>` non può mandare
+l'header Authorization, quindi l'endpoint che serve i byte deve essere pubblico.
+Pubblico con un id sequenziale vorrebbe dire lasciare sfogliare tutto il
+magazzino contando da 1; con 32 byte casuali no. Sostituire la foto rigenera il
+token, il che serve anche da cache busting.
 
-| Opzione | Costo | Nota |
-|---|---|---|
-| Volume Railway | si paga a GB | il consumo oggi è ~$2/mese ed è quasi tutto RAM; hard limit a $10 |
-| Object storage esterno (S3, R2, Cloudinary) | free tier ampi | serve una chiave in più da gestire |
-| Base64 nel database | "gratis" | gonfia ogni query sui prodotti, sconsigliato |
+**Cosa viene rifiutato**: qualunque file che Pillow non decodifica, i formati
+fuori da JPEG/PNG/WebP, oltre 10 MB, e i file vuoti. Il `Content-Type`
+dichiarato non conta: l'immagine viene ri-codificata dal server, quindi quello
+che finisce archiviato è sempre un file prodotto da noi. La ri-codifica butta
+anche l'EXIF, che su una foto da telefono contiene le coordinate GPS di dove è
+stata scattata.
 
-Da valutare anche: ridimensionamento lato server (una foto da telefono è 4–8 MB
-e nessuno la guarda a quella risoluzione), limite di dimensione e tipo MIME
-accettato — un upload senza controlli è un endpoint che accetta qualunque file
-da chiunque abbia un login.
+**Ridimensionamento**: lato server, lato lungo massimo 900px. Una foto da
+telefono passa da qualche megabyte a qualche decina di kilobyte, quindi lo
+spazio nel database resta trascurabile anche con tutto il magazzino coperto.
+
+Sistemato di conseguenza anche l'ordinamento del listino: non c'era un
+`order_by`, quindi ogni modifica faceva saltare il prodotto in fondo alla
+pagina. Con le sole modifiche di prezzo capitava di rado, con le foto sarebbe
+successo ogni volta.
 
 ---
 

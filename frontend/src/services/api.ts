@@ -188,6 +188,20 @@ export const addProductMovement = (data: {
 }) =>
   api.post<ProductMovement>('/admin/products/movements', data).then(r => r.data)
 
+/** Attach or replace a product photo. Returns the product with its new
+    `photo_url`; the server resizes and re-encodes, so the file goes up as it
+    came off the phone. */
+export const setProductImage = (id: number, file: File) => {
+  const body = new FormData()
+  body.append('file', file)
+  // No explicit Content-Type: the browser has to add the multipart boundary,
+  // and setting the header by hand strips it.
+  return api.put<Product>(`/admin/products/${id}/image`, body).then(r => r.data)
+}
+
+export const deleteProductImage = (id: number) =>
+  api.delete<Product>(`/admin/products/${id}/image`).then(r => r.data)
+
 // ── Payments ──────────────────────────────────────────────────────
 
 export const getPayments = (params?: { date_from?: string; date_to?: string }) =>

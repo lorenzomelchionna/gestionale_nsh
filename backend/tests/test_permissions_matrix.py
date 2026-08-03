@@ -88,6 +88,8 @@ EXPECTED_GUARDS = {
     ("POST", "/api/admin/products/movements"): "admin",
     ("GET", "/api/admin/products/{product_id}"): "staff",
     ("PUT", "/api/admin/products/{product_id}"): "admin",
+    ("PUT", "/api/admin/products/{product_id}/image"): "admin",
+    ("DELETE", "/api/admin/products/{product_id}/image"): "admin",
     ("GET", "/api/admin/services"): "staff",
     ("POST", "/api/admin/services"): "admin",
     ("DELETE", "/api/admin/services/{service_id}"): "admin",
@@ -125,6 +127,10 @@ EXPECTED_GUARDS = {
     # control is the Twilio signature check inside the handler, not a dependency.
     ("POST", "/api/public/whatsapp/webhook"): "public",
     ("GET", "/api/public/collaborators"): "public",
+    # Unauthenticated by necessity: an <img> tag cannot send an Authorization
+    # header. The control is the 32-byte token in the path — unguessable and
+    # non-sequential, so the catalogue cannot be enumerated through it.
+    ("GET", "/api/public/product-images/{token}"): "public",
     ("GET", "/api/public/services"): "public",
     ("GET", "/api/public/waitlist"): "client",
     ("POST", "/api/public/waitlist"): "client",

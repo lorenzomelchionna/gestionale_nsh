@@ -150,11 +150,53 @@ Passi WhatsApp produzione (qualunque scenario):
   Comandi utili: `railway usage`, `railway usage projects`,
   `railway usage limit status`.
 
-### Allineamento da controllare
+### Allineamento da controllare (go-live)
 - [x] `closed_weekdays` allineato — 2026-07-29: confermato chiuso **domenica e
   lunedì**. Orario dei 3 collaboratori aggiornato da lun–ven a **mar–sab
   08:00–19:00** (nessun appuntamento attivo di lunedì nel DB, nessuna
   prenotazione persa).
+
+---
+
+## Funzionalità richieste
+
+Non bloccano il go-live: il gestionale funziona senza. Stanno qui separate
+apposta, così le caselle aperte qui sotto non si confondono con quelle della
+roadmap sopra.
+
+### Immagini dei prodotti — richiesta 2026-08-02, fatta 2026-08-03
+
+- [x] ~~Caricare una foto per ogni prodotto e mostrarla in magazzino~~, anche
+  sui prodotti già registrati.
+
+**Dove finiscono i file**: in Postgres, in `product_images`, non su disco. Il
+filesystem dei container Railway è effimero — sparisce a ogni push su `main` —
+quindi il disco era escluso senza montare un volume, e un volume è infrastruttura
+in più, non compresa nei backup del database. I byte stanno in una tabella
+separata e non in una colonna di `products`, altrimenti ogni listino di
+magazzino se li trascinerebbe dietro.
+
+**Perché l'URL contiene un token e non l'id**: un tag `<img>` non può mandare
+l'header Authorization, quindi l'endpoint che serve i byte deve essere pubblico.
+Pubblico con un id sequenziale vorrebbe dire lasciare sfogliare tutto il
+magazzino contando da 1; con 32 byte casuali no. Sostituire la foto rigenera il
+token, il che serve anche da cache busting.
+
+**Cosa viene rifiutato**: qualunque file che Pillow non decodifica, i formati
+fuori da JPEG/PNG/WebP, oltre 10 MB, e i file vuoti. Il `Content-Type`
+dichiarato non conta: l'immagine viene ri-codificata dal server, quindi quello
+che finisce archiviato è sempre un file prodotto da noi. La ri-codifica butta
+anche l'EXIF, che su una foto da telefono contiene le coordinate GPS di dove è
+stata scattata.
+
+**Ridimensionamento**: lato server, lato lungo massimo 900px. Una foto da
+telefono passa da qualche megabyte a qualche decina di kilobyte, quindi lo
+spazio nel database resta trascurabile anche con tutto il magazzino coperto.
+
+Sistemato di conseguenza anche l'ordinamento del listino: non c'era un
+`order_by`, quindi ogni modifica faceva saltare il prodotto in fondo alla
+pagina. Con le sole modifiche di prezzo capitava di rado, con le foto sarebbe
+successo ogni volta.
 
 ---
 

@@ -272,28 +272,35 @@ roadmap sopra.
 Ognuna verificata sul codice, non ipotizzata: dove il campo già esiste manca
 solo il collegamento in UI, dove non esiste serve una migration.
 
-- [ ] **Tempo di posa nei servizi** (es. colore): oggi `Service` ha solo
-  `duration_slots`, cioè il tempo in cui il collaboratore è impegnato. Manca
-  il concetto di "il cliente è in posa ma il collaboratore è libero per
-  qualcun altro". Non è un campo in più: cambia come `availability.py`
-  calcola gli slot occupati — oggi un servizio blocca il collaboratore per
-  tutta la sua durata, un tempo di posa dovrebbe permettere di sovrapporre un
-  altro cliente proprio in quella finestra. Va progettato, non solo aggiunto.
+- [x] ~~**Tempo di posa nei servizi**~~ — fatto 2026-08-04. `duration_slots`
+  resta la durata totale (quella che vede la cliente); due campi nuovi dicono
+  come si spezza: `slots_before_processing` (applicazione) e
+  `processing_slots` (posa, collaboratore libero). Il resto è lavoro finale.
+  `availability.py` ora calcola quali slot **impegnano davvero** il
+  collaboratore, quindi durante la posa di una tinta l'agenda può infilare
+  un'altra cliente. Verificato in produzione locale: Colore base 120 min con
+  60 di posa → prenotato alle 09:00, le 09:30 e le 10:00 restano libere,
+  09:00 e 10:30 occupate.
+  Retrocompatibile: `processing_slots = 0` è il comportamento di sempre, e i
+  19 servizi esistenti non cambiano di una virgola.
+  **Prudenza deliberata**: se un appuntamento viene allungato a mano
+  dall'agenda, la somma dei suoi servizi non lo descrive più e si torna a
+  occupare tutta la fascia — meglio un buco sprecato che due clienti sulla
+  stessa poltrona.
 
-- [ ] **Servizio "Pausa" interno, invisibile ai clienti** — per segnare ore di
-  permesso. Il pezzo "invisibile ai clienti" **esiste già**: un servizio con
-  `bookable_online=False` non compare nel portale (booking.py filtra su
-  quel campo). Il problema è un altro: creare un appuntamento richiede sempre
-  un `client_id` (`AppointmentCreate.client_id: int`, obbligatorio), quindi
-  un "appuntamento" interno avrebbe comunque bisogno di un cliente finto
-  associato — sporca l'anagrafica e le statistiche.
-  **Meglio**: c'è già un modello `Absence` pensato apposta per le assenze dei
-  collaboratori (ferie/permesso/malattia/altro), che blocca il calendario
-  esattamente come serve. Il limite: oggi è a giornata intera
-  (`start_date`/`end_date` sono `Date`, non `DateTime`). Per "prendere delle
-  ore" serve aggiungere `start_time`/`end_time` opzionali ad `Absence` —
-  molto più pulito che riusare il sistema di appuntamenti per una cosa che
-  appuntamento non è.
+- [x] ~~**Servizio "Pausa" interno per le ore di permesso**~~ — fatto
+  2026-08-04, ma **non** come servizio nascosto. Un appuntamento richiede
+  sempre un `client_id`, quindi ogni pausa avrebbe voluto un cliente finto in
+  anagrafica, sporcando elenco clienti e statistiche.
+  `Absence` esiste già per questo e blocca il calendario nel modo giusto:
+  mancava solo di poterla limitare a una fascia oraria. Aggiunti
+  `start_time`/`end_time` opzionali — entrambi assenti = giornata intera,
+  cioè il comportamento di prima. Nel form collaboratori c'è una casella
+  «Solo alcune ore». Su un intervallo di più giorni la fascia vale per
+  ognuno («tutte le mattine di questa settimana»).
+  Sistemato per strada un bug latente: la query sulle assenze usava
+  `scalar_one_or_none()`, che con due assenze nello stesso giorno **solleva**
+  invece di rispondere. Coi permessi a ore quel caso diventa normale.
 
 - [ ] **Descrizione prodotto nel form** — il campo `description` **esiste
   già** nel modello, nello schema e viene mostrato nella lista se presente

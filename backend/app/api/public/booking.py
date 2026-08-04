@@ -22,7 +22,7 @@ from app.schemas.appointment import AppointmentOut, AppointmentOutWithNames, App
 from app.schemas.waitlist import WaitlistCreate, WaitlistOut
 from app.schemas.common import MessageResponse
 from app.dependencies import get_current_client
-from app.services.availability import get_available_slots
+from app.services.availability import busy_slot_offsets, get_available_slots
 
 router = APIRouter(prefix="", tags=["Public Booking"])
 
@@ -159,7 +159,10 @@ async def public_availability(
 
     await _bookable_collaborator(db, collaborator_id, [service_id])
 
-    slots = await get_available_slots(db, collaborator_id, target_date, service.duration_slots)
+    slots = await get_available_slots(
+        db, collaborator_id, target_date, service.duration_slots,
+        busy_offsets=busy_slot_offsets([service]),
+    )
     return [s.isoformat() for s in slots]
 
 
@@ -211,7 +214,10 @@ async def public_availability_calendar(
         if day < min_day or (max_day and day > max_day):
             out.append(DayAvailability(date=day, slots=0))
         else:
-            slots = await get_available_slots(db, collaborator_id, day, service.duration_slots)
+            slots = await get_available_slots(
+                db, collaborator_id, day, service.duration_slots,
+                busy_offsets=busy_slot_offsets([service]),
+            )
             out.append(DayAvailability(date=day, slots=len(slots)))
         day += timedelta(days=1)
     return out
@@ -268,7 +274,8 @@ async def book_appointment(
     # carry several services ("taglio + barba" is two blocks, not one).
     duration_slots = sum(svc.duration_slots for svc in services)
     slots = await get_available_slots(
-        db, payload.collaborator_id, start.date(), duration_slots
+        db, payload.collaborator_id, start.date(), duration_slots,
+        busy_offsets=busy_slot_offsets(services),
     )
     if start not in slots:
         # Covers every rule get_available_slots already knows: working hours,

@@ -311,24 +311,55 @@ solo il collegamento in UI, dove non esiste serve una migration.
   `scalar_one_or_none()`, che con due assenze nello stesso giorno **solleva**
   invece di rispondere. Coi permessi a ore quel caso diventa normale.
 
-- [ ] **Descrizione prodotto nel form** — il campo `description` **esiste
-  già** nel modello, nello schema e viene mostrato nella lista se presente
-  (`ProductsPage.tsx:118`). Manca solo l'`<textarea>` nel form di creazione:
-  oggi sta in `useState` ma nessun input ci scrive dentro, quindi resta
-  sempre vuoto. **Nota collegata**: non esiste *nessun* modo di modificare un
-  prodotto già creato (solo carico/scarico e foto) — `updateProduct` è
-  scritto in `api.ts` ma non è mai chiamato da nessuna pagina. Aggiungere la
-  descrizione ha senso farlo insieme a un form di modifica vero, altrimenti
-  chi sbaglia a scriverla in creazione resta bloccato.
+- [x] ~~**Descrizione prodotto nel form**~~ — fatto 2026-08-04, insieme al
+  form di modifica come previsto. `description` esisteva già ovunque tranne
+  che in un input, quindi restava sempre vuoto; `PUT /products/{id}` esisteva
+  nel backend e non lo chiamava nessuno, quindi un prodotto una volta creato
+  non si poteva più correggere. Ora lo stesso foglio serve a creare e a
+  modificare, e dalla lista c'è una matita per riga.
+  Due campi il PUT **non** li scrive, ed è deliberato:
+  - `quantity` — ogni pezzo che entra o esce lascia una riga in
+    `product_movements`. Scriverla dritta farebbe sparire dei pezzi senza che
+    niente dica dove sono finiti. In modifica il campo non compare proprio, e
+    al suo posto c'è la riga che rimanda a carico/scarico.
+  - `photo_url` — è il permalink del token dell'immagine, non un dato da
+    scrivere a mano: se fosse modificabile si potrebbe far puntare la foto di
+    un prodotto a un host qualsiasi. Ha già i suoi endpoint.
+
+  Tolti dallo schema di update, quindi rifiutati dal backend e non solo
+  nascosti nel form. Verificato al contrario: rimettendoli, tre test falliscono.
 
 - [ ] **I prodotti non sono visibili ai clienti** — risposta diretta alla sua
   domanda: verificato, non esiste nessun endpoint pubblico per i prodotti
   (`/api/public/` ha solo `services` e `collaborators`). Il magazzino è solo
   staff. Non serve fare nulla per questo punto, era solo un dubbio.
 
-- [ ] **Fornitore sui prodotti** — non esiste. Serve una colonna nuova
-  (`supplier`, migration) più il campo nel form. Da fare insieme al punto
-  sopra, stesso form.
+- [x] ~~**Fornitore sui prodotti**~~ — fatto 2026-08-04, stesso form.
+  `supplier` è testo libero e non una tabella fornitori: il salone ordina da
+  pochi marchi e quello che serve è sapere a chi telefonare quando un
+  prodotto finisce. Colonna nullable senza default — sui prodotti già a
+  magazzino NULL vuol dire «non lo sappiamo», non «nessuno».
+  Nella lista sta sotto la categoria: il fornitore si legge quando un
+  prodotto è finito e va riordinato, cioè una riga alla volta, non
+  scorrendo una colonna.
+
+#### Rimasto fuori da questo giro (prodotti)
+- **Archiviare un prodotto fuori catalogo**: `is_active` esiste ed è
+  modificabile via API, ma la lista filtra `is_active == True` e non esiste
+  nessun filtro per rivederli — archiviarlo dalla UI vorrebbe dire perderlo
+  senza modo di tornare indietro. Servono il parametro `active_only` lato
+  backend (`api.ts` lo dichiara già, il backend non lo accetta: è codice
+  morto) più un interruttore in pagina.
+- **Prezzi negativi**: nessun vincolo lato server, solo `min="0"` nel form.
+  Da mettere su `ProductCreate`/`ProductUpdate` e **non** su `ProductBase`,
+  che è anche lo schema di lettura: un vincolo lì farebbe fallire l'elenco
+  invece della scrittura, se una riga storta esistesse già.
+- **Deriva modello/migration**: `alembic check` segnala
+  `product_images.created_at` NOT NULL nel modello ma nullable a database
+  (viene dalla migration delle foto, non da questa). Senza conseguenze —
+  `server_default=now()` lo riempie sempre — ma la prossima autogenerate si
+  porterà dietro l'operazione spuria. La CI fa `upgrade head`, non `check`,
+  quindi non se ne accorge.
 
 - [x] ~~Le note cliente si salvano?~~ — sì, verificato: `Client.notes` è già
   salvato, modificabile e mostrato in scheda cliente. **Ma** per l'uso che ne

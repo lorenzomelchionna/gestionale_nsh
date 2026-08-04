@@ -267,6 +267,73 @@ Non bloccano il go-live: il gestionale funziona senza. Stanno qui separate
 apposta, così le caselle aperte qui sotto non si confondono con quelle della
 roadmap sopra.
 
+### Richieste di Flavia — 2026-08-04 (WhatsApp, dopo un giro sezione per sezione)
+
+Ognuna verificata sul codice, non ipotizzata: dove il campo già esiste manca
+solo il collegamento in UI, dove non esiste serve una migration.
+
+- [ ] **Tempo di posa nei servizi** (es. colore): oggi `Service` ha solo
+  `duration_slots`, cioè il tempo in cui il collaboratore è impegnato. Manca
+  il concetto di "il cliente è in posa ma il collaboratore è libero per
+  qualcun altro". Non è un campo in più: cambia come `availability.py`
+  calcola gli slot occupati — oggi un servizio blocca il collaboratore per
+  tutta la sua durata, un tempo di posa dovrebbe permettere di sovrapporre un
+  altro cliente proprio in quella finestra. Va progettato, non solo aggiunto.
+
+- [ ] **Servizio "Pausa" interno, invisibile ai clienti** — per segnare ore di
+  permesso. Il pezzo "invisibile ai clienti" **esiste già**: un servizio con
+  `bookable_online=False` non compare nel portale (booking.py filtra su
+  quel campo). Il problema è un altro: creare un appuntamento richiede sempre
+  un `client_id` (`AppointmentCreate.client_id: int`, obbligatorio), quindi
+  un "appuntamento" interno avrebbe comunque bisogno di un cliente finto
+  associato — sporca l'anagrafica e le statistiche.
+  **Meglio**: c'è già un modello `Absence` pensato apposta per le assenze dei
+  collaboratori (ferie/permesso/malattia/altro), che blocca il calendario
+  esattamente come serve. Il limite: oggi è a giornata intera
+  (`start_date`/`end_date` sono `Date`, non `DateTime`). Per "prendere delle
+  ore" serve aggiungere `start_time`/`end_time` opzionali ad `Absence` —
+  molto più pulito che riusare il sistema di appuntamenti per una cosa che
+  appuntamento non è.
+
+- [ ] **Descrizione prodotto nel form** — il campo `description` **esiste
+  già** nel modello, nello schema e viene mostrato nella lista se presente
+  (`ProductsPage.tsx:118`). Manca solo l'`<textarea>` nel form di creazione:
+  oggi sta in `useState` ma nessun input ci scrive dentro, quindi resta
+  sempre vuoto. **Nota collegata**: non esiste *nessun* modo di modificare un
+  prodotto già creato (solo carico/scarico e foto) — `updateProduct` è
+  scritto in `api.ts` ma non è mai chiamato da nessuna pagina. Aggiungere la
+  descrizione ha senso farlo insieme a un form di modifica vero, altrimenti
+  chi sbaglia a scriverla in creazione resta bloccato.
+
+- [ ] **I prodotti non sono visibili ai clienti** — risposta diretta alla sua
+  domanda: verificato, non esiste nessun endpoint pubblico per i prodotti
+  (`/api/public/` ha solo `services` e `collaborators`). Il magazzino è solo
+  staff. Non serve fare nulla per questo punto, era solo un dubbio.
+
+- [ ] **Fornitore sui prodotti** — non esiste. Serve una colonna nuova
+  (`supplier`, migration) più il campo nel form. Da fare insieme al punto
+  sopra, stesso form.
+
+- [x] ~~Le note cliente si salvano?~~ — sì, verificato: `Client.notes` è già
+  salvato, modificabile e mostrato in scheda cliente. **Ma** per l'uso che ne
+  vuole fare — segnare il colore ad ogni visita — un campo unico non
+  distingue una visita dall'altra: la nota di oggi sovrascrive quella di tre
+  mesi fa. Esiste già `Appointment.visit_notes`, pensato esattamente per una
+  nota per singola visita — ma è nel modello e basta: **zero** UI lo scrive o
+  lo mostra, in nessuna pagina. È il campo giusto per quello che chiede, va
+  solo collegato (probabilmente nel flusso "completa appuntamento").
+
+- [ ] **Elenco di tutti gli appuntamenti** (facoltativo, l'ha detto lei
+  stessa) — oggi esistono solo il Calendario e "In attesa"; nessuna vista a
+  lista/tabella con filtri su tutto lo storico.
+
+- [ ] **Gift card, arriva via email a chi la riceve** — non esiste nessuna
+  parte di questa funzionalità. Da costruire da zero: acquisto (importo,
+  eventualmente un messaggio), generazione di un codice, invio via email al
+  *destinatario* del regalo (non a chi compra — è la parte che ha sottolineato
+  lei), riscatto del codice in cassa o in prenotazione, saldo residuo se
+  parziale. È il pezzo più grande di questa lista.
+
 ### Immagini dei prodotti — richiesta 2026-08-02, fatta 2026-08-03
 
 - [x] ~~Caricare una foto per ogni prodotto e mostrarla in magazzino~~, anche

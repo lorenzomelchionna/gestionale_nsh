@@ -148,7 +148,10 @@ export interface ProductMovement {
 // ── Payment ───────────────────────────────────────────────────────
 
 export type PaymentMethod = 'contanti' | 'carta' | 'misto'
-export type PaymentType = 'servizio' | 'prodotto'
+/** `gift card` è la vendita di un buono: credito venduto, non lavoro svolto.
+ *  Tenerlo separato evita che il mese in cui se ne vendono dieci sembri un
+ *  mese di servizi record. */
+export type PaymentType = 'servizio' | 'prodotto' | 'gift card'
 
 export interface Payment {
   id: number
@@ -369,4 +372,37 @@ export interface TeamMember {
   created_at: string
   collaborator_id?: number | null
   collaborator_name?: string | null
+}
+
+// ── Gift card ─────────────────────────────────────────────────────
+
+/** Ricavato da saldo, scadenza e annullamento: non è una colonna. */
+export type GiftCardStatus = 'attiva' | 'esaurita' | 'scaduta' | 'annullata'
+
+export interface GiftCardRedemption {
+  id: number
+  amount: number
+  appointment_id: number | null
+  notes: string | null
+  created_at: string
+}
+
+export interface GiftCard {
+  id: number
+  code: string
+  initial_amount: number
+  balance: number
+  recipient_name: string
+  recipient_email: string
+  message: string | null
+  purchaser_client_id: number | null
+  purchaser_name: string | null
+  expires_at: string
+  payment_id: number | null
+  email_sent_at: string | null
+  cancelled_at: string | null
+  cancel_reason: string | null
+  created_at: string
+  status: GiftCardStatus
+  redemptions: GiftCardRedemption[]
 }

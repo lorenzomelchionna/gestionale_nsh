@@ -23,6 +23,7 @@ from app.api.admin.appointments import router as appointments_router
 from app.api.admin.availability import router as availability_router
 from app.api.admin.products import router as products_router
 from app.api.admin.payments import router as payments_router
+from app.api.admin.gift_cards import router as gift_cards_router
 from app.api.admin.expenses import router as expenses_router
 from app.api.admin.absences import router as absences_router
 from app.api.admin.settings import router as settings_router
@@ -86,6 +87,7 @@ app.include_router(appointments_router, prefix=ADMIN_PREFIX)
 app.include_router(availability_router, prefix=ADMIN_PREFIX)
 app.include_router(products_router, prefix=ADMIN_PREFIX)
 app.include_router(payments_router, prefix=ADMIN_PREFIX)
+app.include_router(gift_cards_router, prefix=ADMIN_PREFIX)
 app.include_router(expenses_router, prefix=ADMIN_PREFIX)
 app.include_router(absences_router, prefix=ADMIN_PREFIX)
 app.include_router(settings_router, prefix=ADMIN_PREFIX)

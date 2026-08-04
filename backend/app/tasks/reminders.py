@@ -179,3 +179,35 @@ async def _async_notify_new_booking(appointment_id: int):
 def send_whatsapp_confirmation(appointment_id: int):
     """Deprecated alias — routes to the dual-channel confirmation task."""
     _run_async(_async_send_booking_confirmation(appointment_id))
+
+
+@celery_app.task(name="app.tasks.reminders.send_gift_card")
+def send_gift_card_task(gift_card_id: int):
+    """Manda il buono al destinatario, appena la vendita è registrata."""
+    _run_async(_async_send_gift_card(gift_card_id))
+
+
+async def _async_send_gift_card(gift_card_id: int):
+    from datetime import datetime, timezone
+
+    from app.database import create_task_session_factory
+    from app.models.gift_card import GiftCard
+    from app.utils.email import send_gift_card_email
+
+    task_engine, session_factory = create_task_session_factory()
+    try:
+        async with session_factory() as db:
+            result = await db.execute(
+                select(GiftCard).where(GiftCard.id == gift_card_id)
+            )
+            card = result.scalar_one_or_none()
+            if not card:
+                return
+            await send_gift_card_email(card)
+            # Segnato solo dopo l'invio riuscito: se `send_gift_card_email`
+            # solleva, il campo resta vuoto e la scheda continua a dire che
+            # l'email non è mai partita — che è la verità.
+            card.email_sent_at = datetime.now(timezone.utc)
+            await db.commit()
+    finally:
+        await task_engine.dispose()

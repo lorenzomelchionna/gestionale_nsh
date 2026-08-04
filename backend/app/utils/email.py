@@ -255,3 +255,36 @@ async def send_verification_code_email(
        senza il codice l'account non viene attivato.</p>
     """
     await send_email(to_email, subject, body)
+
+
+async def send_gift_card_email(gift_card) -> None:
+    """Il buono regalo, all'indirizzo di chi lo riceve.
+
+    Va al destinatario e non a chi paga: è la parte della richiesta che Flavia
+    ha sottolineato. Chi compra il regalo esce dal salone con la ricevuta; chi
+    lo riceve deve trovarsi in casella il codice, il valore e la scadenza,
+    perché sono le tre cose che gli servono per usarlo.
+
+    Il codice è scritto in grande e spaziato per la stessa ragione per cui è
+    generato senza `0`, `O`, `1` e `I`: viene ricopiato a mano al banco.
+    """
+    da = getattr(gift_card, "purchaser_name", None)
+    dedica = getattr(gift_card, "message", None)
+    scadenza = gift_card.expires_at.strftime("%d/%m/%Y")
+
+    subject = "Hai ricevuto un buono regalo – New Style Hair"
+    body = f"""
+    <h2>New Style Hair</h2>
+    <p>Ciao {esc(gift_card.recipient_name)},</p>
+    <p>{'<strong>' + esc(da) + '</strong> ha pensato a te: hai' if da else 'Hai'}
+       un buono regalo da spendere in salone.</p>
+    <p style="font-size:32px;font-weight:bold">€{float(gift_card.initial_amount):.2f}</p>
+    <p>Il tuo codice:</p>
+    <p style="font-size:24px;font-weight:bold;letter-spacing:4px">{esc(gift_card.code)}</p>
+    {f'<p style="font-style:italic">«{esc(dedica)}»</p>' if dedica else ''}
+    <p>Presentalo in salone: puoi usarlo in una volta sola o un po' per volta,
+       finché il credito non finisce.</p>
+    <p>Valido fino al <strong>{esc(scadenza)}</strong>.</p>
+    <p>Per prenotare: {esc(settings.FRONTEND_URL)}</p>
+    """
+    await send_email(gift_card.recipient_email, subject, body)

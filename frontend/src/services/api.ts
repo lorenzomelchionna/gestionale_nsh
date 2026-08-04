@@ -364,4 +364,42 @@ export const resetTeamPassword = (id: number, new_password: string) =>
 export const changeOwnPassword = (current_password: string, new_password: string) =>
   api.post('/admin/team/me/password', { current_password, new_password }).then(r => r.data)
 
+// ── Gift card ─────────────────────────────────────────────────────
+
+import type { GiftCard, GiftCardStatus, PaymentMethod } from '@/types'
+
+export const getGiftCards = (params?: {
+  search?: string; status?: GiftCardStatus; page?: number; page_size?: number
+}) => api.get<PaginatedResponse<GiftCard>>('/admin/gift-cards', { params }).then(r => r.data)
+
+/** Cerca il buono come arriva al banco: un codice letto da un'email.
+ *  Maiuscole, spazi e trattini non contano, ci pensa il server. */
+export const getGiftCardByCode = (code: string) =>
+  api.get<GiftCard>(`/admin/gift-cards/by-code/${encodeURIComponent(code)}`).then(r => r.data)
+
+export const createGiftCard = (data: {
+  amount: number
+  recipient_name: string
+  recipient_email: string
+  message?: string
+  purchaser_client_id?: number
+  purchaser_name?: string
+  payment_method?: PaymentMethod
+}) => api.post<GiftCard>('/admin/gift-cards', data).then(r => r.data)
+
+export const redeemGiftCard = (id: number, data: {
+  amount: number; appointment_id?: number; notes?: string
+}) => api.post<GiftCard>(`/admin/gift-cards/${id}/redeem`, data).then(r => r.data)
+
+export const cancelGiftCard = (id: number, reason?: string) =>
+  api.post<GiftCard>(`/admin/gift-cards/${id}/cancel`, { reason }).then(r => r.data)
+
+/** Rimanda l'email. Con un indirizzo, lo corregge prima di spedire — è il
+ *  motivo per cui di solito si rimanda. */
+export const resendGiftCardEmail = (id: number, recipient_email?: string) =>
+  api.post<GiftCard>(
+    `/admin/gift-cards/${id}/resend-email`,
+    recipient_email ? { recipient_email } : {},
+  ).then(r => r.data)
+
 export default api

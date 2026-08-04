@@ -158,6 +158,97 @@ Passi WhatsApp produzione (qualunque scenario):
 
 ---
 
+## Sicurezza — audit 2026-08-03
+
+Sette revisioni indipendenti sul codice, ognuna passata da un revisore ostile
+che ha riaperto i file citati per provare a demolire i finding. Verdetto:
+sistema sostanzialmente sano — confine fra i tre pubblici solido, nessun
+segreto nella storia di git, nessun XSS, CSRF o IDOR. Sotto restano solo le
+cose ancora aperte; il resto è chiuso.
+
+### Chiuso il 2026-08-04
+- [x] ~~La prenotazione pubblica accettava `start_time`/`end_time` arbitrari~~ —
+  ora lo slot deve comparire in `get_available_slots` e la durata la calcola il
+  server dai servizi scelti. Chiude anche il caso che svuotava il calendario
+  (una richiesta `pending` occupa lo slot, quindi bastava prenotare 00:00–23:59
+  su tutti i collaboratori). Tetto di 3 richieste in attesa per cliente.
+- [x] ~~HTML non escapato nelle email~~ — `/register` non è autenticato e
+  spediva `first_name` grezzo dal mittente verificato del salone verso un
+  indirizzo scelto da chi chiama. Ora `esc()` copre tutti i mittenti.
+- [x] ~~`SECRET_KEY = "changeme"` e `ADMIN_PASSWORD = "admin123"`~~ — fuori da
+  `APP_ENV=development` l'app non parte e il bootstrap non crea l'admin.
+- [x] ~~`python-multipart` 0.0.20~~ → 0.0.31 (GHSA-5rvq-cxj2-64vf, parsing
+  quadratico raggiungibile prima della verifica firma sul webhook Twilio).
+
+### Da fare — in ordine di resa
+- [ ] **Spegnere i proxy TCP pubblici** di Postgres e Redis dalla dashboard
+  Railway. Verificato che backend e worker usano gli host `*.railway.internal`,
+  quindi non cade nulla. Oggi fra internet e l'anagrafica clienti c'è solo una
+  password. Per la manutenzione: `railway connect postgres --tunnel-only`.
+- [ ] **Rate limiting** con `slowapi` (storage su Redis, che c'è già) sui soli
+  endpoint costosi: register 5/ora, login 10/min, verify-email 10/min,
+  resend-code 3/ora. È l'unica mossa che *ferma* qualcuno, e chiude in un colpo
+  DoS, anagrafiche spazzatura e quota Brevo bruciata.
+- [ ] **bcrypt fuori dall'event loop** — `run_in_threadpool` in `utils/auth.py`,
+  incluse `issue_code` e `check_code` in `services/email_verification.py`, che
+  sono quelle che si dimenticano. Gli handler non possono diventare `def`
+  sincroni: il corpo fa `await db.execute`.
+- [ ] **Registrazione: il telefono non verificato collega l'anagrafica**
+  (`api/public/auth.py:72-97`). Chi conosce il numero di una cliente ne legge
+  lo storico. Serve la guardia `client.account_id is None` **a prescindere** dal
+  canale di verifica: due persone possono legittimamente condividere un numero
+  (madre e figlia), e chi verifica per secondo ruberebbe la scheda al primo. La
+  verifica WhatsApp del numero, prevista al go-live, migliora il collegamento
+  automatico ma non sostituisce la guardia.
+- [ ] **Ordine dei controlli in `services/images.py`**: `image.format in
+  ALLOWED_FORMATS` e un tetto sui pixel vanno **fra** `Image.open()` e
+  `image.load()`. Oggi l'allowlist arriva dopo che il decoder ha già girato. Il
+  commento "Pillow refuses absurd pixel counts on its own" è sbagliato.
+- [ ] **Open redirect** in `LoginPage.tsx:58`: `next` letto dalla query e
+  passato a `navigate()` senza validazione, quindi `?next=//sito-cattivo` porta
+  fuori dominio dopo il login. Due righe.
+- [ ] **`visit_notes` fuori dal portale** (`schemas/appointment.py:56`): la nota
+  interna post-visita è esposta al cliente. Oggi è NULL per tutti perché la UI
+  admin non la scrive ancora — separare lo schema **prima** di iniziare a usarla.
+- [ ] **Dependabot + `pip-audit` in CI** — è il motivo per cui il DoS di
+  python-multipart è rimasto scoperto venti mesi.
+- [ ] **Un minimo di logging**: in `backend/app/` non c'è una sola riga. Se
+  domani entra qualcuno non puoi dire cosa ha visto, che è esattamente quello
+  che chiede l'art. 33 GDPR.
+- [ ] `Field(min_length=10)` su `ClientRegister.password` e
+  `PasswordReset.new_password`: lo staff ha 12, i clienti niente lato server.
+
+### Deciso di NON fare
+Non sono dimenticanze: sono scelte, con la ragione accanto.
+- **Token nei cookie httpOnly** — l'app non usa nessun cookie, quindi il CSRF è
+  strutturalmente impossibile e non esiste un solo sink XSS. Passare ai cookie
+  regalerebbe una superficie CSRF che oggi non c'è.
+- **CSP completa** — `default-src 'self'` rompe Radix e recharts (stili inline).
+  Solo `frame-ancestors 'none'` e `nosniff`.
+- **HSTS** — inutile finché il dominio è `*.up.railway.app`. Diventa sensato con
+  `newstylair.it`.
+- **Aggiornare Pillow per le 17 CVE** — le gravi non sono raggiungibili in
+  questo codice (`paste` a coordinate fisse, `ImageCms` e `ImageFilter` mai
+  importati) e l'endpoint è `require_admin`. Vale invece l'ordine dei controlli,
+  che è in lista sopra ed è gratis.
+- **Sostituire passlib** — zero advisory, e il pin `bcrypt==3.2.2` è proprio ciò
+  che evita il crash noto di passlib con bcrypt ≥ 4.1. È manutenzione, non
+  sicurezza.
+- **Blacklist di token / `jti`** — la revoca esiste già: `is_active` è riletto
+  dal DB a ogni richiesta. Manca solo che il *cambio password* sia anch'esso una
+  revoca, e la versione economica è una colonna `token_version`.
+- **Captcha** — il rate limiting risolve lo stesso problema senza infastidire
+  venti clienti veri.
+- **Toccare il CORS** — `localhost:5173` in allowlist è sciatto ma innocuo senza
+  cookie. Verificato in produzione: `Origin` estranea → 400 senza header.
+  Diventa la prima riga da cambiare *se* un giorno si passa ai cookie.
+
+**Da sapere, costo zero**: per cacciare qualcuno la leva è **"disattiva
+l'accesso"** (`PUT /api/admin/team/{id}` con `is_active=false`), non "cambio la
+password" — quella non invalida nessuna sessione.
+
+---
+
 ## Funzionalità richieste
 
 Non bloccano il go-live: il gestionale funziona senza. Stanno qui separate

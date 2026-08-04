@@ -17,7 +17,11 @@ email-validator==2.2.0
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 bcrypt==3.2.2
-python-multipart==0.0.20
+# 0.0.31, not 0.0.20: GHSA-5rvq-cxj2-64vf makes form parsing quadratic in the
+# number of `;` separators, and the Twilio webhook has to parse the body before
+# it can verify the signature — so the slow path is reachable pre-auth, on a
+# single-worker deploy where it freezes every other request.
+python-multipart==0.0.31
 
 # Task queue
 celery==5.4.0

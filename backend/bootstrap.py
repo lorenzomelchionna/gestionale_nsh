@@ -27,15 +27,28 @@ from app.utils.auth import hash_password
 
 async def ensure_admin(db, email, password):
     result = await db.execute(select(User).where(User.email == email))
-    if result.scalar_one_or_none() is None:
-        db.add(User(
-            email=email,
-            password_hash=hash_password(password),
-            role=UserRole.admin,
-        ))
-        print(f"✓ Admin creato: {email}")
-    else:
+    if result.scalar_one_or_none() is not None:
         print(f"• Admin già esistente: {email}")
+        return
+
+    # The demand for a password belongs here and not at the top of the script,
+    # because this is the only branch that needs one. Checking it up front
+    # refused to boot every existing deployment that had never set the variable
+    # — which is most of them, since the admin is created once and rotated with
+    # scripts/set_admin_password.py afterwards.
+    if not password:
+        raise SystemExit(
+            f"ADMIN_PASSWORD non impostata e l'admin {email} non esiste. "
+            "Il bootstrap non inventa una password per un account amministratore "
+            "in produzione: impostala fra le variabili d'ambiente."
+        )
+
+    db.add(User(
+        email=email,
+        password_hash=hash_password(password),
+        role=UserRole.admin,
+    ))
+    print(f"✓ Admin creato: {email}")
 
 
 async def ensure_booking_config(db):
@@ -248,16 +261,13 @@ async def bootstrap():
     # default password was published in this public repository, so the day a
     # typo in ADMIN_EMAIL, a fresh environment or a restored database made that
     # branch fire, it would have minted a full admin with a password anyone can
-    # read — and logged nothing but "✓ Admin creato". Refusing to guess is the
-    # whole fix: an admin worth creating is worth having a password chosen for.
-    if not admin_password:
-        if os.getenv("APP_ENV", "development") != "development":
-            raise SystemExit(
-                "ADMIN_PASSWORD non impostata. Il bootstrap non inventa una password "
-                "per un account amministratore in produzione: impostala fra le "
-                "variabili d'ambiente, oppure ruotala con scripts/set_admin_password.py."
-            )
-        admin_password = "admin123"  # local only; APP_ENV=development
+    # read — and logged nothing but "✓ Admin creato".
+    #
+    # Refusing to guess is the fix, but the refusal lives in ensure_admin: an
+    # existing admin needs no password, and demanding one here took production
+    # down on a deploy where nothing was wrong.
+    if not admin_password and os.getenv("APP_ENV", "development") == "development":
+        admin_password = "admin123"  # local only
         print("! ADMIN_PASSWORD assente: uso la password di sviluppo (APP_ENV=development)")
 
     async with AsyncSessionLocal() as db:

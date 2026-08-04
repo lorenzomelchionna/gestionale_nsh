@@ -133,6 +133,7 @@ def no_celery(monkeypatch):
     log and continue, but stubbing it keeps tests fast and deterministic.
     """
     import app.api.admin.appointments as appointments_api
+    import app.api.admin.gift_cards as gift_cards_api
     import app.api.public.booking as booking_api
 
     monkeypatch.setattr(
@@ -140,6 +141,13 @@ def no_celery(monkeypatch):
     )
     monkeypatch.setattr(
         booking_api, "_trigger_new_booking_alert", lambda appointment_id: None
+    )
+    # Ogni nuovo invio fire-and-forget va aggiunto qui. Senza, `.delay()` cerca
+    # davvero il broker e ogni test che passa da quella rotta paga il timeout
+    # della connessione a Redis — non fallisce, rallenta, che è peggio da
+    # riconoscere.
+    monkeypatch.setattr(
+        gift_cards_api, "_trigger_gift_card_email", lambda gift_card_id: None
     )
 
 

@@ -78,6 +78,17 @@ EXPECTED_GUARDS = {
     ("PUT", "/api/admin/expenses/{expense_id}"): "admin",
     ("POST", "/api/admin/extra-days"): "admin",
     ("GET", "/api/admin/extra-days/{collaborator_id}"): "admin",
+    # Buoni regalo: admin, come tutta la cassa. Un buono è denaro al
+    # portatore — chi lo emette decide un incasso, chi lo riscatta decide che
+    # un servizio è pagato, e chi lo annulla cancella un credito di qualcuno.
+    # Anche la sola lettura resta admin: `payments` lo è già, e il registro
+    # dei buoni dice quanto il salone ha incassato e quanto deve ancora.
+    ("GET", "/api/admin/gift-cards"): "admin",
+    ("POST", "/api/admin/gift-cards"): "admin",
+    ("GET", "/api/admin/gift-cards/by-code/{code}"): "admin",
+    ("POST", "/api/admin/gift-cards/{gift_card_id}/cancel"): "admin",
+    ("POST", "/api/admin/gift-cards/{gift_card_id}/redeem"): "admin",
+    ("POST", "/api/admin/gift-cards/{gift_card_id}/resend-email"): "admin",
     ("DELETE", "/api/admin/extra-days/{extra_day_id}"): "admin",
     ("POST", "/api/admin/messaging/preview"): "admin",
     ("POST", "/api/admin/messaging/send"): "admin",

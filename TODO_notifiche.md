@@ -231,9 +231,13 @@ cose ancora aperte; il resto è chiuso.
 - [ ] **Open redirect** in `LoginPage.tsx:58`: `next` letto dalla query e
   passato a `navigate()` senza validazione, quindi `?next=//sito-cattivo` porta
   fuori dominio dopo il login. Due righe.
-- [ ] **`visit_notes` fuori dal portale** (`schemas/appointment.py:56`): la nota
-  interna post-visita è esposta al cliente. Oggi è NULL per tutti perché la UI
-  admin non la scrive ancora — separare lo schema **prima** di iniziare a usarla.
+- [x] ~~**`visit_notes` fuori dal portale**~~ — fatto 2026-08-04, e proprio
+  come diceva questa riga: **prima** di iniziare a usarla. Le due rotte
+  pubbliche degli appuntamenti ora rispondono con `PortalAppointmentOut`,
+  che elenca i campi permessi invece di toglierne due — così un campo nuovo
+  sul modello non esce dal portale per distrazione. Fuori anche `notes`, che
+  dal calendario la scrive il salone. Dentro resta `rejection_reason`: è la
+  spiegazione di un rifiuto, scritta per chi l'ha subito.
 - [ ] **Dependabot + `pip-audit` in CI** — è il motivo per cui il DoS di
   python-multipart è rimasto scoperto venti mesi.
 - [ ] **Un minimo di logging**: in `backend/app/` non c'è una sola riga. Se
@@ -373,9 +377,35 @@ solo il collegamento in UI, dove non esiste serve una migration.
   lo mostra, in nessuna pagina. È il campo giusto per quello che chiede, va
   solo collegato (probabilmente nel flusso "completa appuntamento").
 
-- [ ] **Elenco di tutti gli appuntamenti** (facoltativo, l'ha detto lei
-  stessa) — oggi esistono solo il Calendario e "In attesa"; nessuna vista a
-  lista/tabella con filtri su tutto lo storico.
+- [x] ~~**`visit_notes` collegato alla UI**~~ — fatto 2026-08-04, nel flusso
+  «completa appuntamento» come previsto: chiudere la visita è il momento in
+  cui si sa cosa scrivere. Il corpo della chiamata è facoltativo, quindi
+  «Completa» senza nota resta un clic solo. La nota si rilegge nello storico
+  della scheda cliente — che era il punto della richiesta — e si corregge
+  dopo dalla scheda nel nuovo elenco appuntamenti.
+
+  **Prima però andava chiusa una falla**, e non è un extra: il portale
+  cliente rispondeva con `AppointmentOutWithNames`, che contiene
+  `visit_notes` e `notes`. Finché il campo restava vuoto non usciva niente;
+  dal momento in cui il salone ci scrive «capello in difficoltà, sconsigliata
+  la decolorazione», sarebbe stata la cliente a leggerselo. Le due rotte
+  pubbliche ora usano `PortalAppointmentOut`, scritto come **elenco di campi
+  permessi** e non per sottrazione: un campo nuovo sul modello non finisce
+  nel portale per distrazione. `rejection_reason` resta — è scritto per
+  essere letto da chi l'ha subito. Verificato al contrario: rimettendo i due
+  campi, tre test falliscono.
+
+- [x] ~~**Elenco di tutti gli appuntamenti**~~ — fatto 2026-08-04, in
+  `/admin/appointments/all`. Ricerca per nome, cognome o telefono, filtri per
+  stato, periodo e collaboratore, e la nota di visita in riga: «che colore le
+  ho fatto a marzo?» si risponde da qui.
+  `GET /appointments` aveva già data, collaboratore e stato; mancavano
+  ricerca, filtro cliente e ordine invertito. L'ordine è un parametro perché
+  le due schermate lo vogliono opposto — il calendario legge una giornata in
+  avanti, l'elenco parte da ieri e va indietro — e il default resta `asc`,
+  che è quello che il calendario si aspettava già.
+  Nella barra del telefono non entra: sta nel gruppo «Registro» accanto a
+  Clienti, così le quattro voci in fondo allo schermo restano quelle di prima.
 
 - [ ] **Gift card, arriva via email a chi la riceve** — non esiste nessuna
   parte di questa funzionalità. Da costruire da zero: acquisto (importo,

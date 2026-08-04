@@ -145,7 +145,18 @@ export default function ClientDetailPage() {
                         <td className="text-muted-foreground">
                           {a.service_names?.length ? a.service_names.join(' + ') : '–'}
                         </td>
-                        <td className="text-ink-3">{a.collaborator_name ?? '–'}</td>
+                        <td className="text-muted-foreground">
+                          {a.collaborator_name ?? '–'}
+                          {/* La nota sotto l'operatore e non in una colonna
+                              sua: è la riga che si va a cercare — «che colore
+                              le ho fatto a marzo?» — e una colonna in più
+                              spingerebbe la tabella fuori pagina. */}
+                          {a.visit_notes && (
+                            <span className="block text-[13px] italic text-ink-2 mt-1 whitespace-pre-line">
+                              {a.visit_notes}
+                            </span>
+                          )}
+                        </td>
                         <td className="num">
                           <span className="amount">€{(a.total_price ?? 0).toFixed(2)}</span>
                         </td>
@@ -198,6 +209,11 @@ function VisitRow({ appointment: a }: { appointment: Appointment }) {
           {a.service_names?.length ? a.service_names.join(' + ') : '–'}
           {a.collaborator_name && <span className="text-ink-3"> · {a.collaborator_name}</span>}
         </p>
+        {a.visit_notes && (
+          <p className="text-[13px] italic text-ink-2 mt-1 whitespace-pre-line">
+            {a.visit_notes}
+          </p>
+        )}
       </div>
       <div className="text-right shrink-0 flex flex-col items-end gap-1.5">
         <span className="amount">€{(a.total_price ?? 0).toFixed(2)}</span>

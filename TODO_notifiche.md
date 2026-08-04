@@ -179,6 +179,20 @@ cose ancora aperte; il resto è chiuso.
   `APP_ENV=development` l'app non parte e il bootstrap non crea l'admin.
 - [x] ~~`python-multipart` 0.0.20~~ → 0.0.31 (GHSA-5rvq-cxj2-64vf, parsing
   quadratico raggiungibile prima della verifica firma sul webhook Twilio).
+- [x] ~~La registrazione agganciava l'anagrafica su un telefono mai
+  verificato~~ — l'aggancio si è spostato in `verify-email` e ora avviene solo
+  sull'**indirizzo dimostrato**, e solo su una scheda che non appartiene già a
+  qualcun altro. Chi conosce il numero di una cliente non ne legge più lo
+  storico, non la stacca dalla sua scheda e non le sovrascrive l'email.
+  **Conseguenza voluta**: una cliente già seguita in salone di cui si conosce
+  solo il telefono (email assente o diversa) genera ora una **seconda riga**,
+  che il salone unisce a mano. Due schede da fondere battono una fusa per
+  sbaglio. La verifica del numero via WhatsApp, quando arriverà, renderà di
+  nuovo automatico anche quel caso — ma la guardia su `account_id` resta
+  necessaria comunque, perché due persone possono condividere un numero.
+  Nota: il confronto sull'email è esatto, maiuscole comprese (scelta già presa
+  altrove nel progetto), quindi `Mario.Rossi@` e `mario.rossi@` restano righe
+  distinte.
 
 ### Da fare — in ordine di resa
 - [ ] **Spegnere i proxy TCP pubblici** di Postgres e Redis dalla dashboard
@@ -193,13 +207,11 @@ cose ancora aperte; il resto è chiuso.
   incluse `issue_code` e `check_code` in `services/email_verification.py`, che
   sono quelle che si dimenticano. Gli handler non possono diventare `def`
   sincroni: il corpo fa `await db.execute`.
-- [ ] **Registrazione: il telefono non verificato collega l'anagrafica**
-  (`api/public/auth.py:72-97`). Chi conosce il numero di una cliente ne legge
-  lo storico. Serve la guardia `client.account_id is None` **a prescindere** dal
-  canale di verifica: due persone possono legittimamente condividere un numero
-  (madre e figlia), e chi verifica per secondo ruberebbe la scheda al primo. La
-  verifica WhatsApp del numero, prevista al go-live, migliora il collegamento
-  automatico ma non sostituisce la guardia.
+- [ ] **Unione di due schede dall'area admin** — conseguenza del fix sopra: il
+  salone può ritrovarsi due righe per la stessa persona (una sua, una creata
+  dalla registrazione) e oggi le può solo modificare a mano una per volta.
+  Serve un pulsante "unisci": sposta appuntamenti e pagamenti su una riga sola
+  e cancella l'altra. Diventa meno urgente quando il numero sarà verificabile.
 - [ ] **Ordine dei controlli in `services/images.py`**: `image.format in
   ALLOWED_FORMATS` e un tetto sui pixel vanno **fra** `Image.open()` e
   `image.load()`. Oggi l'allowlist arriva dopo che il decoder ha già girato. Il

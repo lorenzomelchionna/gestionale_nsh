@@ -1,10 +1,16 @@
 """
 Phone numbers are canonicalised to E.164 on the way in.
 
-The integration tests carry the real weight: a client the salon typed in by
-hand and the same person registering online must end up as ONE record. Before
-normalisation the two spellings of the same number did not compare equal, so
-registration created a second client and split the appointment history.
+Two spellings of the same number have to compare equal, because the number is
+how the salon finds a person: the WhatsApp inbox matches an incoming message to
+a client by it, and the admin search looks it up.
+
+Note what this normalisation is NO LONGER used for. Registration used to link a
+new account to an existing client by matching the phone, and these tests
+certified that behaviour — until it turned out to be the way a stranger could
+take over a client's record just by knowing her mobile number. Linking now
+happens after the email is verified and matches on the address alone; see
+tests/test_registration_takeover.py.
 """
 import pytest
 from sqlalchemy import select
@@ -93,21 +99,19 @@ class TestAdminEntry:
         assert resp.status_code == 422
 
 
-class TestRegistrationLinksInsteadOfDuplicating:
-    """The reason this normalisation exists."""
-
-    async def test_same_person_different_spelling_is_one_record(
+class TestTheNumberStillMatchesAcrossSpellings:
+    async def test_both_spellings_land_on_the_same_stored_value(
         self, client, db, admin_tokens
     ):
+        """What the salon types by hand and what a client types online end up
+        byte-identical, which is what makes any later lookup by number work."""
         created = await client.post(
             "/api/admin/clients",
             headers=auth(admin_tokens),
             json={"first_name": "Maria", "last_name": "Rossi", "phone": "333 287 6794"},
         )
         assert created.status_code == 201
-        client_id = created.json()["id"]
 
-        # Same person signs up online, typing the number the other way round.
         resp = await client.post(
             "/api/public/auth/register",
             json={
@@ -124,9 +128,41 @@ class TestRegistrationLinksInsteadOfDuplicating:
         rows = (await db.execute(
             select(Client).where(Client.phone == "+393332876794")
         )).scalars().all()
-        assert len(rows) == 1, "la registrazione ha duplicato il cliente"
-        assert rows[0].id == client_id
-        assert rows[0].account_id is not None, "account non collegato all'anagrafica"
+        assert len(rows) == 2, "le due grafie non sono finite sullo stesso valore"
+
+    async def test_a_matching_number_alone_does_not_hand_over_the_record(
+        self, client, db, admin_tokens
+    ):
+        """Il duplicato sopra è voluto.
+
+        Fondere le due schede sul solo numero significherebbe che chiunque
+        conosca il cellulare di una cliente si prende la sua anagrafica. Finché
+        il numero non viene verificato (OTP WhatsApp, previsto al go-live), due
+        righe che il salone può unire a mano battono una riga unita per errore.
+        """
+        created = await client.post(
+            "/api/admin/clients",
+            headers=auth(admin_tokens),
+            json={"first_name": "Maria", "last_name": "Rossi", "phone": "333 287 6794"},
+        )
+        client_id = created.json()["id"]
+
+        await client.post(
+            "/api/public/auth/register",
+            json={
+                "first_name": "Chiunque",
+                "last_name": "Altro",
+                "phone": "333 287 6794",
+                "email": "estraneo@nsh-test.it",
+                "password": GOOD_PASSWORD,
+                "birth_date": "1990-05-12",
+            },
+        )
+
+        del_salone = (await db.execute(
+            select(Client).where(Client.id == client_id)
+        )).scalar_one()
+        assert del_salone.account_id is None
 
     async def test_registration_stores_e164(self, client, db):
         resp = await client.post(

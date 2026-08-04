@@ -9,6 +9,7 @@ import AdminLayout from '@/components/layout/AdminLayout'
 import DashboardPage from '@/pages/admin/DashboardPage'
 import CalendarPage from '@/pages/admin/CalendarPage'
 import PendingPage from '@/pages/admin/PendingPage'
+import AppointmentsPage from '@/pages/admin/AppointmentsPage'
 import ClientsPage from '@/pages/admin/ClientsPage'
 import ClientDetailPage from '@/pages/admin/ClientDetailPage'
 import CollaboratorsPage from '@/pages/admin/CollaboratorsPage'
@@ -70,6 +71,7 @@ export default function App() {
           <Route path="dashboard"            element={<RequireAdmin><DashboardPage /></RequireAdmin>} />
           <Route path="calendar"             element={<CalendarPage />} />
           <Route path="appointments/pending" element={<PendingPage />} />
+          <Route path="appointments/all"     element={<AppointmentsPage />} />
           <Route path="clients"              element={<ClientsPage />} />
           <Route path="chat"                 element={<ChatPage />} />
           <Route path="clients/:id"          element={<ClientDetailPage />} />

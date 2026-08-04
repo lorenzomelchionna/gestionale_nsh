@@ -18,7 +18,7 @@ from app.models.booking_config import BookingConfig
 from app.models.waitlist import WaitlistEntry, WaitlistStatus
 from app.schemas.service import ServiceOut
 from app.schemas.collaborator import CollaboratorOut, CollaboratorScheduleOut
-from app.schemas.appointment import AppointmentOut, AppointmentOutWithNames, AppointmentCreate
+from app.schemas.appointment import AppointmentCreate, PortalAppointmentOut
 from app.schemas.waitlist import WaitlistCreate, WaitlistOut
 from app.schemas.common import MessageResponse
 from app.dependencies import get_current_client
@@ -225,7 +225,7 @@ async def public_availability_calendar(
 
 # ── Authenticated client endpoints ────────────────────────────────
 
-@router.post("/appointments", response_model=AppointmentOut, status_code=status.HTTP_201_CREATED)
+@router.post("/appointments", response_model=PortalAppointmentOut, status_code=status.HTTP_201_CREATED)
 async def book_appointment(
     payload: AppointmentCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -335,10 +335,19 @@ async def book_appointment(
     await db.commit()
     _trigger_new_booking_alert(appt.id)
 
-    return AppointmentOut.model_validate(appt)
+    # Rileggere invece di proiettare `appt`: la risposta ora include il nome
+    # del collaboratore e quelli dei servizi, che sono relazioni non caricate
+    # su questa istanza — e dopo il commit un accesso pigro sotto asyncio non
+    # è una query in più, è un MissingGreenlet.
+    reloaded = await db.execute(
+        select(Appointment)
+        .options(*appointment_detail_loads())
+        .where(Appointment.id == appt.id)
+    )
+    return PortalAppointmentOut.from_appointment(reloaded.scalar_one())
 
 
-@router.get("/appointments", response_model=List[AppointmentOutWithNames])
+@router.get("/appointments", response_model=List[PortalAppointmentOut])
 async def my_appointments(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_account: Annotated[ClientAccount, Depends(get_current_client)],
@@ -357,7 +366,7 @@ async def my_appointments(
         .order_by(Appointment.start_time.desc())
     )
     appointments = result.scalars().all()
-    return [AppointmentOutWithNames.from_appointment(a) for a in appointments]
+    return [PortalAppointmentOut.from_appointment(a) for a in appointments]
 
 
 @router.post("/appointments/{appointment_id}/cancel", response_model=MessageResponse)

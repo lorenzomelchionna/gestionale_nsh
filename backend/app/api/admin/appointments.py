@@ -2,7 +2,7 @@ from typing import Annotated, List, Optional
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func, and_, or_
 from app.database import get_db
 from app.models.appointment import (
     Appointment, AppointmentService, AppointmentStatus, AppointmentOrigin,
@@ -13,7 +13,7 @@ from app.models.client import Client
 from app.models.collaborator import Collaborator
 from app.models.user import User
 from app.schemas.appointment import (
-    AppointmentCreate, AppointmentUpdate, AppointmentOut,
+    AppointmentComplete, AppointmentCreate, AppointmentUpdate, AppointmentOut,
     AppointmentOutWithNames, AppointmentReject, AppointmentReschedule,
 )
 from app.schemas.common import PaginatedResponse
@@ -55,8 +55,19 @@ async def list_appointments(
     date_from: Optional[datetime] = Query(None),
     date_to: Optional[datetime] = Query(None),
     collaborator_id: Optional[int] = Query(None),
+    client_id: Optional[int] = Query(None),
     status_filter: Optional[str] = Query(None, alias="status"),
+    search: Optional[str] = Query(None, min_length=2, max_length=100),
+    order: str = Query("asc", pattern="^(asc|desc)$"),
 ):
+    """L'elenco degli appuntamenti, con i filtri per trovarne uno.
+
+    L'ordine è un parametro e non una costante perché le due schermate che
+    leggono da qui vogliono il contrario l'una dell'altra: il calendario legge
+    una giornata dall'inizio alla fine, l'elenco storico parte da ieri e va
+    all'indietro. Il default resta `asc`, che è quello che il calendario si
+    aspettava già prima che questo parametro esistesse.
+    """
     q = select(Appointment).options(*appointment_detail_loads())
     if date_from:
         q = q.where(Appointment.start_time >= date_from)
@@ -64,11 +75,26 @@ async def list_appointments(
         q = q.where(Appointment.start_time <= date_to)
     if collaborator_id:
         q = q.where(Appointment.collaborator_id == collaborator_id)
+    if client_id:
+        q = q.where(Appointment.client_id == client_id)
     if status_filter:
         q = q.where(Appointment.status == status_filter)
+    if search:
+        # Nome, cognome o telefono: al banco si cerca con quello che si ha in
+        # mano, che è una delle tre cose e non si sa mai quale.
+        like = f"%{search.strip()}%"
+        q = q.join(Appointment.client).where(or_(
+            Client.first_name.ilike(like),
+            Client.last_name.ilike(like),
+            Client.phone.ilike(like),
+            (Client.first_name + " " + Client.last_name).ilike(like),
+        ))
 
     total = (await db.execute(select(func.count()).select_from(q.subquery()))).scalar_one()
-    result = await db.execute(q.order_by(Appointment.start_time).offset((page - 1) * page_size).limit(page_size))
+    ordering = (
+        Appointment.start_time.desc() if order == "desc" else Appointment.start_time.asc()
+    )
+    result = await db.execute(q.order_by(ordering).offset((page - 1) * page_size).limit(page_size))
     return PaginatedResponse(
         items=[_enrich(a) for a in result.scalars().all()],
         total=total, page=page, page_size=page_size, pages=-(-total // page_size),
@@ -249,10 +275,22 @@ async def complete_appointment(
     appointment_id: int,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_user)],
+    payload: Optional[AppointmentComplete] = None,
 ):
+    """Chiude una visita, con la sua nota se c'è.
+
+    Il corpo è facoltativo: «segna completato» senza scrivere niente deve
+    restare un clic solo, che è come lo si usa quando il salone è pieno.
+    """
     a = await _load_appointment(db, appointment_id)
     if a.status != AppointmentStatus.confirmed:
         raise HTTPException(status_code=400, detail="Solo gli appuntamenti confermati possono essere completati")
     a.status = AppointmentStatus.completed
+    if payload is not None and payload.visit_notes is not None:
+        nota = payload.visit_notes.strip()
+        # Una stringa vuota qui vuol dire «non ho scritto niente», non
+        # «cancella quello che c'era»: la nota si svuota dal PUT, di proposito.
+        if nota:
+            a.visit_notes = nota
     await db.flush()
     return _enrich(await _load_appointment(db, appointment_id))

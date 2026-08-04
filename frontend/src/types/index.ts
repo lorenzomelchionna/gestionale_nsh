@@ -122,6 +122,7 @@ export interface Product {
   id: number
   name: string
   description: string | null
+  supplier: string | null
   purchase_price: number
   sale_price: number
   category: string

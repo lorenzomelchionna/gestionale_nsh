@@ -300,6 +300,11 @@ function VacationsTab({ collaboratorId }: { collaboratorId: number }) {
   const [showForm, setShowForm] = useState(false)
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
+  // Un permesso di due ore non è una giornata di ferie: finché questa resta
+  // chiusa l'assenza è a giornata intera, cioè com'era prima.
+  const [aOre, setAOre] = useState(false)
+  const [startTime, setStartTime] = useState('09:00')
+  const [endTime, setEndTime] = useState('13:00')
   const [type, setType] = useState<AbsenceType>('ferie')
   const [notes, setNotes] = useState('')
 
@@ -315,6 +320,10 @@ function VacationsTab({ collaboratorId }: { collaboratorId: number }) {
       collaborator_id: collaboratorId,
       start_date: startDate,
       end_date: endDate,
+      // Il server accetta entrambe le ore o nessuna: mandarne una sola
+      // lascerebbe l'assenza senza un confine di fine.
+      start_time: aOre ? startTime : null,
+      end_time: aOre ? endTime : null,
       type,
       notes: notes || undefined,
     }),
@@ -323,6 +332,7 @@ function VacationsTab({ collaboratorId }: { collaboratorId: number }) {
       setShowForm(false)
       setStartDate('')
       setEndDate('')
+      setAOre(false)
       setNotes('')
       setType('ferie')
     },
@@ -354,6 +364,13 @@ function VacationsTab({ collaboratorId }: { collaboratorId: number }) {
               <span className="text-muted-foreground ml-1.5">
                 {formatDate(a.start_date)} – {formatDate(a.end_date)}
               </span>
+              {/* Senza questo un permesso di due ore e una giornata intera
+                  sono indistinguibili in elenco. */}
+              {a.start_time && a.end_time && (
+                <span className="text-muted-foreground ml-1.5 tabular-nums">
+                  {a.start_time.slice(0, 5)}–{a.end_time.slice(0, 5)}
+                </span>
+              )}
               {a.notes && <span className="text-muted-foreground ml-1.5 italic">({a.notes})</span>}
             </div>
             <button
@@ -390,6 +407,42 @@ function VacationsTab({ collaboratorId }: { collaboratorId: number }) {
               />
             </div>
           </div>
+          {/* Solo alcune ore invece della giornata: un permesso, una visita. */}
+          <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+            <input
+              type="checkbox"
+              checked={aOre}
+              onChange={e => setAOre(e.target.checked)}
+            />
+            <span>Solo alcune ore</span>
+          </label>
+          {aOre && (
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-xs text-muted-foreground block mb-0.5">Dalle</label>
+                <input
+                  type="time"
+                  step={1800}
+                  className="border border-border rounded px-1.5 py-1 text-xs w-full"
+                  value={startTime}
+                  onChange={e => setStartTime(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground block mb-0.5">Alle</label>
+                <input
+                  type="time"
+                  step={1800}
+                  className="border border-border rounded px-1.5 py-1 text-xs w-full"
+                  value={endTime}
+                  onChange={e => setEndTime(e.target.value)}
+                />
+              </div>
+              <p className="col-span-2 text-[11px] text-muted-foreground">
+                Se l'intervallo copre più giorni, la fascia vale per ognuno.
+              </p>
+            </div>
+          )}
           <div>
             <label className="text-xs text-muted-foreground block mb-0.5">Tipo</label>
             <select

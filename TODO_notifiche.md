@@ -212,6 +212,15 @@ cose ancora aperte; il resto è chiuso.
   dalla registrazione) e oggi le può solo modificare a mano una per volta.
   Serve un pulsante "unisci": sposta appuntamenti e pagamenti su una riga sola
   e cancella l'altra. Diventa meno urgente quando il numero sarà verificabile.
+- [ ] **Due `scalar_one_or_none()` ancora esposti in `availability.py`** —
+  stessa famiglia del bug chiuso il 2026-08-04 sulle assenze, trovati mentre
+  lo si sistemava. Riga 81 (`CollaboratorExtraDay`) e riga 98
+  (`CollaboratorSchedule`): nessuna delle due tabelle ha un vincolo unico, e
+  `POST /api/admin/extra-days` non controlla nulla, quindi due giorni extra
+  sulla stessa data si creano con due click — e da quel momento il calcolo
+  della disponibilità **solleva** per quel collaboratore, in quel giorno,
+  invece di rispondere. Il fix è lo stesso: `scalars().all()` più una regola
+  su cosa fare con più righe (e possibilmente un vincolo unico in migration).
 - [ ] **Ordine dei controlli in `services/images.py`**: `image.format in
   ALLOWED_FORMATS` e un tetto sui pixel vanno **fra** `Image.open()` e
   `image.load()`. Oggi l'allowlist arriva dopo che il decoder ha già girato. Il
@@ -266,6 +275,80 @@ password" — quella non invalida nessuna sessione.
 Non bloccano il go-live: il gestionale funziona senza. Stanno qui separate
 apposta, così le caselle aperte qui sotto non si confondono con quelle della
 roadmap sopra.
+
+### Richieste di Flavia — 2026-08-04 (WhatsApp, dopo un giro sezione per sezione)
+
+Ognuna verificata sul codice, non ipotizzata: dove il campo già esiste manca
+solo il collegamento in UI, dove non esiste serve una migration.
+
+- [x] ~~**Tempo di posa nei servizi**~~ — fatto 2026-08-04. `duration_slots`
+  resta la durata totale (quella che vede la cliente); due campi nuovi dicono
+  come si spezza: `slots_before_processing` (applicazione) e
+  `processing_slots` (posa, collaboratore libero). Il resto è lavoro finale.
+  `availability.py` ora calcola quali slot **impegnano davvero** il
+  collaboratore, quindi durante la posa di una tinta l'agenda può infilare
+  un'altra cliente. Verificato in produzione locale: Colore base 120 min con
+  60 di posa → prenotato alle 09:00, le 09:30 e le 10:00 restano libere,
+  09:00 e 10:30 occupate.
+  Retrocompatibile: `processing_slots = 0` è il comportamento di sempre, e i
+  19 servizi esistenti non cambiano di una virgola.
+  **Prudenza deliberata**: se un appuntamento viene allungato a mano
+  dall'agenda, la somma dei suoi servizi non lo descrive più e si torna a
+  occupare tutta la fascia — meglio un buco sprecato che due clienti sulla
+  stessa poltrona.
+
+- [x] ~~**Servizio "Pausa" interno per le ore di permesso**~~ — fatto
+  2026-08-04, ma **non** come servizio nascosto. Un appuntamento richiede
+  sempre un `client_id`, quindi ogni pausa avrebbe voluto un cliente finto in
+  anagrafica, sporcando elenco clienti e statistiche.
+  `Absence` esiste già per questo e blocca il calendario nel modo giusto:
+  mancava solo di poterla limitare a una fascia oraria. Aggiunti
+  `start_time`/`end_time` opzionali — entrambi assenti = giornata intera,
+  cioè il comportamento di prima. Nel form collaboratori c'è una casella
+  «Solo alcune ore». Su un intervallo di più giorni la fascia vale per
+  ognuno («tutte le mattine di questa settimana»).
+  Sistemato per strada un bug latente: la query sulle assenze usava
+  `scalar_one_or_none()`, che con due assenze nello stesso giorno **solleva**
+  invece di rispondere. Coi permessi a ore quel caso diventa normale.
+
+- [ ] **Descrizione prodotto nel form** — il campo `description` **esiste
+  già** nel modello, nello schema e viene mostrato nella lista se presente
+  (`ProductsPage.tsx:118`). Manca solo l'`<textarea>` nel form di creazione:
+  oggi sta in `useState` ma nessun input ci scrive dentro, quindi resta
+  sempre vuoto. **Nota collegata**: non esiste *nessun* modo di modificare un
+  prodotto già creato (solo carico/scarico e foto) — `updateProduct` è
+  scritto in `api.ts` ma non è mai chiamato da nessuna pagina. Aggiungere la
+  descrizione ha senso farlo insieme a un form di modifica vero, altrimenti
+  chi sbaglia a scriverla in creazione resta bloccato.
+
+- [ ] **I prodotti non sono visibili ai clienti** — risposta diretta alla sua
+  domanda: verificato, non esiste nessun endpoint pubblico per i prodotti
+  (`/api/public/` ha solo `services` e `collaborators`). Il magazzino è solo
+  staff. Non serve fare nulla per questo punto, era solo un dubbio.
+
+- [ ] **Fornitore sui prodotti** — non esiste. Serve una colonna nuova
+  (`supplier`, migration) più il campo nel form. Da fare insieme al punto
+  sopra, stesso form.
+
+- [x] ~~Le note cliente si salvano?~~ — sì, verificato: `Client.notes` è già
+  salvato, modificabile e mostrato in scheda cliente. **Ma** per l'uso che ne
+  vuole fare — segnare il colore ad ogni visita — un campo unico non
+  distingue una visita dall'altra: la nota di oggi sovrascrive quella di tre
+  mesi fa. Esiste già `Appointment.visit_notes`, pensato esattamente per una
+  nota per singola visita — ma è nel modello e basta: **zero** UI lo scrive o
+  lo mostra, in nessuna pagina. È il campo giusto per quello che chiede, va
+  solo collegato (probabilmente nel flusso "completa appuntamento").
+
+- [ ] **Elenco di tutti gli appuntamenti** (facoltativo, l'ha detto lei
+  stessa) — oggi esistono solo il Calendario e "In attesa"; nessuna vista a
+  lista/tabella con filtri su tutto lo storico.
+
+- [ ] **Gift card, arriva via email a chi la riceve** — non esiste nessuna
+  parte di questa funzionalità. Da costruire da zero: acquisto (importo,
+  eventualmente un messaggio), generazione di un codice, invio via email al
+  *destinatario* del regalo (non a chi compra — è la parte che ha sottolineato
+  lei), riscatto del codice in cassa o in prenotazione, saldo residuo se
+  parziale. È il pezzo più grande di questa lista.
 
 ### Immagini dei prodotti — richiesta 2026-08-02, fatta 2026-08-03
 

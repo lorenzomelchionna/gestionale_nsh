@@ -115,6 +115,14 @@ export default function ServicesPage() {
                       </td>
                       <td className="num text-muted-foreground whitespace-nowrap">
                         {s.duration_slots * 30} min
+                        {/* Quanto di quel tempo il collaboratore resta libero:
+                            è la differenza fra la durata per la cliente e
+                            quella che pesa sull'agenda. */}
+                        {s.processing_slots > 0 && (
+                          <span className="block text-[11px] text-ink-3 tabular-nums">
+                            di cui {s.processing_slots * 30} di posa
+                          </span>
+                        )}
                       </td>
                       <td className="num">
                         <span className="amount">€{s.price.toFixed(2)}</span>
@@ -162,10 +170,19 @@ function ServiceFormModal({ service, onClose, onSave, loading }: {
     description: service?.description ?? '',
     price: service?.price ?? 0,
     duration_slots: service?.duration_slots ?? 1,
+    processing_slots: service?.processing_slots ?? 0,
+    slots_before_processing: service?.slots_before_processing ?? 0,
     category: service?.category ?? 'Taglio',
     bookable_online: service?.bookable_online ?? true,
     is_active: service?.is_active ?? true,
   })
+
+  const posaAttiva = form.processing_slots > 0
+  const lavoroDopo = form.duration_slots - form.slots_before_processing - form.processing_slots
+  // Le stesse due regole del server, dette prima di premere Salva invece che
+  // dopo: senza lavoro prima non c'è niente da mettere in posa, senza lavoro
+  // dopo la posa è solo un appuntamento più corto.
+  const posaNonValida = posaAttiva && (form.slots_before_processing < 1 || lavoroDopo < 1)
 
   return (
     <Sheet
@@ -174,7 +191,12 @@ function ServiceFormModal({ service, onClose, onSave, loading }: {
       footer={
         <>
           <button type="button" onClick={onClose} className="btn-secondary btn-sm">Annulla</button>
-          <button type="submit" form="service-form" disabled={loading} className="btn-primary btn-sm">
+          <button
+            type="submit"
+            form="service-form"
+            disabled={loading || posaNonValida}
+            className="btn-primary btn-sm"
+          >
             {loading ? 'Salvataggio...' : 'Salva'}
           </button>
         </>
@@ -232,6 +254,88 @@ function ServiceFormModal({ service, onClose, onSave, loading }: {
               {form.duration_slots} slot = {form.duration_slots * 30} minuti
             </p>
           </div>
+        </div>
+
+        {/* Tempo di posa. Su una tinta la cliente resta in salone ma il
+            collaboratore è libero: dichiararlo qui è ciò che permette
+            all'agenda di infilare un altro appuntamento in quel buco. */}
+        <div className="border border-rule-soft p-3.5 space-y-3">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={posaAttiva}
+              onChange={e => setForm({
+                ...form,
+                processing_slots: e.target.checked ? 1 : 0,
+                slots_before_processing: e.target.checked
+                  ? Math.max(1, form.slots_before_processing)
+                  : 0,
+              })}
+            />
+            <span className="text-sm">Ha un tempo di posa</span>
+          </label>
+
+          {!posaAttiva && (
+            <p className="note">
+              Per colore, permanente e simili: durante la posa il collaboratore
+              può servire un'altra cliente.
+            </p>
+          )}
+
+          {posaAttiva && (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="label">Lavoro prima</label>
+                  <input
+                    className="input"
+                    type="number"
+                    inputMode="numeric"
+                    min="1"
+                    max={form.duration_slots - 2}
+                    value={form.slots_before_processing}
+                    onChange={e => setForm({
+                      ...form, slots_before_processing: Number(e.target.value),
+                    })}
+                  />
+                  <p className="note tabular-nums mt-1.5">
+                    {form.slots_before_processing * 30} min di applicazione
+                  </p>
+                </div>
+                <div>
+                  <label className="label">Posa</label>
+                  <input
+                    className="input"
+                    type="number"
+                    inputMode="numeric"
+                    min="1"
+                    max={form.duration_slots - 2}
+                    value={form.processing_slots}
+                    onChange={e => setForm({
+                      ...form, processing_slots: Number(e.target.value),
+                    })}
+                  />
+                  <p className="note tabular-nums mt-1.5">
+                    {form.processing_slots * 30} min liberi
+                  </p>
+                </div>
+              </div>
+
+              {posaNonValida ? (
+                <p className="text-[13px] text-danger">
+                  {form.slots_before_processing < 1
+                    ? 'Serve almeno mezz’ora di lavoro prima della posa.'
+                    : 'Dopo la posa deve restare del lavoro: aumenta la durata totale o riduci la posa.'}
+                </p>
+              ) : (
+                <p className="note tabular-nums">
+                  {form.slots_before_processing * 30} min occupato ·{' '}
+                  {form.processing_slots * 30} min libero ·{' '}
+                  {lavoroDopo * 30} min occupato
+                </p>
+              )}
+            </>
+          )}
         </div>
         <div>
           <label className="label">Categoria</label>

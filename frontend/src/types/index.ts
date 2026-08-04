@@ -64,7 +64,12 @@ export interface Service {
   name: string
   description: string | null
   price: number
+  /** Durata totale, quella che vede la cliente. */
   duration_slots: number
+  /** Slot di posa, in cui il collaboratore è libero. 0 = nessuna posa. */
+  processing_slots: number
+  /** Slot di lavoro prima che inizi la posa. */
+  slots_before_processing: number
   category: string
   bookable_online: boolean
   is_active: boolean
@@ -178,6 +183,9 @@ export interface Absence {
   collaborator_id: number
   start_date: string
   end_date: string
+  /** Fascia oraria del permesso. Entrambe null = giornata intera. */
+  start_time: string | null
+  end_time: string | null
   type: AbsenceType
   notes: string | null
   created_at: string

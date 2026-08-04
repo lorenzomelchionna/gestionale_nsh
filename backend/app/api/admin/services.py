@@ -5,7 +5,9 @@ from sqlalchemy import select, func
 from app.database import get_db
 from app.models.service import Service
 from app.models.user import User
-from app.schemas.service import ServiceCreate, ServiceUpdate, ServiceOut
+from app.schemas.service import (
+    ServiceCreate, ServiceUpdate, ServiceOut, validate_processing,
+)
 from app.schemas.common import PaginatedResponse
 from app.dependencies import get_current_user, require_admin
 
@@ -70,6 +72,19 @@ async def update_service(
         raise HTTPException(status_code=404, detail="Servizio non trovato")
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(service, field, value)
+
+    # Sul risultato del merge, non sul payload: una modifica parziale può
+    # accorciare la durata lasciando la posa com'era, e la coppia diventa
+    # incoerente pur essendo ogni singolo campo legittimo.
+    try:
+        validate_processing(
+            service.duration_slots,
+            service.slots_before_processing or 0,
+            service.processing_slots or 0,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
     await db.flush()
     return ServiceOut.model_validate(service)
 

@@ -10,6 +10,7 @@ import DashboardPage from '@/pages/admin/DashboardPage'
 import CalendarPage from '@/pages/admin/CalendarPage'
 import PendingPage from '@/pages/admin/PendingPage'
 import AppointmentsPage from '@/pages/admin/AppointmentsPage'
+import GiftCardsPage from '@/pages/admin/GiftCardsPage'
 import ClientsPage from '@/pages/admin/ClientsPage'
 import ClientDetailPage from '@/pages/admin/ClientDetailPage'
 import CollaboratorsPage from '@/pages/admin/CollaboratorsPage'
@@ -79,6 +80,7 @@ export default function App() {
           <Route path="services"             element={<ServicesPage />} />
           <Route path="products"             element={<RequireAdmin><ProductsPage /></RequireAdmin>} />
           <Route path="cash"                 element={<RequireAdmin><CashPage /></RequireAdmin>} />
+          <Route path="gift-cards"           element={<RequireAdmin><GiftCardsPage /></RequireAdmin>} />
           <Route path="expenses"             element={<RequireAdmin><ExpensesPage /></RequireAdmin>} />
           <Route path="settings"             element={<RequireAdmin><SettingsPage /></RequireAdmin>} />
           <Route path="team"                 element={<RequireAdmin><TeamPage /></RequireAdmin>} />

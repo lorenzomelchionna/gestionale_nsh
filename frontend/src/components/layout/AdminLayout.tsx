@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Calendar, Users, Scissors, Package,
   DollarSign, TrendingDown, Settings, LogOut, X,
   UserCircle, Clock, MessageSquare, ClipboardList, ShieldCheck,
-  PanelLeftClose, PanelLeft, Search, CalendarSearch,
+  PanelLeftClose, PanelLeft, Search, CalendarSearch, Gift,
 } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import { useUIStore } from '@/store/uiStore'
@@ -42,6 +42,7 @@ const adminNav: NavGroup[] = [
       { to: '/admin/clients',   icon: Users,           label: 'Clienti' },
       { to: '/admin/appointments/all', icon: CalendarSearch, label: 'Appuntamenti' },
       { to: '/admin/cash',      icon: DollarSign,      label: 'Cassa' },
+      { to: '/admin/gift-cards', icon: Gift,          label: 'Buoni regalo' },
       { to: '/admin/expenses',  icon: TrendingDown,    label: 'Spese' },
       { to: '/admin/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     ],

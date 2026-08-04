@@ -14,6 +14,7 @@ from app.models.waitlist import WaitlistEntry, WaitlistStatus
 from app.models.chat import (
     ChatMessage, Conversation, MessageDirection, MessageStatus,
 )
+from app.models.gift_card import GiftCard, GiftCardRedemption, GiftCardStatus
 
 __all__ = [
     "User",
@@ -39,4 +40,7 @@ __all__ = [
     "ChatMessage",
     "MessageDirection",
     "MessageStatus",
+    "GiftCard",
+    "GiftCardRedemption",
+    "GiftCardStatus",
 ]

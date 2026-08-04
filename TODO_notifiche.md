@@ -407,12 +407,53 @@ solo il collegamento in UI, dove non esiste serve una migration.
   Nella barra del telefono non entra: sta nel gruppo «Registro» accanto a
   Clienti, così le quattro voci in fondo allo schermo restano quelle di prima.
 
-- [ ] **Gift card, arriva via email a chi la riceve** — non esiste nessuna
-  parte di questa funzionalità. Da costruire da zero: acquisto (importo,
-  eventualmente un messaggio), generazione di un codice, invio via email al
-  *destinatario* del regalo (non a chi compra — è la parte che ha sottolineato
-  lei), riscatto del codice in cassa o in prenotazione, saldo residuo se
-  parziale. È il pezzo più grande di questa lista.
+- [x] ~~**Gift card, arriva via email a chi la riceve**~~ — fatto 2026-08-05.
+  Vendita al banco, codice generato, email al **destinatario** (non a chi
+  paga), riscatto anche parziale col residuo che resta spendibile.
+
+  Tre decisioni prese con Lorenzo, perché cambiavano cosa costruire:
+
+  1. **Si vende solo al banco.** Nel progetto non esiste nessun gateway di
+     pagamento — la vendita online avrebbe voluto dire integrare Stripe, un
+     lavoro più grande della gift card stessa.
+  2. **L'incasso è alla vendita.** Oggi entrano 50€ e si registrano oggi,
+     perché oggi sono nel cassetto. Al riscatto **non** nasce nessun
+     pagamento: registrarlo di nuovo conterebbe gli stessi euro due volte.
+     `test_il_riscatto_non_incassa_di_nuovo` tiene fermo proprio questo.
+  3. **Scadenza a 12 mesi**, calcolata dal server e non digitata: due
+     operatori non devono poter produrre due scadenze diverse.
+
+  Scelte tecniche che vale la pena ricordare:
+  - **Lo stato non è una colonna** (attiva/esaurita/scaduta/annullata): si
+    ricava da saldo, scadenza e annullamento. Una colonna andrebbe tenuta
+    allineata a ogni riscatto, e il giorno che si disallinea è il giorno in
+    cui una card esaurita risulta ancora spendibile.
+  - **Il riscatto blocca la riga** (`SELECT ... FOR UPDATE`). Senza, due
+    postazioni che riscattano insieme leggono lo stesso saldo e lo scalano
+    entrambe: un buono da 50€ ne pagherebbe 80. Verificato al contrario —
+    tolto il lock, il test concorrente fallisce.
+  - **Due tabelle**: la card porta il saldo, `gift_card_redemptions` porta la
+    storia. Il saldo da solo direbbe «restano 20€» senza saper rispondere a
+    «dove sono finiti gli altri 30?», che su soldi di qualcun altro è la
+    domanda che arriva sempre.
+  - **Il codice evita `0`/`O` e `1`/`I`/`L`**: viene ricopiato a mano da
+    un'email e dettato al telefono. La ricerca perdona maiuscole, spazi e
+    trattini per lo stesso motivo.
+  - **Tipo di pagamento suo** (`gift card`), così dieci buoni venduti non
+    sembrano un mese di servizi record.
+
+#### Rimasto fuori (gift card)
+- **Riscatto agganciato all'appuntamento**: il campo `appointment_id` esiste
+  sul riscatto ma nessuna schermata lo valorizza — oggi si scala l'importo e
+  basta. Collegarlo direbbe *su quale visita* è stato speso il buono.
+- **Latenza col broker giù**: `_trigger_gift_card_email` usa `.delay()` come
+  tutte le altre notifiche, e con Redis irraggiungibile la richiesta resta
+  appesa finché Celery non smette di ritentare (visto in locale). La vendita
+  non si perde — l'eccezione viene raccolta e il buono resta emesso — ma alla
+  cassa un'attesa così è comunque brutta. Riguarda **tutti** i trigger
+  fire-and-forget, non solo questo: la correzione sta nella configurazione
+  Celery (timeout di connessione basso, niente retry), non nel singolo
+  endpoint.
 
 ### Immagini dei prodotti — richiesta 2026-08-02, fatta 2026-08-03
 

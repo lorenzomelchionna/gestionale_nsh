@@ -15,6 +15,12 @@ class PaymentMethod(str, enum.Enum):
 class PaymentType(str, enum.Enum):
     service = "servizio"
     product = "prodotto"
+    # La vendita di un buono regalo. Un tipo suo e non `service`: non è un
+    # servizio erogato, è credito venduto, e nei conti va potuto separare —
+    # altrimenti il mese in cui si vendono dieci gift card sembra un mese di
+    # lavoro record. Il riscatto invece non genera nessun pagamento: i soldi
+    # erano già entrati qui.
+    gift_card = "gift card"
 
 
 class Payment(Base):

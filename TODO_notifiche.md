@@ -195,10 +195,13 @@ cose ancora aperte; il resto è chiuso.
   distinte.
 
 ### Da fare — in ordine di resa
-- [ ] **Spegnere i proxy TCP pubblici** di Postgres e Redis dalla dashboard
-  Railway. Verificato che backend e worker usano gli host `*.railway.internal`,
-  quindi non cade nulla. Oggi fra internet e l'anagrafica clienti c'è solo una
-  password. Per la manutenzione: `railway connect postgres --tunnel-only`.
+- [x] ~~**Spegnere i proxy TCP pubblici** di Postgres e Redis~~ — fatto
+  2026-08-04. Ricontrollato oggi: nessuna variabile `RAILWAY_TCP_PROXY_*` su
+  nessuno dei due servizi. Backend e worker parlano dagli host
+  `*.railway.internal`, quindi non è caduto niente. Per la manutenzione serve
+  un tunnel SSH (`railway connect postgres --tunnel-only`), e va **chiuso
+  controllando la porta con `lsof`**, non il processo con `ps`: il wrapper
+  muore e l'`ssh -N -L` figlio resta in ascolto per conto suo.
 - [ ] **Rate limiting** con `slowapi` (storage su Redis, che c'è già) sui soli
   endpoint costosi: register 5/ora, login 10/min, verify-email 10/min,
   resend-code 3/ora. È l'unica mossa che *ferma* qualcuno, e chiude in un colpo

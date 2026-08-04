@@ -240,8 +240,25 @@ async def seed_demo(db):
 
 async def bootstrap():
     admin_email = os.getenv("ADMIN_EMAIL", "admin@newstylair.it")
-    admin_password = os.getenv("ADMIN_PASSWORD", "admin123")
+    admin_password = os.getenv("ADMIN_PASSWORD")
     seed_flag = os.getenv("SEED_DEMO", "").lower() in ("true", "1", "yes")
+
+    # This script runs on every boot (see railway.toml startCommand), and it
+    # creates the admin whenever ADMIN_EMAIL does not already exist. The old
+    # default password was published in this public repository, so the day a
+    # typo in ADMIN_EMAIL, a fresh environment or a restored database made that
+    # branch fire, it would have minted a full admin with a password anyone can
+    # read — and logged nothing but "✓ Admin creato". Refusing to guess is the
+    # whole fix: an admin worth creating is worth having a password chosen for.
+    if not admin_password:
+        if os.getenv("APP_ENV", "development") != "development":
+            raise SystemExit(
+                "ADMIN_PASSWORD non impostata. Il bootstrap non inventa una password "
+                "per un account amministratore in produzione: impostala fra le "
+                "variabili d'ambiente, oppure ruotala con scripts/set_admin_password.py."
+            )
+        admin_password = "admin123"  # local only; APP_ENV=development
+        print("! ADMIN_PASSWORD assente: uso la password di sviluppo (APP_ENV=development)")
 
     async with AsyncSessionLocal() as db:
         await ensure_admin(db, admin_email, admin_password)

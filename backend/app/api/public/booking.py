@@ -3,7 +3,7 @@ from typing import Annotated, List
 from datetime import date, datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 from pydantic import BaseModel
 from app.database import get_db
@@ -29,6 +29,12 @@ router = APIRouter(prefix="", tags=["Public Booking"])
 # One request per visible month is the point of the calendar endpoint; a wider
 # span would run a slot computation per day for no one's benefit.
 MAX_CALENDAR_DAYS = 62
+
+# A client with this many requests still waiting is either indecisive or a
+# script. The salon answers within the day, so a real person never stacks up
+# four unanswered requests; a flood, on the other hand, is only interesting to
+# the attacker if it can reach the whole calendar.
+MAX_PENDING_PER_CLIENT = 3
 
 
 class DayAvailability(BaseModel):
@@ -244,11 +250,61 @@ async def book_appointment(
 
     await _bookable_collaborator(db, payload.collaborator_id, payload.service_ids)
 
+    # The times are the one part of the payload the browser computes for itself,
+    # so until here nothing had ever checked them. Without this block a client
+    # could book outside working hours, in the past, on top of someone else, or
+    # 00:00–23:59 on every collaborator for the next two months — and since a
+    # `pending` request already holds its slot, that last one empties the whole
+    # public calendar until the salon deletes the rows by hand.
+    start = payload.start_time
+    start = start.replace(tzinfo=timezone.utc) if start.tzinfo is None else start.astimezone(timezone.utc)
+
+    if cfg:
+        max_date = date.today() + timedelta(days=cfg.max_advance_days)
+        if start.date() > max_date:
+            raise HTTPException(status_code=400, detail="Data troppo lontana nel futuro")
+
+    # Same figure the availability endpoints use, summed because a booking may
+    # carry several services ("taglio + barba" is two blocks, not one).
+    duration_slots = sum(svc.duration_slots for svc in services)
+    slots = await get_available_slots(
+        db, payload.collaborator_id, start.date(), duration_slots
+    )
+    if start not in slots:
+        # Covers every rule get_available_slots already knows: working hours,
+        # absences, minimum notice, and slots taken by someone else. Answering
+        # with one message keeps us from telling a stranger which of those it
+        # was, i.e. from describing the salon's diary to whoever asks.
+        raise HTTPException(
+            status_code=409,
+            detail="Questo orario non è più disponibile. Scegline un altro.",
+        )
+
+    # Derived, never accepted: end_time from the browser is what let a booking
+    # claim a whole day.
+    slot_minutes = cfg.slot_duration_minutes if cfg else 30
+    end = start + timedelta(minutes=duration_slots * slot_minutes)
+
+    pending_count = (await db.execute(
+        select(func.count()).select_from(Appointment).where(
+            Appointment.client_id == client.id,
+            Appointment.status == AppointmentStatus.pending,
+        )
+    )).scalar_one()
+    if pending_count >= MAX_PENDING_PER_CLIENT:
+        raise HTTPException(
+            status_code=429,
+            detail=(
+                f"Hai già {MAX_PENDING_PER_CLIENT} richieste in attesa di conferma. "
+                "Attendi la risposta del salone prima di prenotare ancora."
+            ),
+        )
+
     appt = Appointment(
         client_id=client.id,
         collaborator_id=payload.collaborator_id,
-        start_time=payload.start_time,
-        end_time=payload.end_time,
+        start_time=start,
+        end_time=end,
         notes=payload.notes,
         status=AppointmentStatus.pending,  # Always pending from portal
         origin=AppointmentOrigin.online,

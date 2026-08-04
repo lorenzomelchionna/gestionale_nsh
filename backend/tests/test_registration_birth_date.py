@@ -90,22 +90,48 @@ class TestPlausibility:
         assert resp.status_code == 201, resp.text
 
 
+async def _verifica(http, db, email: str):
+    """Inserisce il codice come farebbe chi possiede quella casella.
+
+    Il collegamento con l'anagrafica del salone avviene qui e non alla
+    registrazione: prima della verifica non è stato dimostrato niente.
+    """
+    from app.models.client import ClientAccount
+    from app.services.email_verification import issue_code
+
+    account = (await db.execute(
+        select(ClientAccount).where(ClientAccount.email == email)
+    )).scalar_one()
+    code = issue_code(account)
+    await db.commit()
+    resp = await http.post("/api/public/auth/verify-email", json={"email": email, "code": code})
+    assert resp.status_code == 200, resp.text
+
+
 class TestLinkingAnExistingClient:
+    """Il collegamento avviene sull'indirizzo verificato: è l'unico dato che a
+    quel punto è dimostrato. Il match sul telefono è stato tolto — vedi
+    tests/test_registration_takeover.py per il motivo."""
+
     async def test_a_blank_birth_date_gets_filled_in(self, client, db, admin_tokens):
         """The salon rarely has it; the client supplies it when they register."""
         created = await client.post(
             "/api/admin/clients",
             headers=auth(admin_tokens),
-            json={"first_name": "Chiara", "last_name": "Esempio", "phone": "334 555 6677"},
+            json={
+                "first_name": "Chiara", "last_name": "Esempio",
+                "email": "chiara.esempio@nsh-test.it",
+            },
         )
         assert created.status_code == 201
         assert created.json()["birth_date"] is None
 
         resp = await client.post(REGISTER, json=payload())
         assert resp.status_code == 201, resp.text
+        await _verifica(client, db, "chiara.esempio@nsh-test.it")
 
         rows = (await db.execute(
-            select(Client).where(Client.phone == "+393345556677")
+            select(Client).where(Client.email == "chiara.esempio@nsh-test.it")
         )).scalars().all()
         assert len(rows) == 1, "la registrazione ha duplicato il cliente"
         assert rows[0].birth_date == date(1991, 3, 14)
@@ -119,15 +145,16 @@ class TestLinkingAnExistingClient:
             headers=auth(admin_tokens),
             json={
                 "first_name": "Chiara", "last_name": "Esempio",
-                "phone": "334 555 6677", "birth_date": "1985-07-01",
+                "email": "chiara.esempio@nsh-test.it", "birth_date": "1985-07-01",
             },
         )
         assert created.status_code == 201
 
         resp = await client.post(REGISTER, json=payload(birth_date="1991-03-14"))
         assert resp.status_code == 201
+        await _verifica(client, db, "chiara.esempio@nsh-test.it")
 
         row = (await db.execute(
-            select(Client).where(Client.phone == "+393345556677")
+            select(Client).where(Client.email == "chiara.esempio@nsh-test.it")
         )).scalar_one()
         assert row.birth_date == date(1985, 7, 1)

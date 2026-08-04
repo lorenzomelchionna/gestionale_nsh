@@ -10,6 +10,20 @@ from app.config import settings
 BREVO_ENDPOINT = "https://api.brevo.com/v3/smtp/email"
 
 
+def esc(value) -> str:
+    """Escape a value on its way into an HTML email body.
+
+    Every message in this module is an f-string of HTML, so anything
+    interpolated is markup until proven otherwise. Names and notes reach here
+    from three places — the sign-up form, the booking form and the salon's own
+    records — and the first of those is an unauthenticated stranger, which
+    makes `/register` a way to post arbitrary HTML from our own verified sender
+    to any address. So the rule is applied everywhere rather than at the one
+    spot that is obviously dangerous, because the obvious spot moves.
+    """
+    return html.escape("" if value is None else str(value))
+
+
 def _resolve_ipv4(host: str) -> str:
     """
     Return the IPv4 address for `host`.
@@ -81,8 +95,8 @@ async def send_appointment_reminder(appointment) -> None:
     subject = f"Promemoria appuntamento – {start}"
     body = f"""
     <h2>New Style Hair</h2>
-    <p>Ciao {client.first_name},</p>
-    <p>Ti ricordiamo il tuo appuntamento <strong>{start}</strong> con <strong>{collab_name}</strong>.</p>
+    <p>Ciao {esc(client.first_name)},</p>
+    <p>Ti ricordiamo il tuo appuntamento <strong>{esc(start)}</strong> con <strong>{esc(collab_name)}</strong>.</p>
     <p>Se hai bisogno di cancellare o spostare, contattaci il prima possibile.</p>
     <p>A presto!</p>
     """
@@ -98,10 +112,12 @@ async def send_custom_message(client, subject: str, body: str) -> None:
     if not client.email:
         print(f"[MESSAGING STUB] No email for {client.first_name} {client.last_name} (id={client.id})")
         return
+    # Escaped first, then newlines become breaks: staff write plain text in the
+    # Messaggi page, so the line breaks are the only markup they mean to send.
     html_body = f"""
     <h2>New Style Hair</h2>
-    <p>Ciao {client.first_name},</p>
-    {body.replace(chr(10), '<br>')}
+    <p>Ciao {esc(client.first_name)},</p>
+    {esc(body).replace(chr(10), '<br>')}
     <p>A presto,<br><strong>New Style Hair</strong></p>
     """
     await send_email(client.email, subject, html_body)
@@ -120,7 +136,7 @@ async def send_birthday_greeting(client) -> None:
     subject = "Tanti auguri di buon compleanno! – New Style Hair"
     body = f"""
     <h2>New Style Hair</h2>
-    <p>Ciao {client.first_name},</p>
+    <p>Ciao {esc(client.first_name)},</p>
     <p>Tutto il team di <strong>New Style Hair</strong> ti augura un <strong>felice compleanno</strong>! 🎉</p>
     <p>Passa a trovarci: il tuo giorno speciale merita una coccola in più.</p>
     <p>A presto e ancora tanti auguri!</p>
@@ -139,11 +155,11 @@ async def send_booking_confirmation_email(appointment) -> None:
     subject = f"Prenotazione confermata – {start}"
     body = f"""
     <h2>New Style Hair</h2>
-    <p>Ciao {client.first_name},</p>
+    <p>Ciao {esc(client.first_name)},</p>
     <p>La tua prenotazione è <strong>confermata</strong>:</p>
     <ul>
-      <li>Data: <strong>{start}</strong></li>
-      <li>Con: <strong>{collab_name}</strong></li>
+      <li>Data: <strong>{esc(start)}</strong></li>
+      <li>Con: <strong>{esc(collab_name)}</strong></li>
     </ul>
     <p>Ti aspettiamo!</p>
     """
@@ -169,7 +185,7 @@ async def send_new_booking_staff_email(to_email: str, appointment) -> None:
         s.service.name for s in appointment.appointment_services if s.service
     ) or "—"
 
-    e = html.escape
+    e = esc
     rows = [
         f"<li>Cliente: <strong>{e(client_name)}</strong></li>",
         f"<li>Quando: <strong>{e(start)}</strong></li>",
@@ -202,9 +218,9 @@ async def send_password_reset_email(to_email: str, first_name: str, reset_url: s
     subject = "Reset password – New Style Hair"
     body = f"""
     <h2>New Style Hair</h2>
-    <p>Ciao {first_name or ''},</p>
+    <p>Ciao {esc(first_name)},</p>
     <p>Hai richiesto il reset della password. Clicca sul link qui sotto per impostarne una nuova:</p>
-    <p><a href="{reset_url}">{reset_url}</a></p>
+    <p><a href="{esc(reset_url)}">{esc(reset_url)}</a></p>
     <p>Il link è valido per 2 ore. Se non hai richiesto tu il reset, ignora questa email.</p>
     """
     await send_email(to_email, subject, body)
@@ -217,8 +233,8 @@ async def send_booking_status_email(appointment, status_msg: str) -> None:
     subject = f"Aggiornamento prenotazione – New Style Hair"
     body = f"""
     <h2>New Style Hair</h2>
-    <p>Ciao {client.first_name},</p>
-    <p>{status_msg}</p>
+    <p>Ciao {esc(client.first_name)},</p>
+    <p>{esc(status_msg)}</p>
     <p>Accedi alla tua area personale per maggiori dettagli.</p>
     """
     await send_email(client.email, subject, body)
@@ -231,9 +247,9 @@ async def send_verification_code_email(
     subject = "Conferma il tuo indirizzo – New Style Hair"
     body = f"""
     <h2>New Style Hair</h2>
-    <p>Ciao {first_name or ''},</p>
+    <p>Ciao {esc(first_name)},</p>
     <p>Per completare la registrazione inserisci questo codice:</p>
-    <p style="font-size:28px;font-weight:bold;letter-spacing:6px">{code}</p>
+    <p style="font-size:28px;font-weight:bold;letter-spacing:6px">{esc(code)}</p>
     <p>Il codice è valido per {ttl_minutes} minuti.</p>
     <p>Se non hai richiesto tu la registrazione, ignora questa email:
        senza il codice l'account non viene attivato.</p>

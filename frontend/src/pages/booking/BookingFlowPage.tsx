@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useQuery, useMutation } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { format, parseISO, addMinutes } from 'date-fns'
 import { it } from 'date-fns/locale'
 import { Check, CalendarX, Loader2 } from 'lucide-react'
@@ -31,6 +31,7 @@ export default function BookingFlowPage() {
   const [selectedDate, setSelectedDate] = useState('')
   const [selectedSlot, setSelectedSlot] = useState('')
   const navigate = useNavigate()
+  const qc = useQueryClient()
 
   const { data: services } = useQuery({
     queryKey: ['public-services'],
@@ -56,6 +57,17 @@ export default function BookingFlowPage() {
   const bookMut = useMutation({
     mutationFn: bookAppointment,
     onSuccess: () => setStep('done'),
+    onError: (e: { response?: { status?: number } }) => {
+      // 409 means the server refused the slot — usually because someone booked
+      // it while this page was open. The list on screen is the stale thing, so
+      // reload it and drop the selection: without this the only visible move is
+      // pressing the same button again and failing again.
+      if (e?.response?.status === 409) {
+        setSelectedSlot('')
+        setStep('datetime')
+        qc.invalidateQueries({ queryKey: ['public-slots'] })
+      }
+    },
   })
 
   const availableCollabs = selectedService

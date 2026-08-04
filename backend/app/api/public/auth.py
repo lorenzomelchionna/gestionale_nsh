@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 import secrets
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, or_
+from sqlalchemy import func, select
 from app.database import get_db
 from app.models.client import Client, ClientAccount
 from app.models.user import User
@@ -68,17 +68,6 @@ async def register(payload: ClientRegister, db: Annotated[AsyncSession, Depends(
         sent = await _send_code(db, existing, payload.first_name)
         return VerificationRequired(email=existing.email, email_sent=sent)
 
-    # Try to link to existing client (match phone or email)
-    client_result = await db.execute(
-        select(Client).where(
-            or_(
-                Client.phone == payload.phone,
-                Client.email == payload.email,
-            )
-        ).limit(1)
-    )
-    client = client_result.scalar_one_or_none()
-
     account = ClientAccount(
         email=payload.email,
         password_hash=hash_password(payload.password),
@@ -87,28 +76,88 @@ async def register(payload: ClientRegister, db: Annotated[AsyncSession, Depends(
     db.add(account)
     await db.flush()
 
-    if client:
-        # Link existing client to this account. Only blanks are filled in: the
-        # salon's own record wins over what someone types at sign-up.
-        client.account_id = account.id
-        if not client.email:
-            client.email = payload.email
-        if not client.birth_date:
-            client.birth_date = payload.birth_date
-    else:
-        # Create new client record
-        client = Client(
-            first_name=payload.first_name,
-            last_name=payload.last_name,
-            phone=payload.phone,
-            email=payload.email,
-            birth_date=payload.birth_date,
-            account_id=account.id,
-        )
-        db.add(client)
+    # No record the salon already holds is touched here, and that is the whole
+    # point. Attaching an account to an existing client is a claim about who
+    # someone is, and at this moment nothing has been proven: the address has
+    # not been confirmed yet and the phone number was never checked at all.
+    #
+    # This used to match `phone OR email` and overwrite `account_id` on the
+    # spot. Knowing a client's mobile number — which in a neighbourhood salon
+    # is the least secret thing there is — was therefore enough to be handed
+    # her appointment history, and enough to detach her from her own record
+    # without even reading the confirmation email.
+    #
+    # So sign-up only ever creates its own row. Folding it into the salon's
+    # record happens in verify-email, once the address has been proven.
+    db.add(Client(
+        first_name=payload.first_name,
+        last_name=payload.last_name,
+        phone=payload.phone,
+        email=payload.email,
+        birth_date=payload.birth_date,
+        account_id=account.id,
+    ))
 
     sent = await _send_code(db, account, payload.first_name)
     return VerificationRequired(email=account.email, email_sent=sent)
+
+
+async def _adopt_salon_record(db: AsyncSession, account: ClientAccount) -> None:
+    """Fold the sign-up row into the salon's own record, if they are the same person.
+
+    Runs only after the code has been entered, so the address is the one fact
+    about this person that has actually been established — which is why it is
+    the only thing matched on. A phone number is not proof: anyone can type
+    someone else's, and doing so is what used to hand over a stranger's history.
+
+    Only an unclaimed record is adopted. Two people can legitimately share a
+    number or an old address — a couple, a mother and daughter — and whoever
+    registers second must not inherit the first one's appointments.
+
+    Matching is exact, including case, because addresses are stored as typed
+    (see the note on case sensitivity in TODO_notifiche.md). A salon record
+    spelled `Mario.Rossi@…` against a sign-up as `mario.rossi@…` therefore
+    stays a separate row: a duplicate to merge by hand, not a wrong merge.
+    """
+    from app.models.appointment import Appointment
+
+    stub = (await db.execute(
+        select(Client).where(Client.account_id == account.id)
+    )).scalar_one_or_none()
+    if stub is None:
+        return
+
+    salon_record = (await db.execute(
+        select(Client)
+        .where(Client.email == account.email, Client.account_id.is_(None))
+        .order_by(Client.id)
+        .limit(1)
+    )).scalar_one_or_none()
+    if salon_record is None:
+        return
+
+    # The salon's row is the one that survives: it carries the appointment
+    # history, the notes and whatever else was recorded in person.
+    salon_record.account_id = account.id
+    if not salon_record.phone:
+        salon_record.phone = stub.phone
+    if not salon_record.birth_date:
+        salon_record.birth_date = stub.birth_date
+
+    stub.account_id = None
+    await db.flush()
+
+    # Normally the sign-up row is minutes old and empty, so it just goes. But
+    # someone can register, ignore the email for a week, and verify later — and
+    # in the meantime the salon may have booked against that row, having seen it
+    # in the client list. Then deleting it would take a real appointment with
+    # it, and two rows the salon can merge deliberately beats one that silently
+    # lost something.
+    booked = (await db.execute(
+        select(func.count()).select_from(Appointment).where(Appointment.client_id == stub.id)
+    )).scalar_one()
+    if booked == 0:
+        await db.delete(stub)
 
 
 @router.post("/verify-email", response_model=TokenResponse)
@@ -128,6 +177,10 @@ async def verify_email(payload: EmailVerification, db: Annotated[AsyncSession, D
         # would be free. The attempt budget only exists if this survives.
         await db.commit()
         raise HTTPException(status_code=400, detail=e.detail)
+
+    # The address is proven from here on, which is the only moment at which it
+    # is safe to attach this account to a record the salon already had.
+    await _adopt_salon_record(db, account)
 
     await db.flush()
     access = create_access_token(account.id, {"type": "client"})

@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, AlertTriangle, PackagePlus, Package, ImagePlus, Trash2 } from 'lucide-react'
+import { Plus, AlertTriangle, PackagePlus, Package, ImagePlus, Trash2, Pencil } from 'lucide-react'
 import {
-  getProducts, createProduct, addProductMovement,
+  getProducts, createProduct, updateProduct, addProductMovement,
   setProductImage, deleteProductImage,
 } from '@/services/api'
 import type { Product } from '@/types'
@@ -15,6 +15,7 @@ export default function ProductsPage() {
   const qc = useQueryClient()
   const isAdmin = useAuthStore(s => s.user?.role === 'admin')
   const [showCreate, setShowCreate] = useState(false)
+  const [editProduct, setEditProduct] = useState<Product | null>(null)
   const [movementProduct, setMovementProduct] = useState<Product | null>(null)
   const [photoProduct, setPhotoProduct] = useState<Product | null>(null)
 
@@ -31,6 +32,16 @@ export default function ProductsPage() {
       return created
     },
     onSuccess: () => { inv(); setShowCreate(false) },
+  })
+  // Stessa forma della creazione, per lo stesso motivo: la foto è una seconda
+  // chiamata, e se fallisce le modifiche ai campi sono già salvate.
+  const updateMut = useMutation({
+    mutationFn: async ({ id, photo, ...data }: Partial<Product> & { id: number; photo?: File | null }) => {
+      const saved = await updateProduct(id, data)
+      if (photo) await setProductImage(id, photo)
+      return saved
+    },
+    onSuccess: () => { inv(); setEditProduct(null) },
   })
   const moveMut = useMutation({
     mutationFn: addProductMovement,
@@ -119,8 +130,24 @@ export default function ProductsPage() {
                         <p className="text-[13px] text-ink-3 line-clamp-1 mt-0.5">{p.description}</p>
                       )}
                       <span className="kicker sm:hidden mt-1">{p.category}</span>
+                      {/* Fuori dal kicker: quello è maiuscolo e spaziato,
+                          giusto per una parola di categoria e illeggibile su
+                          un nome di fornitore lungo. */}
+                      {p.supplier && (
+                        <span className="block sm:hidden text-[11px] text-ink-3">
+                          {p.supplier}
+                        </span>
+                      )}
                     </td>
-                    <td className="hidden sm:table-cell text-muted-foreground">{p.category}</td>
+                    <td className="hidden sm:table-cell text-muted-foreground">
+                      {p.category}
+                      {/* Il fornitore sta qui e non in una colonna sua: serve
+                          quando un prodotto è finito e va riordinato, cioè si
+                          legge una riga alla volta, non si scorre in colonna. */}
+                      {p.supplier && (
+                        <span className="block text-[11px] text-ink-3">{p.supplier}</span>
+                      )}
+                    </td>
                     <td className="num whitespace-nowrap">
                       <span className={clsx('amount', low && 'text-danger')}>{p.quantity}</span>
                       <span className={clsx('text-[13px]', low ? 'text-danger' : 'text-ink-3')}> pz</span>
@@ -135,14 +162,26 @@ export default function ProductsPage() {
                       </span>
                     </td>
                     <td className="w-px">
-                      <button
-                        onClick={() => setMovementProduct(p)}
-                        className="btn-icon hover:text-primary"
-                        title="Carico / scarico"
-                        aria-label={`Movimento magazzino per ${p.name}`}
-                      >
-                        <PackagePlus className="w-[18px] h-[18px]" />
-                      </button>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => setMovementProduct(p)}
+                          className="btn-icon hover:text-primary"
+                          title="Carico / scarico"
+                          aria-label={`Movimento magazzino per ${p.name}`}
+                        >
+                          <PackagePlus className="w-[18px] h-[18px]" />
+                        </button>
+                        {isAdmin && (
+                          <button
+                            onClick={() => setEditProduct(p)}
+                            className="btn-icon hover:text-primary"
+                            title="Modifica"
+                            aria-label={`Modifica ${p.name}`}
+                          >
+                            <Pencil className="w-[18px] h-[18px]" />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 )
@@ -157,6 +196,17 @@ export default function ProductsPage() {
           onClose={() => setShowCreate(false)}
           onSave={(d) => createMut.mutate(d)}
           loading={createMut.isPending}
+          error={createMut.error}
+        />
+      )}
+
+      {editProduct && (
+        <ProductFormModal
+          product={editProduct}
+          onClose={() => setEditProduct(null)}
+          onSave={(d) => updateMut.mutate({ ...d, id: editProduct.id })}
+          loading={updateMut.isPending}
+          error={updateMut.error}
         />
       )}
 
@@ -311,25 +361,67 @@ function useObjectUrl(file: File | null): string | null {
 }
 
 function readError(e: any): string {
-  return e?.response?.data?.detail ?? 'Caricamento non riuscito. Riprova.'
+  const detail = e?.response?.data?.detail
+  if (typeof detail === 'string') return detail
+  // Quando è la validazione a rifiutare, FastAPI risponde con una lista di
+  // oggetti invece che con una stringa: darla a React così com'è fa esplodere
+  // il render, quindi si tengono solo i messaggi.
+  if (Array.isArray(detail)) {
+    const msg = detail.map((d: any) => d?.msg).filter(Boolean).join(' · ')
+    if (msg) return msg
+  }
+  return 'Operazione non riuscita. Riprova.'
 }
 
-function ProductFormModal({ onClose, onSave, loading }: {
+/** Lo stesso foglio serve a creare e a modificare.
+ *
+ *  Sono lo stesso modulo con due differenze sole, e tenerli separati avrebbe
+ *  voluto dire ricordarsi di aggiungere ogni campo nuovo in due punti.
+ *
+ *  La differenza vera è la giacenza: in creazione è il conteggio di partenza,
+ *  in modifica sparisce. Sovrascriverla da qui farebbe cambiare i pezzi a
+ *  magazzino senza lasciare una riga in `product_movements` che dica perché —
+ *  la strada per farlo è carico/scarico, che invece la lascia. */
+function ProductFormModal({ product, onClose, onSave, loading, error }: {
+  product?: Product
   onClose: () => void
   onSave: (d: Partial<Product> & { photo?: File | null }) => void
   loading: boolean
+  error?: unknown
 }) {
+  const modifica = product !== undefined
   const [form, setForm] = useState({
-    name: '', description: '', purchase_price: 0, sale_price: 0,
-    category: 'Shampoo', quantity: 0, min_quantity: 2,
+    name: product?.name ?? '',
+    description: product?.description ?? '',
+    supplier: product?.supplier ?? '',
+    purchase_price: product?.purchase_price ?? 0,
+    sale_price: product?.sale_price ?? 0,
+    category: product?.category ?? 'Shampoo',
+    quantity: product?.quantity ?? 0,
+    min_quantity: product?.min_quantity ?? 2,
   })
   const [photo, setPhoto] = useState<File | null>(null)
   const preview = useObjectUrl(photo)
 
+  const submit = () => {
+    // I due testi liberi vanno a `null` quando sono vuoti, non a stringa
+    // vuota: la lista li mostra solo se ci sono, e `''` sarebbe un valore che
+    // occupa spazio senza dire niente.
+    const { quantity, description, supplier, ...rest } = form
+    const comuni = {
+      ...rest,
+      description: description.trim() || null,
+      supplier: supplier.trim() || null,
+      photo,
+    }
+    onSave(modifica ? comuni : { ...comuni, quantity })
+  }
+
   return (
     <Sheet
       onClose={onClose}
-      title="Nuovo prodotto"
+      title={modifica ? 'Modifica prodotto' : 'Nuovo prodotto'}
+      description={modifica ? product.name : undefined}
       footer={
         <>
           <button type="button" onClick={onClose} className="btn-secondary btn-sm">Annulla</button>
@@ -341,20 +433,20 @@ function ProductFormModal({ onClose, onSave, loading }: {
     >
       <form
         id="product-form"
-        onSubmit={(e) => { e.preventDefault(); onSave({ ...form, photo }) }}
+        onSubmit={(e) => { e.preventDefault(); submit() }}
         className="space-y-4"
       >
         {/* Optional and first: on a phone the picture is usually already in the
             camera roll, and picking it before typing prices is the natural order. */}
         <div className="flex items-center gap-3">
           <div className="w-16 h-16 border border-border bg-band flex items-center justify-center overflow-hidden shrink-0">
-            {preview
-              ? <img src={preview} alt="" className="w-full h-full object-cover" />
+            {(preview ?? product?.photo_url)
+              ? <img src={preview ?? product?.photo_url ?? ''} alt="" className="w-full h-full object-cover" />
               : <Package className="w-5 h-5 text-ink-3" />}
           </div>
           <label className="btn-secondary btn-sm cursor-pointer">
             <ImagePlus className="w-4 h-4" />
-            {photo ? 'Cambia foto' : 'Foto (facoltativa)'}
+            {photo || product?.photo_url ? 'Cambia foto' : 'Foto (facoltativa)'}
             <input
               type="file"
               className="sr-only"
@@ -368,8 +460,29 @@ function ProductFormModal({ onClose, onSave, loading }: {
           <input className="input" required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
         </div>
         <div>
-          <label className="label">Categoria</label>
-          <input className="input" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} />
+          <label className="label">Descrizione</label>
+          <textarea
+            className="input min-h-[72px] resize-y"
+            rows={3}
+            placeholder="A cosa serve, per che tipo di capello, come si usa"
+            value={form.description}
+            onChange={e => setForm({ ...form, description: e.target.value })}
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="label">Categoria</label>
+            <input className="input" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} />
+          </div>
+          <div>
+            <label className="label">Fornitore</label>
+            <input
+              className="input"
+              placeholder="Chi lo fornisce"
+              value={form.supplier}
+              onChange={e => setForm({ ...form, supplier: e.target.value })}
+            />
+          </div>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
@@ -390,14 +503,16 @@ function ProductFormModal({ onClose, onSave, loading }: {
           </div>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="label">Quantità iniziale</label>
-            <input
-              className="input" type="number" inputMode="numeric" min="0"
-              value={form.quantity}
-              onChange={e => setForm({ ...form, quantity: Number(e.target.value) })}
-            />
-          </div>
+          {!modifica && (
+            <div>
+              <label className="label">Quantità iniziale</label>
+              <input
+                className="input" type="number" inputMode="numeric" min="0"
+                value={form.quantity}
+                onChange={e => setForm({ ...form, quantity: Number(e.target.value) })}
+              />
+            </div>
+          )}
           <div>
             <label className="label">Scorta minima</label>
             <input
@@ -407,6 +522,15 @@ function ProductFormModal({ onClose, onSave, loading }: {
             />
           </div>
         </div>
+
+        {modifica && (
+          <p className="text-xs text-muted-foreground">
+            La giacenza ({product.quantity} pz) si cambia con carico o scarico,
+            così resta scritto perché è cambiata.
+          </p>
+        )}
+
+        {error != null && <p className="text-[13px] text-danger">{readError(error)}</p>}
       </form>
     </Sheet>
   )

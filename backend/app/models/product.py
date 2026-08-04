@@ -21,6 +21,10 @@ class Product(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Testo libero e non una tabella `suppliers` a parte: il salone ordina da
+    # una manciata di marchi e quello che serve è sapere a chi telefonare
+    # quando un prodotto finisce, non gestire anagrafiche fornitori.
+    supplier: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     purchase_price: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
     sale_price: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
     category: Mapped[str] = mapped_column(String(100), nullable=False)

@@ -212,6 +212,15 @@ cose ancora aperte; il resto è chiuso.
   dalla registrazione) e oggi le può solo modificare a mano una per volta.
   Serve un pulsante "unisci": sposta appuntamenti e pagamenti su una riga sola
   e cancella l'altra. Diventa meno urgente quando il numero sarà verificabile.
+- [ ] **Due `scalar_one_or_none()` ancora esposti in `availability.py`** —
+  stessa famiglia del bug chiuso il 2026-08-04 sulle assenze, trovati mentre
+  lo si sistemava. Riga 81 (`CollaboratorExtraDay`) e riga 98
+  (`CollaboratorSchedule`): nessuna delle due tabelle ha un vincolo unico, e
+  `POST /api/admin/extra-days` non controlla nulla, quindi due giorni extra
+  sulla stessa data si creano con due click — e da quel momento il calcolo
+  della disponibilità **solleva** per quel collaboratore, in quel giorno,
+  invece di rispondere. Il fix è lo stesso: `scalars().all()` più una regola
+  su cosa fare con più righe (e possibilmente un vincolo unico in migration).
 - [ ] **Ordine dei controlli in `services/images.py`**: `image.format in
   ALLOWED_FORMATS` e un tetto sui pixel vanno **fra** `Image.open()` e
   `image.load()`. Oggi l'allowlist arriva dopo che il decoder ha già girato. Il

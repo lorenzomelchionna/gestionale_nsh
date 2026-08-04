@@ -129,7 +129,11 @@ export const deleteService = (id: number) =>
 
 export const getAppointments = (params?: {
   date_from?: string; date_to?: string;
-  collaborator_id?: number; status?: string;
+  collaborator_id?: number; client_id?: number; status?: string;
+  /** Nome, cognome o telefono della cliente. Minimo due caratteri. */
+  search?: string;
+  /** `asc` per il calendario, `desc` per l'elenco storico. */
+  order?: 'asc' | 'desc';
   page?: number; page_size?: number
 }) =>
   api.get<PaginatedResponse<Appointment>>('/admin/appointments', { params }).then(r => r.data)
@@ -159,8 +163,13 @@ export const rescheduleAppointment = (id: number, alternative_time: string) =>
 export const cancelAppointment = (id: number, reason?: string) =>
   api.post<Appointment>(`/admin/appointments/${id}/cancel`, { reason }).then(r => r.data)
 
-export const completeAppointment = (id: number) =>
-  api.post<Appointment>(`/admin/appointments/${id}/complete`).then(r => r.data)
+/** Chiude la visita, con la nota se è stata scritta. Il corpo è facoltativo:
+ *  senza nota resta un clic solo, che è come si usa a salone pieno. */
+export const completeAppointment = (id: number, visit_notes?: string) =>
+  api.post<Appointment>(
+    `/admin/appointments/${id}/complete`,
+    visit_notes ? { visit_notes } : undefined,
+  ).then(r => r.data)
 
 export const deleteAppointment = (id: number) =>
   api.delete(`/admin/appointments/${id}`)

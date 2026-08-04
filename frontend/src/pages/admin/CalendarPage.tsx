@@ -265,8 +265,15 @@ export default function CalendarPage() {
     onSuccess: () => { invalidate(); setSelectedAppointment(null) },
   })
   const completeMut = useMutation({
-    mutationFn: completeAppointment,
-    onSuccess: () => { invalidate(); setSelectedAppointment(null) },
+    mutationFn: ({ id, visitNotes }: { id: number; visitNotes?: string }) =>
+      completeAppointment(id, visitNotes),
+    // Anche lo storico della cliente cambia: la nota appena scritta è quella
+    // che si andrà a rileggere dalla sua scheda alla visita dopo.
+    onSuccess: () => {
+      invalidate()
+      qc.invalidateQueries({ queryKey: ['client-appointments'] })
+      setSelectedAppointment(null)
+    },
   })
   const cancelMut = useMutation({
     mutationFn: ({ id, reason }: { id: number; reason?: string }) => cancelAppointment(id, reason),
@@ -462,7 +469,7 @@ export default function CalendarPage() {
           onClose={() => setSelectedAppointment(null)}
           onConfirm={() => confirmMut.mutate(selectedAppointment.id)}
           onReject={(reason) => rejectMut.mutate({ id: selectedAppointment.id, reason })}
-          onComplete={() => completeMut.mutate(selectedAppointment.id)}
+          onComplete={(visitNotes) => completeMut.mutate({ id: selectedAppointment.id, visitNotes })}
           onCancel={(reason) => cancelMut.mutate({ id: selectedAppointment.id, reason })}
           onInvalidate={invalidate}
         />
@@ -834,13 +841,15 @@ function AppointmentModal({ appointment, appointments, onClose, onConfirm, onRej
   onClose: () => void
   onConfirm: () => void
   onReject: (reason?: string) => void
-  onComplete: () => void
+  onComplete: (visitNotes?: string) => void
   onCancel: (reason?: string) => void
   onInvalidate: () => void
 }) {
   const [rejectReason, setRejectReason] = useState('')
   const [showRejectForm, setShowRejectForm] = useState(false)
   const [showCancelForm, setShowCancelForm] = useState(false)
+  const [showCompleteForm, setShowCompleteForm] = useState(false)
+  const [visitNotes, setVisitNotes] = useState(appointment.visit_notes ?? '')
   const [cancelReason, setCancelReason] = useState('')
   const [showEarlyEnd, setShowEarlyEnd] = useState(false)
   const [earlyHours, setEarlyHours] = useState('')
@@ -929,6 +938,7 @@ function AppointmentModal({ appointment, appointments, onClose, onConfirm, onRej
           </span>
         </div>
         {appointment.notes && <Row label="Note" value={appointment.notes} />}
+        {appointment.visit_notes && <Row label="Nota visita" value={appointment.visit_notes} />}
       </div>
 
       {/* Actions */}
@@ -943,8 +953,8 @@ function AppointmentModal({ appointment, appointments, onClose, onConfirm, onRej
             </button>
           </>
         )}
-        {appointment.status === 'confirmed' && (
-          <button onClick={() => { onComplete(); onClose() }} className="btn-primary btn-sm">
+        {appointment.status === 'confirmed' && !showCompleteForm && (
+          <button onClick={() => setShowCompleteForm(true)} className="btn-primary btn-sm">
             <Check className="w-4 h-4" /> Segna completato
           </button>
         )}
@@ -1045,6 +1055,37 @@ function AppointmentModal({ appointment, appointments, onClose, onConfirm, onRej
           </div>
           {resizeError && <p className="text-xs text-danger">{resizeError}</p>}
           {updateMut.isError && <p className="text-xs text-danger">Errore nel salvataggio. Riprova.</p>}
+        </div>
+      )}
+
+      {/* Chiudere la visita è il momento in cui si sa cosa scrivere — il
+          colore usato, come ha reagito il capello, cosa rifare la volta dopo.
+          Un campo per visita e non uno solo in anagrafica: lì la nota di oggi
+          cancellerebbe quella di tre mesi fa. Resta facoltativo: «Completa» da
+          solo è un clic, che è come si usa a salone pieno. */}
+      {showCompleteForm && (
+        <div className="mt-4 border-t border-rule pt-4 space-y-2">
+          <span className="kicker">Nota della visita (facoltativa)</span>
+          <textarea
+            className="input text-sm" rows={3} autoFocus
+            placeholder="Colore usato, tempi di posa, come ha reagito il capello…"
+            value={visitNotes}
+            onChange={e => setVisitNotes(e.target.value)}
+          />
+          <p className="text-xs text-muted-foreground">
+            La legge solo il salone: dal portale la cliente non la vede.
+          </p>
+          <div className="flex gap-2">
+            <button onClick={() => setShowCompleteForm(false)} className="btn-secondary btn-sm flex-1">
+              Indietro
+            </button>
+            <button
+              onClick={() => { onComplete(visitNotes.trim() || undefined); onClose() }}
+              className="btn-primary btn-sm flex-1"
+            >
+              <Check className="w-4 h-4" /> Completa
+            </button>
+          </div>
         </div>
       )}
 

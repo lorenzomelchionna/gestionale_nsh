@@ -207,11 +207,19 @@ cose ancora aperte; il resto è chiuso.
   ingressi: admin, cliente, unificato) 10/min, verify-email e reset-password
   10/min. Nessun limite di default: l'agenda dal salone viene interrogata di
   continuo e un tetto lì bloccherebbe chi lavora.
-  **Il conteggio prende l'ultima voce di `X-Forwarded-For`, non la prima.**
-  La catena si legge client → proxy e ogni proxy accoda, quindi un
-  `X-Forwarded-For` inventato dal chiamante compare *prima* di quello vero
-  che aggiunge Railway: sulla prima voce il limite si aggirerebbe cambiando
-  un header a ogni richiesta.
+  **La chiave del conteggio: `X-Envoy-External-Address`, altrimenti la
+  *prima* voce di `X-Forwarded-For`.** La prima versione prendeva l'ultima
+  voce, ragionando che fosse l'unica non scrivibile dal chiamante. Giusto in
+  generale, falso su Railway: accoda l'IP di un suo nodo interno che **cambia
+  a ogni richiesta** (`100.64.0.2`, `.3`, `.4` nei log). Ogni richiesta
+  prendeva una chiave diversa, quindi un secchio nuovo, quindi **nessun
+  limite**: provato in produzione, dodici login sbagliati di fila passavano
+  tutti. Trovato solo perché il tetto è stato verificato sul servizio vero
+  dopo il rilascio — in locale e nei test funzionava.
+  La prima voce di `X-Forwarded-For` è falsificabile e va detto: chi la
+  cambia a ogni richiesta si compra un secchio nuovo. Resta meglio
+  dell'alternativa reale, che non era «un limite inviolabile» ma «nessun
+  limite».
   **Se Redis non risponde si continua a contare in memoria**
   (`in_memory_fallback_enabled` + `swallow_errors`). Non è un dettaglio:
   provato dal vivo, senza quello con Redis spento **ogni login rispondeva

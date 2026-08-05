@@ -39,6 +39,12 @@ class Settings(BaseSettings):
     # App
     APP_ENV: str = "development"
 
+    # Log (vedi app/logging_config.py). `INFO` scrive una riga per richiesta,
+    # che a questi volumi sono poche migliaia al giorno; `WARNING` tiene solo
+    # errori ed eventi di sicurezza. Sotto `INFO` la traccia degli accessi non
+    # c'è più, ed è quella la ragione per cui i log esistono.
+    LOG_LEVEL: str = "INFO"
+
     # Limiti di frequenza sugli endpoint pubblici (vedi app/rate_limit.py).
     # Spegnibile per i test, che fanno decine di login di fila di proposito.
     RATE_LIMIT_ENABLED: bool = True

@@ -1,11 +1,19 @@
+import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from slowapi.errors import RateLimitExceeded
 
+from app.audit import RegistroAccessi
 from app.config import settings
+from app.logging_config import setup_logging
 from app.rate_limit import limiter, rate_limit_handler
+
+# Prima di qualunque altra cosa: da qui in poi anche gli errori di avvio
+# hanno un posto dove finire.
+setup_logging()
+log = logging.getLogger("nsh")
 
 # Sentry — init only when SENTRY_DSN is configured
 if settings.SENTRY_DSN:
@@ -46,9 +54,12 @@ from app.api.public.product_images import router as product_images_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: nothing special needed (migrations via Alembic)
+    log.info(
+        "avvio",
+        extra={"ambiente": settings.APP_ENV, "livello_log": settings.LOG_LEVEL},
+    )
     yield
-    # Shutdown
+    log.info("arresto")
 
 
 app = FastAPI(
@@ -64,6 +75,14 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, rate_limit_handler)
 
+# Registro degli accessi: una riga per richiesta servita. Aggiunto **prima**
+# di CORS, quindi eseguito per ultimo dei due in ingresso e per primo in
+# uscita — starlette impila i middleware al contrario dell'ordine di
+# registrazione. Non è un dettaglio: registrato dopo, il middleware non
+# vedrebbe le richieste respinte da CORS, che sono proprio quelle su cui uno
+# va a guardare quando qualcosa non torna.
+app.add_middleware(RegistroAccessi)
+
 # CORS — FRONTEND_URL drives production origins; localhost:5173 always allowed for dev
 _cors_origins = list({settings.FRONTEND_URL, "http://localhost:5173"})
 app.add_middleware(
@@ -78,6 +97,22 @@ app.add_middleware(
 # Global error handler
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
+    """La risposta al chiamante resta volutamente muta; il log no.
+
+    Finora questo gestore inghiottiva l'eccezione e restituiva 500 senza
+    scrivere niente da nessuna parte: con `SENTRY_DSN` non configurato — che è
+    il caso oggi — un guasto in produzione spariva del tutto, e restava solo
+    una cliente che dice «non funziona».
+
+    `exc_info` porta lo stack completo. Va nei log, non nella risposta: al
+    chiamante un percorso di file e un frammento di query direbbero come è
+    fatto l'interno del servizio.
+    """
+    log.error(
+        "errore non gestito",
+        exc_info=exc,
+        extra={"metodo": request.method, "percorso": request.url.path},
+    )
     return JSONResponse(
         status_code=500,
         content={"detail": "Errore interno del server"},

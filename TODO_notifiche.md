@@ -256,10 +256,25 @@ cose ancora aperte; il resto è chiuso.
   colore da due ore non può cominciare alle 12 e finire dopo pranzo.
   Verificato al contrario: rimettendo le due vecchie query, cinque test
   falliscono.
-- [ ] **Ordine dei controlli in `services/images.py`**: `image.format in
-  ALLOWED_FORMATS` e un tetto sui pixel vanno **fra** `Image.open()` e
-  `image.load()`. Oggi l'allowlist arriva dopo che il decoder ha già girato. Il
-  commento "Pillow refuses absurd pixel counts on its own" è sbagliato.
+- [x] ~~**Ordine dei controlli in `services/images.py`**~~ — fatto 2026-08-05,
+  e meglio di come diceva questa riga. Spostare l'allowlist *fra* `open()` e
+  `load()` avrebbe fermato la decodifica ma non il parsing dell'header, che è
+  già codice C su byte scelti da chi carica. L'elenco è finito invece **dentro**
+  `Image.open(formats=...)`: Pillow prova soltanto i tre plugin ammessi, quindi
+  di un TIFF malevolo non viene letta nemmeno l'intestazione.
+  Il tetto sui pixel (50 MP) si conta sull'header, prima di allocare. Il limite
+  in byte non bastava: la compressione fa sì che 78 kB dichiarino 81 MP, e la
+  tela va in RAM decompressa, non compressa.
+  Il commento "Pillow refuses absurd pixel counts on its own" era sbagliato
+  come sospettato — Pillow avvisa a 89 MP e solleva solo al doppio, ~178 MP =
+  mezzo giga di RAM. Rimosso.
+  `ALLOWED_FORMATS` è passata da `set` a tupla, perché è ciò che
+  `Image.open(formats=)` accetta; c'è un test apposta, altrimenti un
+  `TypeError` uscirebbe come «immagine danneggiata», cioè un errore nostro
+  addebitato a chi carica il file.
+  Verificato al contrario: rimettendo il vecchio ordine due test falliscono —
+  uno spia `TiffImageFile._open` e lo vede chiamato, l'altro spia
+  `PngImageFile.load` e vede i pixel allocati prima del rifiuto.
 - [x] ~~**Open redirect** in `LoginPage.tsx`~~ — fatto 2026-08-05. Erano
   **due** i punti di uscita, non uno: login e registrazione. Ora il parametro
   passa da un filtro che accetta solo percorsi interni.
@@ -278,9 +293,38 @@ cose ancora aperte; il resto è chiuso.
   spiegazione di un rifiuto, scritta per chi l'ha subito.
 - [ ] **Dependabot + `pip-audit` in CI** — è il motivo per cui il DoS di
   python-multipart è rimasto scoperto venti mesi.
-- [ ] **Un minimo di logging**: in `backend/app/` non c'è una sola riga. Se
-  domani entra qualcuno non puoi dire cosa ha visto, che è esattamente quello
-  che chiede l'art. 33 GDPR.
+- [x] ~~**Un minimo di logging**~~ — fatto 2026-08-05. Due cose, non una.
+  Il **registro degli accessi** (`nsh.accessi`): una riga per richiesta, con
+  metodo, percorso, stato, durata, IP e soprattutto **attore** — `admin:3`,
+  `client:41`, `anonimo`. È l'unico campo che risponde alla domanda che si fa
+  dopo un furto di credenziali, che non è «qualcuno è entrato?» ma «ha aperto
+  le schede di chi?». Senza, è un elenco di URL.
+  Gli **eventi di sicurezza** (`nsh.sicurezza`): login riusciti e falliti,
+  token rifiutati, permessi negati, 429, reset password. Nomi costanti in
+  `app/audit.py`, così si cercano per nome invece che per frase.
+  Il log distingue «password errata» da «account inesistente», che l'API di
+  proposito non fa: cento tentativi su un indirizzo che esiste è qualcuno che
+  forza un account preciso, cento indirizzi inesistenti è una lista comprata.
+  La distinzione resta nei log e non esce dall'API — c'è un test per
+  entrambe le metà.
+  **Costo del middleware**: `RegistroAccessi` è ASGI e non `BaseHTTPMiddleware`,
+  che sarebbe stato più corto. `BaseHTTPMiddleware` esegue l'app in un task
+  separato e le `ContextVar` impostate là dentro non tornano indietro: l'attore
+  sarebbe `anonimo` per sempre. Verificato al contrario — rimettendolo, tre
+  test falliscono, e uno è una guardia esplicita contro proprio quella
+  riscrittura.
+  **Cosa non entra nei log**: password, token, codici. Non per disciplina di
+  chi scrive la chiamata ma per filtro sul *nome* del campo, più una passata
+  sul testo che toglie JWT e header `Bearer`. Email e telefoni mascherati: su
+  un login fallito l'indirizzo digitato può essere di qualcuno che non c'entra,
+  e un log di sicurezza è a sua volta un archivio di dati personali.
+  Conseguenza da ricordare: `code` è fra le parole oscurate, quindi un campo
+  chiamato `status_code` sparirebbe. Qui si chiama `stato`.
+  Chiusi per strada anche i ~20 `print()` di notifiche e task, che finivano sì
+  nello stdout di Railway ma senza livello — invisibili a un filtro «mostrami
+  gli errori» — e il gestore globale delle eccezioni in `main.py`, che
+  rispondeva 500 **senza scrivere niente**: con `SENTRY_DSN` non configurato,
+  che è il caso oggi, un guasto in produzione spariva del tutto.
 - [x] ~~`Field(min_length=10)` su `ClientRegister.password` e
   `PasswordReset.new_password`~~ — fatto 2026-08-05. Dieci e non dodici come
   per lo staff: chi lavora in salone ha accesso a tutta l'anagrafica e alla

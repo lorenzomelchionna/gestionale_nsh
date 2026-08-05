@@ -1,10 +1,16 @@
 from typing import Annotated
 from datetime import datetime, timedelta, timezone
+import logging
 import secrets
 from fastapi import Request, APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func, select
+from app.audit import (
+    EMAIL_VERIFICATA, LOGIN_BLOCCATO, REGISTRAZIONE, RESET_CHIESTO,
+    RESET_ESEGUITO, VERIFICA_FALLITA, evento, login_fallito, login_riuscito,
+)
 from app.database import get_db
+from app.logging_config import maschera_email
 from app.rate_limit import limiter
 from app.models.client import Client, ClientAccount
 from app.models.user import User
@@ -20,6 +26,8 @@ from app.utils.auth import hash_password, verify_password, create_access_token, 
 from app.utils.email import send_verification_code_email
 
 router = APIRouter(prefix="/auth", tags=["Client Auth"])
+
+log = logging.getLogger("nsh.portale")
 
 
 async def _send_code(db: AsyncSession, account: ClientAccount, first_name: str) -> bool:
@@ -38,8 +46,14 @@ async def _send_code(db: AsyncSession, account: ClientAccount, first_name: str) 
             account.email, first_name, code, CODE_TTL_MINUTES
         )
         return True
-    except Exception as e:
-        print(f"[VERIFY] failed to send code to account={account.id}: {e}")
+    except Exception:
+        # `exception` e non `error`: la causa vera sta nello stack (SMTP che
+        # rifiuta, quota Brevo finita, DNS), e senza quello resta solo «non è
+        # partita», che non dice cosa fare.
+        log.exception(
+            "invio del codice di verifica fallito",
+            extra={"id_account": account.id},
+        )
         return False
 
 
@@ -70,6 +84,14 @@ async def register(
         # over and gets the new code. Only the mailbox owner can finish.
         existing.password_hash = await hash_password(payload.password)
         sent = await _send_code(db, existing, payload.first_name)
+        # Registrarsi di nuovo su un indirizzo non verificato **riscrive la
+        # password** di quell'account. È voluto (vedi sopra), ma è anche il
+        # punto in cui qualcuno prova a prendersi l'indirizzo di un altro, e
+        # sapere quante volte è successo su un indirizzo solo è utile.
+        evento(
+            REGISTRAZIONE, id_account=existing.id,
+            email=maschera_email(existing.email), tipo="ripresa_non_verificata",
+        )
         return VerificationRequired(email=existing.email, email_sent=sent)
 
     account = ClientAccount(
@@ -103,6 +125,10 @@ async def register(
     ))
 
     sent = await _send_code(db, account, payload.first_name)
+    evento(
+        REGISTRAZIONE, id_account=account.id,
+        email=maschera_email(account.email), tipo="nuovo",
+    )
     return VerificationRequired(email=account.email, email_sent=sent)
 
 
@@ -151,6 +177,21 @@ async def _adopt_salon_record(db: AsyncSession, account: ClientAccount) -> None:
     stub.account_id = None
     await db.flush()
 
+    # Il momento in cui un account prende possesso di una scheda che il salone
+    # aveva già — cioè dello storico appuntamenti e delle note di quella
+    # persona. È il singolo passaggio di questo codice in cui dei dati
+    # cambiano proprietario, quindi è quello che deve restare scritto: se un
+    # giorno qualcuno finisce collegato alla scheda sbagliata, questa riga
+    # dice quando e a partire da quale account.
+    log.info(
+        "scheda del salone collegata all'account",
+        extra={
+            "id_account": account.id,
+            "id_scheda": salon_record.id,
+            "id_scheda_registrazione": stub.id,
+        },
+    )
+
     # Normally the sign-up row is minutes old and empty, so it just goes. But
     # someone can register, ignore the email for a week, and verify later — and
     # in the meantime the salon may have booked against that row, having seen it
@@ -174,6 +215,10 @@ async def verify_email(
         select(ClientAccount).where(ClientAccount.email == payload.email)
     )).scalar_one_or_none()
     if not account:
+        evento(
+            VERIFICA_FALLITA, logging.WARNING,
+            email=maschera_email(payload.email), motivo="indirizzo_sconosciuto",
+        )
         raise HTTPException(status_code=400, detail="Codice o indirizzo non validi")
 
     try:
@@ -183,6 +228,13 @@ async def verify_email(
         # flush here would be undone by the raise below and every wrong guess
         # would be free. The attempt budget only exists if this survives.
         await db.commit()
+        # Il codice tentato non entra nel log — né qui né altrove: è una
+        # credenziale, e finirebbe accanto all'indirizzo a cui appartiene.
+        evento(
+            VERIFICA_FALLITA, logging.WARNING,
+            id_account=account.id, email=maschera_email(account.email),
+            motivo="codice_non_valido",
+        )
         raise HTTPException(status_code=400, detail=e.detail)
 
     # The address is proven from here on, which is the only moment at which it
@@ -190,6 +242,10 @@ async def verify_email(
     await _adopt_salon_record(db, account)
 
     await db.flush()
+    evento(
+        EMAIL_VERIFICATA, id_account=account.id,
+        email=maschera_email(account.email),
+    )
     access = create_access_token(account.id, {"type": "client"})
     refresh = create_refresh_token(account.id, {"type": "client"})
     return TokenResponse(access_token=access, refresh_token=refresh)
@@ -228,18 +284,31 @@ async def login(
     result = await db.execute(select(ClientAccount).where(ClientAccount.email == payload.email))
     account = result.scalar_one_or_none()
     if not account or not await verify_password(payload.password, account.password_hash):
+        login_fallito(
+            email=payload.email,
+            motivo="password_errata" if account else "account_inesistente",
+        )
         raise HTTPException(status_code=401, detail="Credenziali non valide")
     if not account.is_active:
+        evento(
+            LOGIN_BLOCCATO, logging.INFO, tipo="client", id_account=account.id,
+            email=maschera_email(account.email), motivo="account_disattivato",
+        )
         raise HTTPException(status_code=403, detail="Account disabilitato")
     if not account.email_verified:
         # Distinct from bad credentials on purpose: the password was right, and
         # the caller needs to be sent to the code screen rather than told to
         # try again. Only reachable by someone who already knows the password.
+        evento(
+            LOGIN_BLOCCATO, logging.INFO, tipo="client", id_account=account.id,
+            email=maschera_email(account.email), motivo="email_non_verificata",
+        )
         raise HTTPException(
             status_code=403,
             detail="Indirizzo email non ancora verificato. Inserisci il codice che ti abbiamo inviato.",
         )
 
+    login_riuscito(tipo="client", id_account=account.id, email=account.email)
     access = create_access_token(account.id, {"type": "client"})
     refresh = create_refresh_token(account.id, {"type": "client"})
     return TokenResponse(access_token=access, refresh_token=refresh)
@@ -264,8 +333,15 @@ async def forgot_password(
         reset_url = f"{settings.FRONTEND_URL.rstrip('/')}/booking/reset-password?token={token}"
         try:
             await notify_password_reset(db, account, reset_url)
-        except Exception as e:
-            print(f"[NOTIFY:reset] failed to dispatch: {e}")
+        except Exception:
+            log.exception(
+                "invio delle istruzioni di reset fallito",
+                extra={"id_account": account.id},
+            )
+        # Solo se l'account esiste: la risposta è volutamente identica nei due
+        # casi, e un evento scritto anche per gli indirizzi sconosciuti
+        # riempirebbe il registro di righe su indirizzi che non ci riguardano.
+        evento(RESET_CHIESTO, id_account=account.id, email=maschera_email(account.email))
     return MessageResponse(message="Se l'email è registrata, riceverai le istruzioni per il reset")
 
 
@@ -279,11 +355,24 @@ async def reset_password(
     )
     account = result.scalar_one_or_none()
     if not account or not account.reset_token_expires:
+        evento(RESET_ESEGUITO, logging.WARNING, esito="token_non_valido")
         raise HTTPException(status_code=400, detail="Token non valido")
     if account.reset_token_expires < datetime.now(timezone.utc):
+        evento(
+            RESET_ESEGUITO, logging.WARNING,
+            id_account=account.id, esito="token_scaduto",
+        )
         raise HTTPException(status_code=400, detail="Token scaduto")
 
     account.password_hash = await hash_password(payload.new_password)
     account.reset_token = None
     account.reset_token_expires = None
+    # Un cambio password riuscito è il singolo evento che più spesso segna il
+    # passaggio di un account da una persona a un'altra. Se una cliente dice
+    # «non entro più», questa riga dice quando la password è stata cambiata e
+    # da quale indirizzo IP è arrivata la richiesta.
+    evento(
+        RESET_ESEGUITO, id_account=account.id,
+        email=maschera_email(account.email), esito="ok",
+    )
     return MessageResponse(message="Password aggiornata con successo")

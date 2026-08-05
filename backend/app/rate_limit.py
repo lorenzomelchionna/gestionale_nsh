@@ -10,6 +10,8 @@ provavano password a raffica.
 È l'unica misura che *ferma* qualcuno invece di limitarsi a renderlo più
 lento.
 """
+import logging
+
 from fastapi import Request
 from fastapi.responses import JSONResponse
 from slowapi import Limiter
@@ -90,7 +92,23 @@ async def rate_limit_handler(request: Request, exc: RateLimitExceeded) -> JSONRe
     Il messaggio non dice quale limite né quanto manca: a chi sta lavorando
     non serve, e a chi sta provando password servirebbe per tarare i tempi.
     `Retry-After` invece c'è, perché è lo standard e i client seri lo leggono.
+
+    Il 429 finisce anche nei log, a `WARNING`. È il momento in cui il tetto ha
+    davvero fermato qualcuno: se non lo si scrive, l'unico modo di sapere che
+    è successo è che se ne lamenti qualcuno — e chi si lamenta è la cliente
+    bloccata per sbaglio, non chi stava provando le password.
     """
+    # Import qui e non in cima: `audit` importa questo modulo per leggere l'IP
+    # con la stessa logica, e in cima sarebbe un ciclo.
+    from app.audit import LIMITE_SUPERATO, evento
+
+    evento(
+        LIMITE_SUPERATO,
+        logging.WARNING,
+        percorso=request.url.path,
+        ip=client_ip(request),
+        limite=str(getattr(exc, "detail", "")),
+    )
     return JSONResponse(
         status_code=429,
         content={"detail": "Troppi tentativi. Riprova fra qualche minuto."},

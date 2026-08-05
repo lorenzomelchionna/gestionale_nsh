@@ -236,6 +236,145 @@ class TestWhatIsRefused:
         assert resp.status_code == 400
 
 
+class TestTheDecoderNeverRunsOnWhatWeDoNotWant:
+    """L'allowlist dei formati come confine, non come parere postumo.
+
+    Prima l'ordine era: decodifica tutto, **poi** guarda se il formato era
+    ammesso. Un TIFF veniva rifiutato, sì — dopo che il decoder TIFF ci aveva
+    già lavorato sopra. Siccome è proprio il decoder la parte che non vogliamo
+    esporre, quel rifiuto non proteggeva niente.
+
+    Per questo qui non basta controllare che la risposta sia 400: lo era anche
+    prima. Si controlla che il plugin non venga *aperto*.
+    """
+
+    async def test_il_plugin_tiff_non_viene_nemmeno_interpellato(
+        self, client, admin_tokens, product, monkeypatch
+    ):
+        from PIL import TiffImagePlugin
+
+        chiamate = []
+        originale = TiffImagePlugin.TiffImageFile._open
+
+        def spia(self, *a, **kw):
+            chiamate.append("_open")
+            return originale(self, *a, **kw)
+
+        monkeypatch.setattr(TiffImagePlugin.TiffImageFile, "_open", spia)
+
+        buf = io.BytesIO()
+        Image.new("RGB", (60, 40), (1, 2, 3)).save(buf, format="TIFF")
+        resp = await client.put(
+            f"/api/admin/products/{product.id}/image",
+            headers=auth(admin_tokens),
+            files=upload(buf.getvalue(), "foto.tiff", "image/tiff"),
+        )
+
+        assert resp.status_code == 400
+        assert chiamate == [], (
+            "il decoder TIFF ha letto byte non fidati: l'allowlist sta di nuovo "
+            "dopo la decodifica invece che dentro Image.open(formats=...)"
+        )
+
+    @pytest.mark.parametrize("fmt,mode", [("GIF", "P"), ("BMP", "RGB"), ("ICO", "RGB")])
+    async def test_gli_altri_formati_sono_rifiutati(
+        self, client, admin_tokens, product, fmt, mode
+    ):
+        buf = io.BytesIO()
+        Image.new(mode, (60, 40)).save(buf, format=fmt)
+        resp = await client.put(
+            f"/api/admin/products/{product.id}/image",
+            headers=auth(admin_tokens),
+            files=upload(buf.getvalue(), f"foto.{fmt.lower()}", "image/png"),
+        )
+        assert resp.status_code == 400
+        assert "JPEG" in resp.json()["detail"], "il messaggio deve dire cosa caricare"
+
+    async def test_i_tre_formati_ammessi_passano_ancora(
+        self, client, admin_tokens, product
+    ):
+        """Il contrario del test sopra: restringere non deve aver chiuso fuori
+        anche i formati che le foto di prodotto usano davvero."""
+        for fmt in ("JPEG", "PNG", "WEBP"):
+            buf = io.BytesIO()
+            Image.new("RGB", (60, 40), (9, 9, 9)).save(buf, format=fmt)
+            resp = await client.put(
+                f"/api/admin/products/{product.id}/image",
+                headers=auth(admin_tokens),
+                files=upload(buf.getvalue(), f"foto.{fmt.lower()}"),
+            )
+            assert resp.status_code == 200, f"{fmt} rifiutato: {resp.text}"
+
+    async def test_la_tupla_dei_formati_e_accettata_da_pillow(self):
+        """`Image.open(formats=...)` vuole una lista o una tupla e solleva
+        `TypeError` su un set — che il gestore generico tradurrebbe in
+        «immagine danneggiata», cioè un errore nostro addebitato a chi carica.
+        Il tipo di questa costante è quindi parte del contratto."""
+        from app.services.images import ALLOWED_FORMATS
+
+        assert isinstance(ALLOWED_FORMATS, (list, tuple))
+        Image.open(io.BytesIO(png_bytes()), formats=ALLOWED_FORMATS)
+
+
+class TestLaTelaVieneMisurataPrimaDiAllocarla:
+    """Il limite in byte non basta: la compressione fa sì che pochi kB
+    dichiarino una tela enorme, e la tela va in RAM decompressa."""
+
+    async def test_una_tela_enorme_in_un_file_piccolo_e_rifiutata(
+        self, client, admin_tokens, product
+    ):
+        buf = io.BytesIO()
+        Image.new("L", (9000, 9000)).save(buf, format="PNG")
+        raw = buf.getvalue()
+        assert len(raw) < MAX_UPLOAD_BYTES, "deve passare il limite in byte"
+
+        resp = await client.put(
+            f"/api/admin/products/{product.id}/image",
+            headers=auth(admin_tokens),
+            files=upload(raw),
+        )
+        assert resp.status_code == 400
+        assert "pixel" in resp.json()["detail"].lower()
+
+    async def test_il_conto_si_fa_sull_header_non_sui_pixel(self):
+        """La differenza fra rifiutare e sopravvivere: se il controllo stesse
+        dopo `load()`, i pixel sarebbero già stati allocati — cioè il processo
+        potrebbe essere già morto per OOM prima di poter dire di no."""
+        from PIL import PngImagePlugin
+
+        from app.services.images import ImageRejected, process_upload
+
+        buf = io.BytesIO()
+        Image.new("L", (9000, 9000)).save(buf, format="PNG")
+
+        caricato = []
+        originale = PngImagePlugin.PngImageFile.load
+
+        def spia(self, *a, **kw):
+            caricato.append("load")
+            return originale(self, *a, **kw)
+
+        PngImagePlugin.PngImageFile.load = spia
+        try:
+            with pytest.raises(ImageRejected):
+                process_upload(buf.getvalue())
+        finally:
+            PngImagePlugin.PngImageFile.load = originale
+
+        assert caricato == [], "i pixel sono stati allocati prima di rifiutarli"
+
+    async def test_una_foto_normale_non_e_toccata_dal_limite(
+        self, client, admin_tokens, product
+    ):
+        """4000×3000 è uno scatto da telefono: 12 MP, sotto i 50 ammessi."""
+        resp = await client.put(
+            f"/api/admin/products/{product.id}/image",
+            headers=auth(admin_tokens),
+            files=upload(png_bytes(size=(4000, 3000))),
+        )
+        assert resp.status_code == 200, resp.text
+
+
 class TestWhatGetsStored:
     async def test_a_huge_photo_is_scaled_down(self, client, db, admin_tokens, product):
         """A phone shot is several thousand pixels wide and megabytes heavy;

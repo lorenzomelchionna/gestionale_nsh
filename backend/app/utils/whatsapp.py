@@ -1,6 +1,10 @@
 """WhatsApp messaging via Twilio REST API (no twilio SDK needed — uses httpx)."""
+import logging
 import httpx
 from app.config import settings
+from app.logging_config import maschera_telefono
+
+log = logging.getLogger("nsh.whatsapp")
 
 # Default message templates (used when BookingConfig fields are NULL)
 DEFAULT_BOOKING_MESSAGE = (
@@ -35,7 +39,14 @@ async def send_whatsapp(to_phone: str, message: str) -> None:
     If Twilio is not configured, logs to stdout (stub mode).
     """
     if not _is_configured():
-        print(f"[WA STUB] To: {to_phone} | Message: {message}")
+        # Il testo del messaggio non entra nel log: contiene il nome della
+        # cliente e l'orario del suo appuntamento, cioè esattamente i dati che
+        # i log non devono duplicare. Che il messaggio non sia partito si vede
+        # lo stesso, ed è l'unica informazione azionabile.
+        log.warning(
+            "Twilio non configurato: messaggio WhatsApp non inviato",
+            extra={"destinatario": maschera_telefono(to_phone)},
+        )
         return
 
     # Normalize phone: strip non-digits except leading +

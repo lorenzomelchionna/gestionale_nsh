@@ -1,6 +1,25 @@
 from celery import Celery
 from celery.schedules import crontab
+from celery.signals import setup_logging as celery_setup_logging
 from app.config import settings
+from app.logging_config import setup_logging
+
+
+@celery_setup_logging.connect
+def _configura_log(**_kwargs):
+    """Stesso formato dei log dell'API anche dentro il worker.
+
+    Il worker è un processo a parte: non passa da `app/main.py`, quindi senza
+    questo aggancio `setup_logging()` lì non verrebbe mai chiamata e i task
+    scriverebbero col formato di Celery — cioè con un altro schema, in un
+    servizio Railway diverso, e quindi non correlabili con il resto.
+
+    Il segnale `setup_logging` va agganciato e non solo usato: quando ha un
+    ricevitore, Celery rinuncia a configurare i log per conto suo. È il modo
+    previsto per dire «ci penso io», invece di lasciare che sovrascriva.
+    """
+    setup_logging()
+
 
 celery_app = Celery(
     "new_style_hair",

@@ -17,7 +17,9 @@ from fastapi import Request, APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.audit import LOGIN_BLOCCATO, evento, login_fallito, login_riuscito
 from app.database import get_db
+from app.logging_config import maschera_email
 from app.rate_limit import limiter
 from app.models.client import ClientAccount
 from app.models.user import User
@@ -52,9 +54,17 @@ async def login(
     user = result.scalar_one_or_none()
     if user and await verify_password(payload.password, user.password_hash):
         if not user.is_active:
+            # Password giusta su un account chiuso: da distinguere da una
+            # password sbagliata, perché significa che quella credenziale
+            # circola ancora ed è ancora valida.
+            evento(
+                LOGIN_BLOCCATO, tipo="staff", id_account=user.id,
+                email=maschera_email(user.email), motivo="account_disattivato",
+            )
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN, detail="Account disabilitato"
             )
+        login_riuscito(tipo="staff", id_account=user.id, email=user.email)
         return SignInResponse(
             access_token=create_access_token(user.id, {"role": user.role}),
             refresh_token=create_refresh_token(user.id, {"role": user.role}),
@@ -68,16 +78,25 @@ async def login(
     account = account_result.scalar_one_or_none()
     if account and await verify_password(payload.password, account.password_hash):
         if not account.is_active:
+            evento(
+                LOGIN_BLOCCATO, tipo="client", id_account=account.id,
+                email=maschera_email(account.email), motivo="account_disattivato",
+            )
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN, detail="Account disabilitato"
             )
         if not account.email_verified:
             # The portal's own login refuses these; this screen has to agree, or
             # it becomes the way around email verification.
+            evento(
+                LOGIN_BLOCCATO, tipo="client", id_account=account.id,
+                email=maschera_email(account.email), motivo="email_non_verificata",
+            )
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Indirizzo email non ancora verificato. Inserisci il codice che ti abbiamo inviato.",
             )
+        login_riuscito(tipo="client", id_account=account.id, email=account.email)
         return SignInResponse(
             # `type` is what keeps this token off the staff routes.
             access_token=create_access_token(account.id, {"type": CLIENT_TOKEN_TYPE}),
@@ -87,6 +106,16 @@ async def login(
 
     # Deliberately identical whether the address is unknown or the password is
     # wrong, so the response cannot be used to find out who has an account.
+    #
+    # Il log invece la distinzione la fa, e deve farla: «cento tentativi su un
+    # indirizzo che esiste» è qualcuno che sta forzando un account preciso,
+    # «cento indirizzi che non esistono» è qualcuno che sta provando una lista
+    # comprata. Sono due fatti diversi e richiedono risposte diverse. La
+    # differenza non esce dall'API, resta qui.
+    login_fallito(
+        email=payload.email,
+        motivo="password_errata" if (user or account) else "account_inesistente",
+    )
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED, detail="Credenziali non valide"
     )

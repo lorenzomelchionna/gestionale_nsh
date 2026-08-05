@@ -1,4 +1,5 @@
 """Email utility — Brevo HTTP API (preferred) with SMTP fallback."""
+import logging
 import html
 import smtplib
 import socket
@@ -6,6 +7,9 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import httpx
 from app.config import settings
+from app.logging_config import maschera_email
+
+log = logging.getLogger("nsh.email")
 
 BREVO_ENDPOINT = "https://api.brevo.com/v3/smtp/email"
 
@@ -82,7 +86,15 @@ async def send_email(to: str, subject: str, html_body: str) -> None:
     if settings.SMTP_USER:
         _send_via_smtp(to, subject, html_body)
         return
-    print(f"[EMAIL STUB] To: {to} | Subject: {subject}")
+    # `WARNING` e non una riga informativa: qui non c'è nessuno stub, c'è
+    # un'email che non parte. In locale è il comportamento voluto, in
+    # produzione vuol dire che né Brevo né SMTP sono configurati e che ogni
+    # conferma di prenotazione sta sparendo in silenzio — cioè un guasto
+    # invisibile a chiunque non stia leggendo i log.
+    log.warning(
+        "nessun canale email configurato: messaggio non spedito",
+        extra={"destinatario": maschera_email(to), "oggetto": subject},
+    )
 
 
 async def send_appointment_reminder(appointment) -> None:
@@ -110,7 +122,11 @@ async def send_custom_message(client, subject: str, body: str) -> None:
     call here using client.phone when no email is available.
     """
     if not client.email:
-        print(f"[MESSAGING STUB] No email for {client.first_name} {client.last_name} (id={client.id})")
+        # Solo l'id: il nome e il cognome della cliente in un log non servono
+        # a niente che l'id non dica già, e questo file finisce in un sistema
+        # di log che non è il database.
+        log.info("cliente senza email: messaggio non inviato",
+                 extra={"id_cliente": client.id})
         return
     # Escaped first, then newlines become breaks: staff write plain text in the
     # Messaggi page, so the line breaks are the only markup they mean to send.
@@ -131,7 +147,8 @@ async def send_birthday_greeting(client) -> None:
     """
     if not client.email:
         # TODO: fallback to SMS/WhatsApp when a provider is configured
-        print(f"[BIRTHDAY STUB] No email for {client.first_name} {client.last_name} (id={client.id})")
+        log.info("cliente senza email: auguri non inviati",
+                 extra={"id_cliente": client.id})
         return
     subject = "Tanti auguri di buon compleanno! – New Style Hair"
     body = f"""

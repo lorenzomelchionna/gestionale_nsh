@@ -13,12 +13,24 @@
 # sé: qui vuol dire una decina a settimana su un progetto seguito da una
 # persona sola. Una casella di posta piena di PR non lette è un meccanismo
 # spento, quindi le patch arrivano insieme e restano leggibili.
+# **Le PR vanno su `develop`, non su `main`.**
+#
+# Trovato al primo giro: senza `target-branch` Dependabot punta al branch di
+# default del repository, che qui è `main` — cioè il branch che Railway
+# deploya. Le cinque PR aperte il 2026-08-05 puntavano tutte lì, e mergiarne
+# una avrebbe messo un aggiornamento di dipendenza in produzione **senza che
+# fosse mai passato da `develop`**, oltre a lasciare `develop` indietro e a
+# rompere l'allineamento che il flusso di rilascio tiene a mano.
+#
+# Con `develop` come bersaglio, un aggiornamento segue la stessa strada di
+# qualunque altra modifica: CI su develop, poi PR di rilascio verso main.
 version: 2
 
 updates:
   # ── Backend Python ──────────────────────────────────────────────────
   - package-ecosystem: pip
     directory: /backend
+    target-branch: develop
     schedule:
       interval: weekly
       day: monday
@@ -33,18 +45,39 @@ updates:
       # c'è qualcosa da guardare comunque.
       python-minori:
         patterns: ["*"]
+        # **Le esclusioni qui sotto le ha scritte la realtà, non la prudenza.**
+        #
+        # Al primo giro Dependabot ha messo `fastapi` 0.115.6 → 0.141.1 dentro
+        # questo gruppo, insieme ad altri sedici aggiornamenti. Il motivo è che
+        # sotto la 1.0 la major è `0`: per semver ogni rilascio di FastAPI è un
+        # *minor*, quindi la riga `ignore` più sotto non lo prendeva.
+        #
+        # Quell'aggiornamento è però un lavoro, non un bump: la FastAPI nuova
+        # avvolge le rotte in `_IncludedRouter` e `test_permissions_matrix.py`
+        # smette di vederle. La CI l'ha infatti bloccato — la rete ha tenuto —
+        # ma il risultato era che sedici aggiornamenti buoni restavano fermi
+        # dietro a uno che nessuno poteva mergiare.
+        #
+        # Quindi le librerie che stanno sotto la 1.0, o che hanno una storia di
+        # rotture fra minor, escono dal gruppo e prendono una PR ciascuna.
+        exclude-patterns:
+          - "fastapi"
+          - "starlette"
+          - "sqlalchemy"
+          - "pydantic*"
         update-types: ["minor", "patch"]
     ignore:
-      # Le major restano a parte e vengono aperte una per una: FastAPI,
-      # SQLAlchemy e Pydantic hanno rotto cose fra major, e una major dentro
-      # un gruppo di dieci renderebbe impossibile capire chi ha rotto cosa.
-      # Questa riga non le esclude, le tiene fuori dal gruppo qui sopra.
+      # Le major restano fuori dal gruppo e vengono aperte una per una: una
+      # major in mezzo a dieci aggiornamenti rende impossibile capire chi ha
+      # rotto cosa. Attenzione al limite visto sopra: per un pacchetto `0.x`
+      # questa riga non scatta mai, perché la major è già `0`.
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
 
   # ── Frontend ────────────────────────────────────────────────────────
   - package-ecosystem: npm
     directory: /frontend
+    target-branch: develop
     schedule:
       interval: weekly
       day: monday
@@ -72,6 +105,7 @@ updates:
   # compromessa è un problema di sicurezza, non di manutenzione.
   - package-ecosystem: github-actions
     directory: /
+    target-branch: develop
     schedule:
       interval: monthly
     open-pull-requests-limit: 3

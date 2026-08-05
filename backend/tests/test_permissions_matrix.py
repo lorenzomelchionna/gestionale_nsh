@@ -165,17 +165,111 @@ def detect_guard(route: APIRoute) -> str:
     return "public"
 
 
+def tutte_le_rotte(contenitore=None, prefisso: str = "") -> list[tuple[str, APIRoute]]:
+    """Ogni `APIRoute` dell'applicazione col suo percorso completo, scendendo
+    nei router annidati.
+
+    Prima era un `for` su `app.routes`, e funzionava per un dettaglio di
+    implementazione: fino a FastAPI 0.115 `include_router` **copiava** le rotte
+    dentro `app.routes`, già col prefisso applicato, quindi l'elenco era piatto
+    e i percorsi completi.
+
+    Dalla 0.141 non è più così: le rotte restano dentro il router originale e
+    l'applicazione ne tiene un involucro, `_IncludedRouter`. `app.routes` passa
+    da 103 `APIRoute` a **una**. Provato prima di scrivere questa funzione: con
+    quella versione il file falliva su tutte e 103 le voci di
+    `EXPECTED_GUARDS`.
+
+    Due cose che l'involucro non fa, e che vanno rifatte qui:
+
+    1. **Non espone `.routes`.** Espone `original_router`, che è l'`APIRouter`
+       di partenza. Una ricorsione che cercasse solo `.routes` gli passerebbe
+       accanto senza aprirlo — cioè troverebbe zero rotte credendo di aver
+       finito. È il primo tentativo, ed è finito nello stesso fallimento di
+       prima.
+    2. **Il prefisso sta da un'altra parte.** Dentro `original_router` i
+       percorsi sono relativi (`/clients`), e `/api/admin` vive in
+       `include_context.prefix`. Vanno ricomposti a mano, altrimenti le rotte
+       si trovano ma con il nome sbagliato, che ai fini di questa matrice è
+       come non trovarle.
+
+    Regge entrambe le versioni: dove le rotte sono già piatte il prefisso resta
+    vuoto e i percorsi passano invariati.
+
+    **Perché non ci si appoggia a `app.openapi()`**, che darebbe i percorsi
+    completi in una riga: lo schema OpenAPI elenca i percorsi, non le
+    dipendenze, e questa matrice deve leggere `route.dependant` per sapere
+    *chi* sorveglia cosa. Servono gli oggetti, non la loro descrizione.
+    """
+    if contenitore is None:
+        contenitore = app
+
+    trovate: list[tuple[str, APIRoute]] = []
+    for elemento in getattr(contenitore, "routes", []):
+        if isinstance(elemento, APIRoute):
+            trovate.append((prefisso + elemento.path, elemento))
+        elif hasattr(elemento, "original_router"):
+            # FastAPI ≥ 0.141. Il prefisso si prende dal contesto di inclusione
+            # e non dall'attributo `prefix` del router, perché è
+            # `include_router(prefix=...)` a deciderlo al momento del montaggio.
+            contesto = getattr(elemento, "include_context", None)
+            trovate.extend(tutte_le_rotte(
+                elemento.original_router,
+                prefisso + getattr(contesto, "prefix", ""),
+            ))
+        elif hasattr(elemento, "routes"):
+            # Router annidati e `Mount`: aperti per attributo e non per nome
+            # della classe, che è privato e cambierà ancora.
+            trovate.extend(tutte_le_rotte(
+                elemento, prefisso + getattr(elemento, "prefix", "")
+            ))
+        elif hasattr(elemento, "router"):
+            trovate.extend(tutte_le_rotte(elemento.router, prefisso))
+    return trovate
+
+
 def actual_guards() -> dict[tuple[str, str], str]:
     found = {}
-    for route in app.routes:
-        if not isinstance(route, APIRoute):
-            continue
+    for percorso, route in tutte_le_rotte():
         for method in sorted(route.methods - {"HEAD", "OPTIONS"}):
-            found[(method, route.path)] = detect_guard(route)
+            found[(method, percorso)] = detect_guard(route)
     return found
 
 
 class TestRouteInventory:
+    def test_l_inventario_non_e_vuoto(self):
+        """La guardia della guardia, e non è ridondanza.
+
+        Tutto questo file poggia su `actual_guards()`. Se quella funzione
+        smette di trovare le rotte — com'è successo davvero provando FastAPI
+        0.141, che le avvolge in `_IncludedRouter` — allora
+        `test_no_unclassified_routes` **passa lo stesso**: cerca rotte nuove,
+        e su un elenco vuoto non ne trova nessuna.
+
+        Cioè il fallimento peggiore di questo file non è rosso, è verde. Le
+        altre voci fallirebbero rumorosamente, ma con una riga di codice in più
+        in una `try/except` sbagliata potrebbero non farlo, e allora il
+        gestionale avrebbe una matrice dei permessi che non guarda niente.
+
+        Questo test è l'unico che se ne accorge subito e lo dice in una riga.
+        """
+        trovate = actual_guards()
+        assert len(trovate) >= len(EXPECTED_GUARDS), (
+            f"l'inventario delle rotte ne ha trovate {len(trovate)} invece di almeno "
+            f"{len(EXPECTED_GUARDS)}: `tutte_le_rotte()` non sta più scendendo "
+            "nell'albero dei router, e questa matrice non protegge più niente"
+        )
+
+    def test_una_rotta_nota_e_davvero_sorvegliata(self):
+        """Che l'inventario sia pieno non basta: deve anche riconoscere i
+        guardiani. Se `detect_guard` smettesse di seguire le dipendenze,
+        risponderebbe `public` per tutto — e l'elenco sarebbe pieno di rotte
+        classificate male invece che assente."""
+        trovate = actual_guards()
+        assert trovate[("GET", "/api/admin/clients")] == "staff"
+        assert trovate[("POST", "/api/admin/clients")] == "admin"
+        assert trovate[("GET", "/health")] == "public"
+
     def test_no_unclassified_routes(self):
         """A new endpoint must be added to EXPECTED_GUARDS with a deliberate level."""
         new = sorted(set(actual_guards()) - set(EXPECTED_GUARDS))

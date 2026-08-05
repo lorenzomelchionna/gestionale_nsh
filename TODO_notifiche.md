@@ -311,16 +311,34 @@ cose ancora aperte; il resto è chiuso.
   `jwt.decode` fissa l'algoritmo, quindi nessuna curva ellittica viene mai
   toccata. La motivazione sta scritta in `backend/.pip-audit-ignore`, che è la
   regola di quel file.
-- [ ] **FastAPI 0.115.6 → 0.141.1 (e con lui starlette 0.41 → 1.4)** — è tutto
-  ciò che resta all'audit: azzererebbe le ultime 9 voci, tutte di starlette.
-  **Non è un aggiornamento di versione, è un lavoro.** Provato: la FastAPI
-  nuova non appiattisce più le rotte in `app.routes`, le avvolge in oggetti
-  `_IncludedRouter`. Con la 0.115 `app.routes` contiene 103 `APIRoute`, con la
-  0.141 ne contiene **una**. Quindi `tests/test_permissions_matrix.py`, che è
-  la guardia che impedisce a un endpoint di uscire senza una decisione sui
-  permessi, va riscritto per scendere ricorsivamente — ed è esattamente il
-  test che non si può permettere di sbagliare, visto che nasce dalla
-  escalation cliente→admin già arrivata in produzione una volta.
+- [x] ~~**Matrice permessi pronta per FastAPI 0.141**~~ — fatto 2026-08-05.
+  `tutte_le_rotte()` scende nell'albero dei router e passa su **entrambe** le
+  versioni, 120 test per parte. Due trappole, trovate provando e non leggendo:
+  `_IncludedRouter` **non espone `.routes`** ma `original_router`, quindi una
+  ricorsione che cercasse `.routes` gli passa accanto trovando zero rotte e
+  credendo di aver finito (primo tentativo, stesso fallimento di prima); e il
+  prefisso `/api/admin` non sta nei percorsi interni, che sono relativi, ma in
+  `include_context.prefix` — va ricomposto a mano, altrimenti le rotte si
+  trovano col nome sbagliato, che per questa matrice è come non trovarle.
+  Aggiunti due test che prima mancavano, ed è la parte che conta:
+  `test_l_inventario_non_e_vuoto` e `test_una_rotta_nota_e_davvero_sorvegliata`.
+  Il motivo è che **il fallimento peggiore di questo file è verde, non rosso**:
+  `test_no_unclassified_routes` cerca rotte *nuove*, e su un elenco vuoto non
+  ne trova nessuna, quindi passa. Verificato rompendo apposta la ricorsione:
+  gli altri diventano rossi, quello passa. Senza la guardia sulla guardia, un
+  giorno la matrice avrebbe potuto smettere di guardare qualcosa senza che
+  nessuno se ne accorgesse.
+- [x] ~~**FastAPI 0.115.6 → 0.141.1 (e con lui starlette 0.41 → 1.4)**~~ —
+  fatto 2026-08-05, dopo aver riscritto la matrice: 584 test passano.
+  Con questo `pip-audit` resta con **una sola** voce, `ecdsa`, che è quella
+  già esclusa con la motivazione scritta. Cioè l'audit Python è verde.
+  Chiude anche PYSEC-2026-249 alla radice. Il tetto sul corpo del webhook
+  resta comunque dov'è: è una difesa che non dipende da quale versione di
+  starlette è installata, e quell'endpoint ha già visto passare due problemi
+  della stessa famiglia.
+  Sistemate due deprecation che l'aggiornamento ha reso rumorose:
+  `HTTP_413_REQUEST_ENTITY_TOO_LARGE` → `HTTP_413_CONTENT_TOO_LARGE` (stesso
+  valore) e `Query(regex=)` → `Query(pattern=)` in `dashboard.py`.
   Delle 7 di starlette, sei non ci riguardano: `FileResponse`, `StaticFiles` e
   `HTTPEndpoint` qui non si usano; quelle su multipart passano solo dall'upload
   delle foto prodotto, che è `require_admin` e legge al massimo 10 MB
@@ -358,12 +376,35 @@ cose ancora aperte; il resto è chiuso.
   due spia `Request.form` per controllare che non venga proprio interpellato —
   perché rifiutare *dopo* aver parsato darebbe lo stesso 413 senza servire a
   niente.
-- [ ] **npm: `axios` e `react-router`** — 7 voci sul codice che finisce nel
-  browser (le altre 7 sono catena di build). Curiosità che vale la pena
-  annotare: fra quelle di `react-router` c'è un open redirect via `//` e via
-  backslash, cioè **lo stesso bug** corretto a mano in `LoginPage.tsx` il
-  2026-08-05, ma dentro `<Link>` e `useNavigate`. Il filtro scritto lì continua
-  a valere; queste sono le altre porte della stessa casa.
+- [ ] **PR #65 di Dependabot: il gruppo «minori» contiene FastAPI** — la CI la
+  blocca (pytest rosso sulla matrice permessi, esattamente come previsto), ma
+  intanto sedici aggiornamenti buoni restano fermi dietro a uno che nessuno può
+  mergiare. La causa: sotto la 1.0 la major è `0`, quindi per semver **ogni**
+  rilascio di FastAPI è un minor e la riga `ignore` sui major non lo prendeva.
+  `dependabot.yml` ora esclude `fastapi`, `starlette`, `sqlalchemy` e
+  `pydantic*` dal gruppo, così prendono una PR ciascuno. La #65 va chiusa e
+  riaperta da Dependabot con la configurazione nuova.
+  Nota utile: sulla #65 `pip-audit` è **passato**. Cioè l'aggiornamento chiude
+  davvero tutte le vulnerabilità rimaste, e il solo ostacolo è il test da
+  riscrivere. Le due previsioni fatte a mano sono state confermate dalla CI in
+  modo indipendente.
+- [x] ~~**npm: `axios` e `lodash`**~~ — fatto 2026-08-05. `axios` 1.13.6 →
+  1.19.0 chiude ventotto avvisi in un colpo (SSRF, prototype pollution,
+  CRLF injection, un paio di ReDoS). `lodash` non era in `package.json`:
+  arriva da `recharts`, quindi è stato forzato a 4.18.1 con un `overrides`,
+  che è la strada per una dipendenza transitiva che nessuno può aggiornare
+  direttamente.
+  `npm audit --omit=dev --audit-level=high` adesso esce 0.
+- [ ] **`react-router` 6 → 7** — restano due avvisi *moderate*, e la
+  correzione è una major (`react-router-dom@7.18.2`), quindi non entra di
+  straforo in un aggiornamento di manutenzione.
+  Uno dei due è l'open redirect via backslash in `<Link>` e `useNavigate`,
+  cioè **lo stesso bug** corretto a mano in `LoginPage.tsx` — ed è coperto:
+  `next` è l'unico punto in cui un valore esterno arriva a `navigate()`, e
+  `destinazioneInterna()` rifiuta esplicitamente `//` e `/\` prima di
+  passarlo. L'altro riguarda l'idratazione SSR, che qui non c'è: il frontend
+  è una SPA servita da Vite.
+  Quindi è una major da fare con calma, non una falla aperta.
 - [x] ~~**Un minimo di logging**~~ — fatto 2026-08-05. Due cose, non una.
   Il **registro degli accessi** (`nsh.accessi`): una riga per richiesta, con
   metodo, percorso, stato, durata, IP e soprattutto **attore** — `admin:3`,

@@ -125,6 +125,7 @@ sviluppo. Per puntare altrove: `TEST_DATABASE_URL=postgresql+asyncpg://...`.
 | `tests/test_auth_boundaries.py` | Confini fra admin, collaboratore e cliente. Regressioni della escalation cliente→admin: un fallimento qui è un problema di sicurezza, non un test instabile. |
 | `tests/test_permissions_matrix.py` | `EXPECTED_GUARDS` fissa il livello di permesso di **ogni** rotta. Aggiungere o cambiare un endpoint fa fallire i test finché la mappa non viene aggiornata di proposito — così nessuna rotta finisce in produzione senza una decisione sui permessi. |
 | `tests/test_appointments.py` | Macchina a stati degli appuntamenti e disponibilità: annullato/rifiutato devono liberare lo slot. |
+| `tests/test_logging.py` | Che nei log non finiscano password, token e codici, e che la riga del registro accessi dica **chi** ha fatto la richiesta. Senza quel campo il registro è un elenco di URL. |
 
 ### CI e flusso di rilascio
 
@@ -176,6 +177,36 @@ test stanno in `requirements-dev.txt`, fuori da `requirements.txt`.
 - **Reset DB locale**: `cd backend && python seed.py` (drop + ricrea con dati demo)
 - **Bootstrap produzione**: `python bootstrap.py` crea admin + BookingConfig (idempotente). Se `SEED_DEMO=true` popola anche dati demo.
 - **Nota**: strategia di migrazione produzione da implementare (fase 2 del roadmap).
+
+## Log
+
+Tutto su stdout, che è quello che Railway raccoglie. In sviluppo escono
+leggibili a occhio, altrove in JSON — una riga, un oggetto — perché si possano
+filtrare per campo invece che a regex.
+
+| Logger | Cosa scrive |
+|--------|-------------|
+| `nsh.accessi` | Una riga per richiesta servita: metodo, percorso, stato, durata, IP, **attore**. `/health` escluso. |
+| `nsh.sicurezza` | Login riusciti e falliti, token rifiutati, permessi negati, 429, reset password. Nomi di evento costanti (`app/audit.py`), così si cercano. |
+| `nsh.notifiche`, `nsh.email`, `nsh.whatsapp`, `nsh.attivita` | Notifiche non partite, con lo stack. |
+
+`attore` è il campo che conta: `admin:3`, `client:41`, `anonimo`. Senza quello
+il registro dice che *qualcuno* ha aperto una scheda, non chi — cioè non
+risponde alla domanda che si fa dopo un furto di credenziali, che è la sola
+ragione per cui il registro esiste. Ogni riga porta anche un `richiesta` che
+torna al chiamante nell'header `X-Request-ID`.
+
+Cosa non ci finisce mai: password, token, codici di verifica. Non per
+disciplina di chi scrive la chiamata ma per filtro (`FiltroSegreti` in
+`app/logging_config.py`), che oscura i campi il cui **nome** sa di segreto e
+toglie dal testo i JWT e gli header `Bearer`. Gli indirizzi email sono
+mascherati (`m***i@gmail.com`) e i telefoni pure: un log di sicurezza è a sua
+volta un archivio di dati personali, e su un login fallito l'indirizzo digitato
+può essere di qualcuno che non c'entra niente.
+
+Conseguenza pratica per chi aggiunge log: **non chiamare un campo
+`status_code`** o simili — `code` è in elenco e verrebbe oscurato. In questo
+codice quel campo si chiama `stato`.
 
 ## API
 

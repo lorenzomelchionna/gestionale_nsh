@@ -42,6 +42,104 @@ def inbound_params(body="Ciao, avete posto giovedì?", phone="whatsapp:+39333123
     }
 
 
+class TestIlTettoSulCorpo:
+    """Quanto lavoro l'endpoint fa per uno sconosciuto prima di poterlo cacciare.
+
+    La firma si calcola sui parametri, quindi vanno letti prima di poterla
+    verificare: un pezzo di lavoro per chiunque bussi è inevitabile qui. La
+    domanda non è *se*, è *quanto* — e fino al 2026-08-05 la risposta era
+    «tutto quello che manda».
+
+    `request.form()` accetta `max_fields` e `max_part_size` e li ignora in
+    silenzio sui corpi urlencoded (PYSEC-2026-249). Misurato prima della
+    correzione: 200.000 campi, 1,8 MB, parsati per intero prima del 403, senza
+    credenziali e senza limite di tentativi.
+    """
+
+    async def test_un_corpo_enorme_viene_rifiutato(self, client, db):
+        gonfio = {f"campo{i}": "x" for i in range(200_000)}
+
+        resp = await client.post(WEBHOOK, data=gonfio)
+
+        assert resp.status_code == 413
+        assert (await db.execute(select(Conversation))).scalars().all() == []
+
+    async def test_il_corpo_enorme_non_viene_nemmeno_parsato(self, client, monkeypatch):
+        """Il punto non è il codice di risposta, è il lavoro risparmiato.
+
+        Rifiutare *dopo* aver parsato darebbe lo stesso 413 e non servirebbe a
+        niente: il costo è il parsing, non la risposta. Questo test guarda che
+        il parser non venga proprio interpellato.
+        """
+        import starlette.requests
+
+        chiamate = []
+        originale = starlette.requests.Request.form
+
+        def spia(self, *a, **kw):
+            chiamate.append("form")
+            return originale(self, *a, **kw)
+
+        monkeypatch.setattr(starlette.requests.Request, "form", spia)
+
+        resp = await client.post(
+            WEBHOOK, data={f"campo{i}": "x" for i in range(200_000)}
+        )
+
+        assert resp.status_code == 413
+        assert chiamate == [], (
+            "il corpo è stato parsato prima di rifiutarlo: il tetto non serve a niente"
+        )
+
+    async def test_un_messaggio_vero_passa_lo_stesso(self, client, db):
+        """L'altra metà: un tetto che rifiuta anche i messaggi legittimi è
+        peggio del problema che risolve, perché perde le richieste delle
+        clienti in silenzio.
+
+        Il caso più grosso plausibile: testo al limite dei 4096 caratteri che
+        WhatsApp consente, più una decina di URL di media.
+        """
+        params = inbound_params(body="a" * 4096)
+        params.update({f"MediaUrl{i}": f"https://api.twilio.com/media/{i}" for i in range(10)})
+        params.update({f"MediaContentType{i}": "image/jpeg" for i in range(10)})
+
+        resp = await client.post(WEBHOOK, data=params, headers=signed(params))
+
+        assert resp.status_code == 200, resp.text
+        assert (await db.execute(select(Conversation))).scalars().all(), (
+            "un messaggio legittimo è stato perso"
+        )
+
+    async def test_accenti_ed_emoji_arrivano_interi(self, client, db):
+        """Il tetto ha cambiato *come* si legge il corpo, non come si
+        interpreta: i byte limitati tornano al parser di starlette invece di
+        essere decodificati a mano.
+
+        Conta perché la firma si calcola su questi valori: qualunque
+        differenza di decodifica si manifesterebbe come messaggi veri
+        rifiutati, cioè il guasto peggiore possibile per questo endpoint.
+        """
+        testo = "Ciao! Sposto l'appuntamento di lunedì 💇 (taglio & piega) — ok?"
+        params = inbound_params(body=testo)
+
+        resp = await client.post(WEBHOOK, data=params, headers=signed(params))
+
+        assert resp.status_code == 200, resp.text
+        from app.models.chat import ChatMessage
+
+        salvato = (await db.execute(select(ChatMessage))).scalars().all()
+        assert [m.body for m in salvato] == [testo]
+
+    async def test_il_tetto_lascia_margine_al_caso_vero(self):
+        """Il numero, non la sua applicazione. Se un giorno qualcuno lo
+        abbassasse per prudenza, questo dice qual era il ragionamento."""
+        from app.api.public.whatsapp import MAX_WEBHOOK_BYTES
+
+        # ~20 parametri, testo al massimo che WhatsApp consente, 10 media.
+        caso_grosso = 4096 + 10 * 120 + 20 * 40
+        assert MAX_WEBHOOK_BYTES > caso_grosso * 5
+
+
 class TestWebhookAuthenticity:
     async def test_unsigned_request_is_rejected(self, client, db):
         resp = await client.post(WEBHOOK, data=inbound_params())

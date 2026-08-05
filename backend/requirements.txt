@@ -14,7 +14,12 @@ pydantic-settings==2.6.1
 email-validator==2.2.0
 
 # Auth
-python-jose[cryptography]==3.3.0
+# 3.5.0, non 3.3.0: PYSEC-2024-232 (confusione di algoritmo), PYSEC-2024-233
+# e PYSEC-2025-185 (DoS su JWE). Nessuna delle tre era raggiungibile qui — i
+# token sono JWS firmati HS256 e `jwt.decode` fissa l'algoritmo — ma la 3.5.0
+# le chiude tutte e non costa niente, e restare su una versione con tre CVE
+# note vuol dire tenerle in elenco per sempre a discutere ogni volta.
+python-jose[cryptography]==3.5.0
 passlib[bcrypt]==1.7.4
 bcrypt==3.2.2
 # 0.0.31, not 0.0.20: GHSA-5rvq-cxj2-64vf makes form parsing quadratic in the
@@ -30,7 +35,10 @@ kombu==5.4.2
 
 # Email
 emails==0.6.0
-jinja2==3.1.4
+# 3.1.6: tre evasioni dalla sandbox di Jinja (PYSEC-2026-1471/1472/1475).
+# Qui i template li scriviamo noi e non arrivano dall'esterno, quindi nessuna
+# era sfruttabile; l'aggiornamento è una patch.
+jinja2==3.1.6
 
 # HTTP client
 httpx==0.28.1
@@ -41,7 +49,13 @@ pytz==2024.2
 
 # Image processing — every uploaded product photo is decoded and re-encoded by
 # Pillow, so what gets stored is a file we produced rather than one we received.
-pillow==11.0.0
+# 12.3.0 e non 11.0.0: diciassette avvisi aperti sulla 11, fra cui scritture
+# fuori dai limiti nei decoder PSD, GD, PCF/BDF e JPEG2000. La maggior parte
+# non era raggiungibile da qui perché `services/images.py` passa
+# `formats=("JPEG","PNG","WEBP")` a `Image.open`, e quei decoder non vengono
+# nemmeno provati — ma non tutti: PYSEC-2026-3451 riguarda le API sulle
+# coordinate e PYSEC-2026-3493 il codec `raw`, che stanno sul nostro percorso.
+pillow==12.3.0
 
 # Monitoring
 sentry-sdk[fastapi]==2.19.2

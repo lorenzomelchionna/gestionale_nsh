@@ -1,0 +1,129 @@
+name: Audit dipendenze
+
+# **Il `schedule` è la parte che conta**, non i trigger sulle PR.
+#
+# Una vulnerabilità viene pubblicata quando viene pubblicata, non quando
+# qualcuno tocca il codice. Un controllo che gira solo sui push dice che le
+# dipendenze erano pulite l'ultima volta che si è scritto qualcosa — e su un
+# gestionale che passa mesi senza modifiche quella frase invecchia in fretta.
+# È esattamente com'è andata col DoS di `python-multipart`: scoperto da
+# qualcun altro, mai segnalato qui, venti mesi in produzione.
+#
+# Sulle PR verso `main` perché è il momento del rilascio, cioè l'ultimo in cui
+# guardare costa poco.
+on:
+  schedule:
+    # Lunedì mattina: quello che esce trova la settimana davanti per essere
+    # sistemato, invece del venerdì sera.
+    - cron: "0 5 * * 1"
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+# **Questo workflow non è fra i check obbligatori di `main`, ed è una scelta.**
+#
+# Una falla pubblicata stanotte in una dipendenza transitiva non deve poter
+# bloccare il rilascio di una correzione che non c'entra niente: sarebbe un
+# cancello che, il giorno che serve aprire in fretta, si scavalca — e una volta
+# scavalcato non torna più su.
+#
+# Ma non deve neanche poter passare inosservato, quindi il job fallisce
+# davvero, con la X rossa. Rosso qui vuol dire «c'è lavoro in coda», e il
+# lavoro arriva da solo sotto forma di PR di Dependabot. Verde vuol dire che
+# non ne è rimasto.
+
+jobs:
+  python:
+    name: Dipendenze Python (pip-audit)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install pip-audit
+        run: pip install pip-audit==2.9.0
+
+      # `requirements.txt` e non l'ambiente installato: quello che conta è cosa
+      # finisce nell'immagine di produzione. Le dipendenze di test stanno in
+      # `requirements-dev.txt` e non arrivano lì, quindi una falla in pytest è
+      # un problema di questa macchina, non del salone.
+      - name: Audit
+        run: |
+          # pipefail, altrimenti il codice d'uscita sarebbe quello di `tee` e
+          # il job risulterebbe verde con qualunque cosa trovata.
+          set -o pipefail
+
+          # Le esclusioni stanno in un file con accanto il motivo scritto, non
+          # in una riga di questo workflow: un identificativo silenziato senza
+          # una frase che dica perché è un buco che nessuno ritroverà più.
+          # `[[:space:]]` e non `\s`: quest'ultimo è un'estensione GNU, e la
+          # stessa riga deve poter girare a mano su un Mac per riprodurre un
+          # risultato della CI senza scoprire che il comando è un altro.
+          ESCLUSE=$(grep -vE '^[[:space:]]*(#|$)' .pip-audit-ignore \
+                    | sed 's/^/--ignore-vuln /' | tr '\n' ' ')
+
+          {
+            echo '### Dipendenze Python'
+            echo ''
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          # `|| esito=$?` e non `esito=$?` sulla riga dopo: le `run:` di GitHub
+          # girano con `bash -e`, quindi un fallimento uscirebbe subito e il
+          # riepilogo resterebbe con il blocco di codice aperto a metà.
+          esito=0
+          pip-audit --requirement requirements.txt --desc $ESCLUSE \
+            | tee -a "$GITHUB_STEP_SUMMARY" || esito=$?
+
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          exit $esito
+
+  javascript:
+    name: Dipendenze frontend (npm audit)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Due passate separate, perché sono due rischi diversi.
+      #
+      # `--omit=dev` è il codice che finisce nel browser delle clienti: lì una
+      # falla è esposta a chiunque apra il sito, e il job fallisce.
+      #
+      # La catena di build (vite, babel, eslint) gira solo su questa macchina e
+      # su questo repository. Conta — una dipendenza di build compromessa
+      # riscrive ciò che viene pubblicato — ma non è la stessa urgenza, quindi
+      # viene riportata senza far fallire il job.
+      - name: Codice spedito al browser
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Catena di build (solo segnalazione)
+        if: always()
+        run: |
+          echo '### Catena di build' >> "$GITHUB_STEP_SUMMARY"
+          echo '' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Gira solo in CI, non finisce nel browser. Segnalato, non bloccante.' >> "$GITHUB_STEP_SUMMARY"
+          echo '' >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          npm audit --audit-level=moderate 2>&1 | tail -40 >> "$GITHUB_STEP_SUMMARY" || true
+          echo '```' >> "$GITHUB_STEP_SUMMARY"

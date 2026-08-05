@@ -1,0 +1,82 @@
+# Chi va a vedere se è uscita una versione con una falla corretta.
+#
+# Finora: nessuno. È il motivo per cui il DoS di `python-multipart`
+# (GHSA-5rvq-cxj2-64vf) è rimasto scoperto venti mesi — non perché fosse
+# difficile da correggere, ma perché niente lo segnalava, e una dipendenza
+# ferma non genera nessun evento a cui reagire.
+#
+# Dependabot apre le pull request; `.github/workflows/audit.yml` dice quali
+# servono davvero. Sono due metà della stessa cosa: l'audit trova, Dependabot
+# porta la correzione già scritta.
+#
+# **Il raggruppamento non è cosmetico.** Senza, ogni aggiornamento è una PR a
+# sé: qui vuol dire una decina a settimana su un progetto seguito da una
+# persona sola. Una casella di posta piena di PR non lette è un meccanismo
+# spento, quindi le patch arrivano insieme e restano leggibili.
+version: 2
+
+updates:
+  # ── Backend Python ──────────────────────────────────────────────────
+  - package-ecosystem: pip
+    directory: /backend
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Rome
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      # Patch e minor insieme: sono le versioni che per contratto non
+      # cambiano il comportamento, quindi o passano i test tutte insieme o
+      # c'è qualcosa da guardare comunque.
+      python-minori:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    ignore:
+      # Le major restano a parte e vengono aperte una per una: FastAPI,
+      # SQLAlchemy e Pydantic hanno rotto cose fra major, e una major dentro
+      # un gruppo di dieci renderebbe impossibile capire chi ha rotto cosa.
+      # Questa riga non le esclude, le tiene fuori dal gruppo qui sopra.
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+  # ── Frontend ────────────────────────────────────────────────────────
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Rome
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      # Diviso fra ciò che finisce nel browser e ciò che serve solo a
+      # costruire: un buco in `axios` lo vedono le clienti, uno in `vite` lo
+      # vede chi compila. Sono due urgenze diverse e vanno lette separate.
+      frontend-runtime:
+        dependency-type: production
+        update-types: ["minor", "patch"]
+      frontend-strumenti:
+        dependency-type: development
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+  # ── Le action della CI ──────────────────────────────────────────────
+  # Girano con accesso al repository e ai suoi segreti: una action
+  # compromessa è un problema di sicurezza, non di manutenzione.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "chore(ci)"
+    groups:
+      actions:
+        patterns: ["*"]

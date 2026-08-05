@@ -41,7 +41,7 @@ export default function BookingHomePage() {
             to={token ? '/booking/account' : '/login'}
             className="btn-secondary sm:px-7"
           >
-            {token ? 'I miei appuntamenti' : 'La mia area'}
+            {token ? 'I miei appuntamenti' : 'Area personale'}
           </Link>
         </div>
 

@@ -311,16 +311,27 @@ cose ancora aperte; il resto è chiuso.
   `jwt.decode` fissa l'algoritmo, quindi nessuna curva ellittica viene mai
   toccata. La motivazione sta scritta in `backend/.pip-audit-ignore`, che è la
   regola di quel file.
-- [ ] **FastAPI 0.115.6 → 0.141.1 (e con lui starlette 0.41 → 1.4)** — è tutto
-  ciò che resta all'audit: azzererebbe le ultime 9 voci, tutte di starlette.
-  **Non è un aggiornamento di versione, è un lavoro.** Provato: la FastAPI
-  nuova non appiattisce più le rotte in `app.routes`, le avvolge in oggetti
-  `_IncludedRouter`. Con la 0.115 `app.routes` contiene 103 `APIRoute`, con la
-  0.141 ne contiene **una**. Quindi `tests/test_permissions_matrix.py`, che è
-  la guardia che impedisce a un endpoint di uscire senza una decisione sui
-  permessi, va riscritto per scendere ricorsivamente — ed è esattamente il
-  test che non si può permettere di sbagliare, visto che nasce dalla
-  escalation cliente→admin già arrivata in produzione una volta.
+- [x] ~~**Matrice permessi pronta per FastAPI 0.141**~~ — fatto 2026-08-05.
+  `tutte_le_rotte()` scende nell'albero dei router e passa su **entrambe** le
+  versioni, 120 test per parte. Due trappole, trovate provando e non leggendo:
+  `_IncludedRouter` **non espone `.routes`** ma `original_router`, quindi una
+  ricorsione che cercasse `.routes` gli passa accanto trovando zero rotte e
+  credendo di aver finito (primo tentativo, stesso fallimento di prima); e il
+  prefisso `/api/admin` non sta nei percorsi interni, che sono relativi, ma in
+  `include_context.prefix` — va ricomposto a mano, altrimenti le rotte si
+  trovano col nome sbagliato, che per questa matrice è come non trovarle.
+  Aggiunti due test che prima mancavano, ed è la parte che conta:
+  `test_l_inventario_non_e_vuoto` e `test_una_rotta_nota_e_davvero_sorvegliata`.
+  Il motivo è che **il fallimento peggiore di questo file è verde, non rosso**:
+  `test_no_unclassified_routes` cerca rotte *nuove*, e su un elenco vuoto non
+  ne trova nessuna, quindi passa. Verificato rompendo apposta la ricorsione:
+  gli altri diventano rossi, quello passa. Senza la guardia sulla guardia, un
+  giorno la matrice avrebbe potuto smettere di guardare qualcosa senza che
+  nessuno se ne accorgesse.
+- [ ] **FastAPI 0.115.6 → 0.141.1 (e con lui starlette 0.41 → 1.4)** — adesso
+  l'ostacolo non c'è più: la matrice regge già la versione nuova. Resta da
+  fare l'aggiornamento vero e girare la suite intera, non solo quel file.
+  `pip-audit` era già passato sulla PR #65, quindi chiude le ultime nove voci.
   Delle 7 di starlette, sei non ci riguardano: `FileResponse`, `StaticFiles` e
   `HTTPEndpoint` qui non si usano; quelle su multipart passano solo dall'upload
   delle foto prodotto, che è `require_admin` e legge al massimo 10 MB

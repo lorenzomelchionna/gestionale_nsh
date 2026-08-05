@@ -23,8 +23,25 @@ from app.services.availability import get_available_slots
 
 pytestmark = pytest.mark.asyncio
 
-# Lontano abbastanza da non finire sotto il minimo di preavviso.
-GIORNO = date.today() + timedelta(days=10)
+# Lontano abbastanza da non finire sotto il minimo di preavviso, e mai di
+# domenica: il fixture `collaborator` lavora lun–sab, quindi su una domenica
+# `get_available_slots` restituisce giustamente `[]` e i test di
+# `TestQuelloCheNonCambia` fallirebbero senza che ci sia niente di rotto.
+#
+# Trovato dal vivo: scritto come `date.today() + timedelta(days=10)` il file
+# passava, finché la data non è cambiata e il decimo giorno è caduto di
+# domenica. Un test che fallisce un giorno su sette è peggio di uno che
+# fallisce sempre — si presenta come un guasto misterioso proprio mentre si
+# sta guardando dell'altro.
+#
+# Stesso rimedio già usato in `test_partial_absences.py`.
+def _giorno_lavorativo(base: date) -> date:
+    while base.weekday() == 6:
+        base += timedelta(days=1)
+    return base
+
+
+GIORNO = _giorno_lavorativo(date.today() + timedelta(days=10))
 
 
 def _orari(slot):

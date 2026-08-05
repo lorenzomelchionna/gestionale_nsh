@@ -8,18 +8,18 @@
 # permessi in `tests/test_permissions_matrix.py` smetteva di vederle. È stata
 # riscritta prima, e regge entrambe le versioni.
 fastapi==0.141.1
-uvicorn[standard]==0.32.1
+uvicorn[standard]==0.52.1
 
 # Database
 sqlalchemy[asyncio]==2.0.36
-asyncpg==0.30.0
-alembic==1.14.0
-psycopg2-binary==2.9.10
+asyncpg==0.31.0
+alembic==1.18.5
+psycopg2-binary==2.9.12
 
 # Pydantic
 pydantic==2.10.3
 pydantic-settings==2.6.1
-email-validator==2.2.0
+email-validator==2.3.0
 
 # Auth
 # 3.5.0, non 3.3.0: PYSEC-2024-232 (confusione di algoritmo), PYSEC-2024-233
@@ -34,12 +34,12 @@ bcrypt==3.2.2
 # number of `;` separators, and the Twilio webhook has to parse the body before
 # it can verify the signature — so the slow path is reachable pre-auth, on a
 # single-worker deploy where it freezes every other request.
-python-multipart==0.0.31
+python-multipart==0.0.32
 
 # Task queue
-celery==5.4.0
-redis==5.2.1
-kombu==5.4.2
+celery==5.6.3
+redis==5.3.1
+kombu==5.6.2
 
 # Email
 emails==0.6.0
@@ -66,5 +66,5 @@ pytz==2024.2
 pillow==12.3.0
 
 # Monitoring
-sentry-sdk[fastapi]==2.19.2
-slowapi==0.1.9
+sentry-sdk[fastapi]==2.66.1
+slowapi==0.1.10

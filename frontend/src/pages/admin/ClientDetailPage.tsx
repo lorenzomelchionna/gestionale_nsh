@@ -1,10 +1,13 @@
+import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import { Merge } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { it } from 'date-fns/locale'
 import { getClient, getClientAppointments } from '@/services/api'
 import type { Appointment } from '@/types'
 import { SkeletonList } from '@/components/ui'
+import MergeClientsSheet from '@/components/admin/MergeClientsSheet'
 import clsx from 'clsx'
 
 const STATUS_LABELS: Record<string, string> = {
@@ -19,6 +22,7 @@ const STATUS_LABELS: Record<string, string> = {
 export default function ClientDetailPage() {
   const { id } = useParams<{ id: string }>()
   const clientId = Number(id)
+  const [showMerge, setShowMerge] = useState(false)
 
   const { data: client, isLoading } = useQuery({
     queryKey: ['client', clientId],
@@ -50,7 +54,25 @@ export default function ClientDetailPage() {
         <h1 className="text-title text-foreground truncate">
           {client.first_name} {client.last_name}
         </h1>
+
+        {/* Sta qui e non fra le azioni principali: unire due schede è una
+            manutenzione che capita di rado, non un gesto quotidiano — e da
+            qui è chiaro *quale* scheda resta, cioè quella che si sta
+            guardando. */}
+        <button
+          type="button"
+          onClick={() => setShowMerge(true)}
+          className="btn-secondary btn-sm ml-auto"
+          title="Unisci una scheda duplicata in questa"
+        >
+          <Merge className="w-4 h-4" />
+          Unisci duplicato
+        </button>
       </div>
+
+      {showMerge && (
+        <MergeClientsSheet target={client} onClose={() => setShowMerge(false)} />
+      )}
 
       <div className="grid gap-4 lg:grid-cols-[22rem_1fr] items-start">
         <div className="flex flex-col gap-4">

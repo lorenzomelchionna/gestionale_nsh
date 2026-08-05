@@ -39,6 +39,34 @@ class ClientOut(ClientBase):
     created_at: datetime
 
 
+class MergeRequest(BaseModel):
+    """Quale scheda far confluire in quale.
+
+    La destinazione sta nell'URL, l'origine qui: la scheda che **resta** è
+    quella indicata nel percorso, e la scelta la fa chi chiama, non
+    un'euristica. Si potrebbe far vincere «la più vecchia» o «quella con più
+    appuntamenti» — entrambe ragionevoli, entrambe ogni tanto sbagliate — ma
+    la fusione non si annulla, quindi il codice esegue invece di indovinare.
+    """
+    source_id: int = Field(..., description="La scheda che verrà svuotata e disattivata")
+
+
+class MergePreview(BaseModel):
+    """Cosa comporterebbe la fusione, prima di farla.
+
+    Non è una gentilezza verso l'interfaccia: è l'unico modo che ha chi preme
+    il pulsante di sapere che sta spostando dodici appuntamenti e tre incassi
+    e non zero. Senza, «unisci» è un pulsante che si preme e si spera.
+    """
+    source: ClientOut
+    target: ClientOut
+    moved: dict[str, int]
+    filled_fields: list[str]
+    notes_merged: bool
+    account_moved: bool
+    total_rows: int
+
+
 # Dieci e non dodici come per lo staff: chi lavora in salone ha accesso a
 # tutta l'anagrafica e alla cassa, una cliente solo ai propri appuntamenti,
 # quindi la soglia segue quello che c'è dietro la porta. Prima non c'era

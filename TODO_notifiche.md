@@ -291,8 +291,48 @@ cose ancora aperte; il resto è chiuso.
   sul modello non esce dal portale per distrazione. Fuori anche `notes`, che
   dal calendario la scrive il salone. Dentro resta `rejection_reason`: è la
   spiegazione di un rifiuto, scritta per chi l'ha subito.
-- [ ] **Dependabot + `pip-audit` in CI** — è il motivo per cui il DoS di
-  python-multipart è rimasto scoperto venti mesi.
+- [x] ~~**Dependabot + `pip-audit` in CI**~~ — fatto 2026-08-05.
+  `.github/workflows/audit.yml` trova, `.github/dependabot.yml` porta la
+  correzione già scritta. La parte che conta è il `schedule` settimanale, non
+  i trigger sulle PR: una falla viene pubblicata quando viene pubblicata, non
+  quando qualcuno tocca il codice, ed è precisamente com'è andata col DoS di
+  `python-multipart`.
+  Non è un check obbligatorio di `main`, di proposito: una falla in una
+  dipendenza transitiva non deve poter bloccare il rilascio di una correzione
+  che non c'entra — sarebbe un cancello che il giorno che serve si scavalca.
+  Ma fallisce davvero: rosso = c'è lavoro in coda.
+  **Cosa ha trovato accendendolo: 30 vulnerabilità Python e 14 npm.** Chiuse
+  subito le tre pulite — `pillow` 11.0.0 → 12.3.0 (diciassette avvisi, e i
+  decoder più brutti erano già fuori portata grazie a `formats=` in
+  `images.py`, ma non tutti), `python-jose` 3.3.0 → 3.5.0, `jinja2` 3.1.4 →
+  3.1.6. Restano 30 → 10.
+  Escluso `ecdsa` PYSEC-2026-1325, l'unico senza una versione corretta: arriva
+  da `python-jose[cryptography]` ma i token sono HS256 simmetrici e
+  `jwt.decode` fissa l'algoritmo, quindi nessuna curva ellittica viene mai
+  toccata. La motivazione sta scritta in `backend/.pip-audit-ignore`, che è la
+  regola di quel file.
+- [ ] **FastAPI 0.115.6 → 0.141.1 (e con lui starlette 0.41 → 1.4)** — è tutto
+  ciò che resta all'audit: azzererebbe le ultime 9 voci, tutte di starlette.
+  **Non è un aggiornamento di versione, è un lavoro.** Provato: la FastAPI
+  nuova non appiattisce più le rotte in `app.routes`, le avvolge in oggetti
+  `_IncludedRouter`. Con la 0.115 `app.routes` contiene 103 `APIRoute`, con la
+  0.141 ne contiene **una**. Quindi `tests/test_permissions_matrix.py`, che è
+  la guardia che impedisce a un endpoint di uscire senza una decisione sui
+  permessi, va riscritto per scendere ricorsivamente — ed è esattamente il
+  test che non si può permettere di sbagliare, visto che nasce dalla
+  escalation cliente→admin già arrivata in produzione una volta.
+  Nessuna delle 9 di starlette è intanto raggiungibile senza autenticazione:
+  quelle su `FileResponse`, `StaticFiles` e `HTTPEndpoint` riguardano cose che
+  qui non si usano; quelle su multipart passano solo dall'upload delle foto
+  prodotto, che è `require_admin` e legge al massimo 10 MB (`_read_capped`);
+  quelle sull'header `Host` mordono chi costruisce URL da `request.url`, mentre
+  qui il link di reset si costruisce da `settings.FRONTEND_URL`.
+- [ ] **npm: `axios` e `react-router`** — 7 voci sul codice che finisce nel
+  browser (le altre 7 sono catena di build). Curiosità che vale la pena
+  annotare: fra quelle di `react-router` c'è un open redirect via `//` e via
+  backslash, cioè **lo stesso bug** corretto a mano in `LoginPage.tsx` il
+  2026-08-05, ma dentro `<Link>` e `useNavigate`. Il filtro scritto lì continua
+  a valere; queste sono le altre porte della stessa casa.
 - [x] ~~**Un minimo di logging**~~ — fatto 2026-08-05. Due cose, non una.
   Il **registro degli accessi** (`nsh.accessi`): una riga per richiesta, con
   metodo, percorso, stato, durata, IP e soprattutto **attore** — `admin:3`,

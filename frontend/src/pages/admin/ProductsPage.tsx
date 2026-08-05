@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, AlertTriangle, PackagePlus, Package, ImagePlus, Trash2, Pencil } from 'lucide-react'
+import {
+  Plus, AlertTriangle, PackagePlus, Package, ImagePlus, Trash2, Pencil,
+  Archive, ArchiveRestore,
+} from 'lucide-react'
 import {
   getProducts, createProduct, updateProduct, addProductMovement,
   setProductImage, deleteProductImage,
@@ -8,7 +11,7 @@ import {
 import type { Product } from '@/types'
 import { useAuthStore } from '@/store/authStore'
 import Sheet from '@/components/ui/Sheet'
-import { PageHeader, EmptyState, SkeletonList } from '@/components/ui'
+import { PageHeader, EmptyState, SkeletonList, Segmented } from '@/components/ui'
 import clsx from 'clsx'
 
 export default function ProductsPage() {
@@ -19,7 +22,14 @@ export default function ProductsPage() {
   const [movementProduct, setMovementProduct] = useState<Product | null>(null)
   const [photoProduct, setPhotoProduct] = useState<Product | null>(null)
 
-  const { data, isLoading } = useQuery({ queryKey: ['products'], queryFn: () => getProducts() })
+  // «Archiviati» esiste perché senza non si potrebbe archiviare: un prodotto
+  // fuori catalogo sparirebbe da ogni schermata, e toglierlo sarebbe una
+  // scelta senza ritorno.
+  const [vista, setVista] = useState<'catalogo' | 'archivio'>('catalogo')
+  const { data, isLoading } = useQuery({
+    queryKey: ['products', vista],
+    queryFn: () => getProducts({ active_only: vista === 'catalogo' }),
+  })
   const inv = () => qc.invalidateQueries({ queryKey: ['products'] })
 
   const createMut = useMutation({
@@ -48,20 +58,42 @@ export default function ProductsPage() {
     onSuccess: () => { inv(); setMovementProduct(null) },
   })
 
-  const products = data?.items ?? []
-  const lowStock = products.filter(p => p.quantity <= p.min_quantity)
+  // Il backend con `active_only=false` risponde con **tutto**, non con i soli
+  // archiviati: qui si tiene la metà che interessa alla vista aperta.
+  const archivio = vista === 'archivio'
+  const products = (data?.items ?? []).filter(p => p.is_active !== archivio)
+  // Solo il catalogo: un prodotto fuori produzione a zero pezzi non è una
+  // scorta da riordinare, è un prodotto che non si vende più.
+  const lowStock = archivio ? [] : products.filter(p => p.quantity <= p.min_quantity)
 
   return (
     <div className="space-y-5">
       <PageHeader
         title="Prodotti"
-        subtitle={products.length ? `${products.length} a magazzino` : undefined}
+        subtitle={
+          products.length
+            ? archivio
+              ? `${products.length} archiviat${products.length > 1 ? 'i' : 'o'}`
+              : `${products.length} a magazzino`
+            : undefined
+        }
         action={
           <button onClick={() => setShowCreate(true)} className="btn-primary">
             <Plus className="w-4 h-4" /> Nuovo prodotto
           </button>
         }
       />
+
+      {isAdmin && (
+        <Segmented
+          options={[
+            { value: 'catalogo', label: 'In catalogo' },
+            { value: 'archivio', label: 'Archiviati' },
+          ]}
+          value={vista}
+          onChange={setVista}
+        />
+      )}
 
       {lowStock.length > 0 && (
         <div className="flex items-start gap-2.5 border-l-2 border-danger bg-danger/[0.08] px-4 py-3">
@@ -83,12 +115,18 @@ export default function ProductsPage() {
         <div className="panel">
           <EmptyState
             icon={Package}
-            title="Magazzino vuoto"
-            description="Aggiungi i prodotti che rivendi o usi in salone."
+            title={archivio ? 'Nessun prodotto archiviato' : 'Magazzino vuoto'}
+            description={
+              archivio
+                ? 'I prodotti tolti dal catalogo finiscono qui, e da qui si rimettono dentro.'
+                : 'Aggiungi i prodotti che rivendi o usi in salone.'
+            }
             action={
-              <button onClick={() => setShowCreate(true)} className="btn-primary">
-                <Plus className="w-4 h-4" /> Nuovo prodotto
-              </button>
+              !archivio && (
+                <button onClick={() => setShowCreate(true)} className="btn-primary">
+                  <Plus className="w-4 h-4" /> Nuovo prodotto
+                </button>
+              )
             }
           />
         </div>
@@ -207,6 +245,9 @@ export default function ProductsPage() {
           onSave={(d) => updateMut.mutate({ ...d, id: editProduct.id })}
           loading={updateMut.isPending}
           error={updateMut.error}
+          onToggleActive={() => updateMut.mutate({
+            id: editProduct.id, is_active: !editProduct.is_active,
+          })}
         />
       )}
 
@@ -382,12 +423,13 @@ function readError(e: any): string {
  *  in modifica sparisce. Sovrascriverla da qui farebbe cambiare i pezzi a
  *  magazzino senza lasciare una riga in `product_movements` che dica perché —
  *  la strada per farlo è carico/scarico, che invece la lascia. */
-function ProductFormModal({ product, onClose, onSave, loading, error }: {
+function ProductFormModal({ product, onClose, onSave, loading, error, onToggleActive }: {
   product?: Product
   onClose: () => void
   onSave: (d: Partial<Product> & { photo?: File | null }) => void
   loading: boolean
   error?: unknown
+  onToggleActive?: () => void
 }) {
   const modifica = product !== undefined
   const [form, setForm] = useState({
@@ -532,6 +574,31 @@ function ProductFormModal({ product, onClose, onSave, loading, error }: {
 
         {error != null && <p className="text-[13px] text-danger">{readError(error)}</p>}
       </form>
+
+      {/* Archiviare e non cancellare: i movimenti di magazzino e le vendite
+          passate puntano a questo prodotto, e toglierlo dal database
+          lascerebbe quello storico a parlare di un articolo che non c'è più. */}
+      {modifica && onToggleActive && (
+        <div className="mt-4 border-t border-rule pt-4">
+          <button
+            type="button"
+            onClick={onToggleActive}
+            disabled={loading}
+            className={product.is_active ? 'btn-danger-outline btn-sm w-full' : 'btn-secondary btn-sm w-full'}
+          >
+            {product.is_active ? (
+              <><Archive className="w-3.5 h-3.5" /> Togli dal catalogo</>
+            ) : (
+              <><ArchiveRestore className="w-3.5 h-3.5" /> Rimetti in catalogo</>
+            )}
+          </button>
+          <p className="text-xs text-muted-foreground mt-2">
+            {product.is_active
+              ? 'Sparisce dal magazzino e dagli avvisi di scorta. Lo storico resta, e si può rimettere dentro quando vuoi.'
+              : 'Torna nel magazzino e negli avvisi di scorta.'}
+          </p>
+        </div>
+      )}
     </Sheet>
   )
 }

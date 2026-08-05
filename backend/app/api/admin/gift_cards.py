@@ -9,6 +9,7 @@ from sqlalchemy.orm import selectinload
 
 from app.database import get_db
 from app.dependencies import require_admin
+from app.models.appointment import Appointment
 from app.models.client import Client
 from app.models.gift_card import (
     GiftCard, GiftCardRedemption, GiftCardStatus, generate_code,
@@ -43,10 +44,23 @@ def _trigger_gift_card_email(gift_card_id: int) -> None:
         print(f"[NOTIFY] Could not queue gift card email {gift_card_id}: {e}")
 
 
+def _carica_riscatti():
+    """Tutto quello che la proiezione di un buono legge, in un posto solo.
+
+    L'appuntamento e la sua cliente servono all'etichetta «05/08/2026 · Laura
+    Ricci» nello storico dei riscatti. Senza caricarli qui, ogni riga li
+    andrebbe a cercare da sola — cioè una query a riscatto sotto asyncio, che
+    non è lenta: è un `MissingGreenlet`.
+    """
+    return selectinload(GiftCard.redemptions).selectinload(
+        GiftCardRedemption.appointment
+    ).selectinload(Appointment.client)
+
+
 async def _load(db: AsyncSession, gift_card_id: int) -> GiftCard:
     result = await db.execute(
         select(GiftCard)
-        .options(selectinload(GiftCard.redemptions))
+        .options(_carica_riscatti())
         .where(GiftCard.id == gift_card_id)
     )
     card = result.scalar_one_or_none()
@@ -82,7 +96,7 @@ async def list_gift_cards(
     totale viene ricontato di conseguenza — con i numeri di un salone la
     differenza non si vede, e la coerenza vale più della query.
     """
-    q = select(GiftCard).options(selectinload(GiftCard.redemptions))
+    q = select(GiftCard).options(_carica_riscatti())
     if search:
         like = f"%{search.strip()}%"
         q = q.where(or_(
@@ -124,7 +138,7 @@ async def get_by_code(
 
     result = await db.execute(
         select(GiftCard)
-        .options(selectinload(GiftCard.redemptions))
+        .options(_carica_riscatti())
         .where(func.replace(func.upper(GiftCard.code), "-", "") == _pulisci(code))
     )
     card = result.scalar_one_or_none()
@@ -219,6 +233,16 @@ async def redeem_gift_card(
             GiftCardStatus.cancelled: "Questo buono è stato annullato.",
         }
         raise HTTPException(status_code=400, detail=motivi[stato])
+
+    if payload.appointment_id is not None:
+        # Controllato prima di scalare: un id inesistente arriverebbe alla
+        # foreign key e tornerebbe un 500 dal database, per giunta **dopo**
+        # aver già ridotto il saldo in questa transazione.
+        esiste = await db.execute(
+            select(Appointment.id).where(Appointment.id == payload.appointment_id)
+        )
+        if esiste.scalar_one_or_none() is None:
+            raise HTTPException(status_code=400, detail="Appuntamento non trovato")
 
     importo = Decimal(str(payload.amount))
     if importo > card.balance:

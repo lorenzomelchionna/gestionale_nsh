@@ -383,6 +383,9 @@ export interface GiftCardRedemption {
   id: number
   amount: number
   appointment_id: number | null
+  /** «05/08/2026 · Laura Ricci», composta dal server per non dover risolvere
+   *  un id per ogni riga dello storico. */
+  appointment_label: string | null
   notes: string | null
   created_at: string
 }

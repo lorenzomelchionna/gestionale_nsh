@@ -104,7 +104,7 @@ export default function BookingFlowPage() {
         </div>
         <div className="flex flex-col sm:flex-row gap-2.5 w-full sm:w-auto">
           <button onClick={() => navigate('/booking/account')} className="btn-primary sm:px-7">
-            Vai alla mia area
+            Vai all'area personale
           </button>
           <button
             onClick={() => {

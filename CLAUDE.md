@@ -127,6 +127,35 @@ sviluppo. Per puntare altrove: `TEST_DATABASE_URL=postgresql+asyncpg://...`.
 | `tests/test_appointments.py` | Macchina a stati degli appuntamenti e disponibilità: annullato/rifiutato devono liberare lo slot. |
 | `tests/test_logging.py` | Che nei log non finiscano password, token e codici, e che la riga del registro accessi dica **chi** ha fatto la richiesta. Senza quel campo il registro è un elenco di URL. |
 
+## Dipendenze e vulnerabilità
+
+Due meccanismi che si tengono per mano: `.github/workflows/audit.yml` trova,
+`.github/dependabot.yml` porta la correzione già scritta.
+
+L'audit gira **a calendario** (lunedì mattina) oltre che sulle PR verso `main`,
+ed è la parte che conta: una vulnerabilità viene pubblicata quando viene
+pubblicata, non quando qualcuno tocca il codice. Un controllo legato solo ai
+push direbbe soltanto che le dipendenze erano pulite l'ultima volta che si è
+scritto qualcosa — che su un gestionale fermo per mesi non vuol dire niente.
+È andata proprio così col DoS di `python-multipart`: venti mesi in produzione,
+trovato da altri.
+
+**Non è un check obbligatorio di `main`, di proposito.** Una falla pubblicata
+stanotte in una dipendenza transitiva non deve poter bloccare il rilascio di
+una correzione che non c'entra: sarebbe un cancello che il giorno che serve si
+scavalca, e scavalcato una volta non torna più su. Ma fallisce davvero, con la
+X rossa: rosso vuol dire «c'è lavoro in coda», e il lavoro arriva da solo come
+PR di Dependabot.
+
+`npm audit` gira due volte, perché sono due rischi diversi: `--omit=dev` è il
+codice che finisce nel browser delle clienti e fa fallire il job; la catena di
+build gira solo in CI e viene segnalata senza bloccare.
+
+Le esclusioni stanno in `backend/.pip-audit-ignore`, **una per riga e ognuna
+con scritto il perché**. La regola: si esclude solo ciò per cui non esiste una
+versione corretta. Se la correzione esiste, la risposta è la PR di Dependabot,
+non una riga in quel file.
+
 ### CI e flusso di rilascio
 
 `.github/workflows/ci.yml` esegue tre job: test backend, typecheck + build

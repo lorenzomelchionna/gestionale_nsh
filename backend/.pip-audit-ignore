@@ -1,0 +1,24 @@
+# Vulnerabilità che `pip-audit` non deve più segnalare, una per riga.
+#
+# La regola per aggiungere una riga qui è una sola: **scrivere perché**, sopra
+# di essa, con l'argomento di raggiungibilità. Un identificativo silenziato
+# senza una frase accanto è un buco che nessuno ritroverà più — fra sei mesi
+# non c'è modo di distinguere «valutato e non ci riguarda» da «dava fastidio».
+#
+# Non è il posto dove mettere ciò che si correggerebbe aggiornando. Se esiste
+# una versione corretta, la risposta è la pull request di Dependabot, non una
+# riga qui.
+
+# ── ecdsa 0.19.2 ─────────────────────────────────────────────────────
+# PYSEC-2026-1325 — attacco a tempo (Minerva) sulla curva P-256.
+#
+# **Non esiste una versione corretta**: è l'unico motivo per cui sta qui.
+# Aggiornare non è un'opzione perché non c'è niente a cui aggiornare.
+#
+# E non ci riguarda comunque: `ecdsa` arriva come dipendenza di
+# `python-jose[cryptography]`, ma qui i token sono firmati HS256, cioè con un
+# segreto simmetrico (`ALGORITHM` in config.py). Nessuna curva ellittica viene
+# mai toccata, e `jwt.decode` fissa `algorithms=[settings.ALGORITHM]`, quindi
+# non c'è modo di far scegliere al chiamante un algoritmo diverso.
+# Da rivedere se un giorno si passasse a RS256/ES256.
+PYSEC-2026-1325

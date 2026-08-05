@@ -358,6 +358,18 @@ cose ancora aperte; il resto è chiuso.
   due spia `Request.form` per controllare che non venga proprio interpellato —
   perché rifiutare *dopo* aver parsato darebbe lo stesso 413 senza servire a
   niente.
+- [ ] **PR #65 di Dependabot: il gruppo «minori» contiene FastAPI** — la CI la
+  blocca (pytest rosso sulla matrice permessi, esattamente come previsto), ma
+  intanto sedici aggiornamenti buoni restano fermi dietro a uno che nessuno può
+  mergiare. La causa: sotto la 1.0 la major è `0`, quindi per semver **ogni**
+  rilascio di FastAPI è un minor e la riga `ignore` sui major non lo prendeva.
+  `dependabot.yml` ora esclude `fastapi`, `starlette`, `sqlalchemy` e
+  `pydantic*` dal gruppo, così prendono una PR ciascuno. La #65 va chiusa e
+  riaperta da Dependabot con la configurazione nuova.
+  Nota utile: sulla #65 `pip-audit` è **passato**. Cioè l'aggiornamento chiude
+  davvero tutte le vulnerabilità rimaste, e il solo ostacolo è il test da
+  riscrivere. Le due previsioni fatte a mano sono state confermate dalla CI in
+  modo indipendente.
 - [ ] **npm: `axios` e `react-router`** — 7 voci sul codice che finisce nel
   browser (le altre 7 sono catena di build). Curiosità che vale la pena
   annotare: fra quelle di `react-router` c'è un open redirect via `//` e via

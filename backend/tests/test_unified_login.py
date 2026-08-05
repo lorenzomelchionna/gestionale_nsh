@@ -169,11 +169,11 @@ class TestOneAddressOneAccount:
         """
         shared = "doppia@nsh-test.it"
         db.add(User(
-            email=shared, password_hash=hash_password(GOOD_PASSWORD),
+            email=shared, password_hash=await hash_password(GOOD_PASSWORD),
             role=UserRole.admin, is_active=True,
         ))
         db.add(ClientAccount(
-            email=shared, password_hash=hash_password(GOOD_PASSWORD), is_active=True,
+            email=shared, password_hash=await hash_password(GOOD_PASSWORD), is_active=True,
         ))
         await db.commit()
 

@@ -38,6 +38,13 @@ class Settings(BaseSettings):
 
     # App
     APP_ENV: str = "development"
+
+    # Limiti di frequenza sugli endpoint pubblici (vedi app/rate_limit.py).
+    # Spegnibile per i test, che fanno decine di login di fila di proposito.
+    RATE_LIMIT_ENABLED: bool = True
+    # Vuoto = usa REDIS_URL. I test lo puntano su `memory://`, perché la CI
+    # ha solo Postgres e un Redis assente farebbe fallire i test sbagliati.
+    RATE_LIMIT_STORAGE_URI: str = ""
     FRONTEND_URL: str = "http://localhost:5173"
 
     # Sentry (optional)

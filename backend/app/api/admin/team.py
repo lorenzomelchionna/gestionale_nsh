@@ -91,7 +91,7 @@ async def create_member(
 
     user = User(
         email=payload.email,
-        password_hash=hash_password(payload.password),
+        password_hash=await hash_password(payload.password),
         role=payload.role,
     )
     db.add(user)
@@ -165,7 +165,7 @@ async def reset_password(
 ):
     """Admin sets someone else's password, e.g. after they forget it."""
     user = await _load(db, user_id)
-    user.password_hash = hash_password(payload.new_password)
+    user.password_hash = await hash_password(payload.new_password)
     await db.flush()
 
 
@@ -181,11 +181,11 @@ async def change_own_password(
     Guarded by the current password so a walk-up on an unlocked screen cannot
     silently take the account over.
     """
-    if not verify_password(payload.current_password, current_user.password_hash):
+    if not await verify_password(payload.current_password, current_user.password_hash):
         raise HTTPException(status_code=400, detail="Password attuale non corretta")
     if payload.new_password == payload.current_password:
         raise HTTPException(
             status_code=400, detail="La nuova password deve essere diversa da quella attuale"
         )
-    current_user.password_hash = hash_password(payload.new_password)
+    current_user.password_hash = await hash_password(payload.new_password)
     await db.flush()

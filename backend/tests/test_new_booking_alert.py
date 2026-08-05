@@ -220,7 +220,7 @@ class TestWhoIsTold:
     ):
         db.add(User(
             email="ex-titolare@nsh-test.it",
-            password_hash=hash_password("x"),
+            password_hash=await hash_password("x"),
             role=UserRole.admin,
             is_active=False,
         ))

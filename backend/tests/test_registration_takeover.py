@@ -49,7 +49,7 @@ async def _codice(db, email: str) -> str:
     account = (await db.execute(
         select(ClientAccount).where(ClientAccount.email == email)
     )).scalar_one()
-    code = issue_code(account)
+    code = await issue_code(account)
     await db.commit()
     return code
 

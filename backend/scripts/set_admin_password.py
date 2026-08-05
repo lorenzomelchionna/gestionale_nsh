@@ -16,7 +16,7 @@ import sys
 
 import asyncpg
 
-from app.utils.auth import hash_password
+from app.utils.auth import hash_password_sync
 
 MIN_LENGTH = 12
 
@@ -43,7 +43,7 @@ async def main() -> int:
         row = await conn.fetchrow(
             "UPDATE users SET password_hash = $2 WHERE email = $1 RETURNING id, role",
             email,
-            hash_password(password),
+            hash_password_sync(password),
         )
     finally:
         await conn.close()

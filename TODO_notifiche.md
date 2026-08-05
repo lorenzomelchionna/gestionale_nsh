@@ -202,14 +202,33 @@ cose ancora aperte; il resto è chiuso.
   un tunnel SSH (`railway connect postgres --tunnel-only`), e va **chiuso
   controllando la porta con `lsof`**, non il processo con `ps`: il wrapper
   muore e l'`ssh -N -L` figlio resta in ascolto per conto suo.
-- [ ] **Rate limiting** con `slowapi` (storage su Redis, che c'è già) sui soli
-  endpoint costosi: register 5/ora, login 10/min, verify-email 10/min,
-  resend-code 3/ora. È l'unica mossa che *ferma* qualcuno, e chiude in un colpo
-  DoS, anagrafiche spazzatura e quota Brevo bruciata.
-- [ ] **bcrypt fuori dall'event loop** — `run_in_threadpool` in `utils/auth.py`,
-  incluse `issue_code` e `check_code` in `services/email_verification.py`, che
-  sono quelle che si dimenticano. Gli handler non possono diventare `def`
-  sincroni: il corpo fa `await db.execute`.
+- [x] ~~**Rate limiting**~~ — fatto 2026-08-05, `slowapi` su otto rotte:
+  register 5/ora, resend-code e forgot-password 3/ora, login (tutti e tre gli
+  ingressi: admin, cliente, unificato) 10/min, verify-email e reset-password
+  10/min. Nessun limite di default: l'agenda dal salone viene interrogata di
+  continuo e un tetto lì bloccherebbe chi lavora.
+  **Il conteggio prende l'ultima voce di `X-Forwarded-For`, non la prima.**
+  La catena si legge client → proxy e ogni proxy accoda, quindi un
+  `X-Forwarded-For` inventato dal chiamante compare *prima* di quello vero
+  che aggiunge Railway: sulla prima voce il limite si aggirerebbe cambiando
+  un header a ogni richiesta.
+  **Se Redis non risponde si continua a contare in memoria**
+  (`in_memory_fallback_enabled` + `swallow_errors`). Non è un dettaglio:
+  provato dal vivo, senza quello con Redis spento **ogni login rispondeva
+  500** — il salone chiuso fuori dal proprio gestionale perché è caduta una
+  cache. Fino a ieri Redis giù voleva dire solo notifiche non spedite.
+- [x] ~~**bcrypt fuori dall'event loop**~~ — fatto 2026-08-05.
+  `hash_password`/`verify_password` sono ora `async` e girano in
+  `run_in_threadpool`; `issue_code`/`check_code` sono diventate async di
+  conseguenza — erano proprio quelle che si dimenticano.
+  Le versioni sincrone restano come `hash_password_sync` /
+  `verify_password_sync` per seed, bootstrap e la rotazione password, che
+  girano fuori da un event loop.
+  **I nomi brevi sono quelli async di proposito**: chi scrive un endpoint
+  nuovo digita `hash_password` e prende quella giusta, e se dimentica
+  l'`await` si ritrova una coroutine al posto dell'hash — errore rumoroso
+  invece di un rallentamento silenzioso di tutta l'applicazione. È successo
+  davvero durante il lavoro, ed è stato immediato accorgersene.
 - [ ] **Unione di due schede dall'area admin** — conseguenza del fix sopra: il
   salone può ritrovarsi due righe per la stessa persona (una sua, una creata
   dalla registrazione) e oggi le può solo modificare a mano una per volta.
@@ -243,8 +262,14 @@ cose ancora aperte; il resto è chiuso.
 - [ ] **Un minimo di logging**: in `backend/app/` non c'è una sola riga. Se
   domani entra qualcuno non puoi dire cosa ha visto, che è esattamente quello
   che chiede l'art. 33 GDPR.
-- [ ] `Field(min_length=10)` su `ClientRegister.password` e
-  `PasswordReset.new_password`: lo staff ha 12, i clienti niente lato server.
+- [x] ~~`Field(min_length=10)` su `ClientRegister.password` e
+  `PasswordReset.new_password`~~ — fatto 2026-08-05. Dieci e non dodici come
+  per lo staff: chi lavora in salone ha accesso a tutta l'anagrafica e alla
+  cassa, una cliente solo ai propri appuntamenti. Il minimo vale anche sul
+  reset, altrimenti sarebbe la scappatoia — registrarsi con una password
+  lunga e accorciarla subito dopo. Alzato anche il `minLength` del form da 6
+  a 10, con messaggio in italiano: il 422 di Pydantic arriva in inglese e non
+  dice quanti caratteri mancano.
 
 ### Deciso di NON fare
 Non sono dimenticanze: sono scelte, con la ragione accanto.

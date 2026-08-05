@@ -15,7 +15,7 @@ from app.models.payment import Payment, PaymentMethod, PaymentType
 from app.models.expense import Expense
 from app.models.booking_config import BookingConfig
 from app.models.extra_day import CollaboratorExtraDay
-from app.utils.auth import hash_password
+from app.utils.auth import hash_password_sync
 
 
 async def seed():
@@ -38,7 +38,7 @@ async def seed():
         # ── Admin user ─────────────────────────────────────────────
         admin = User(
             email="admin@newstylair.it",
-            password_hash=hash_password("admin123"),
+            password_hash=hash_password_sync("admin123"),
             role=UserRole.admin,
         )
         db.add(admin)
@@ -80,7 +80,7 @@ async def seed():
         # ── User for Sofia ─────────────────────────────────────────
         sofia_user = User(
             email="sofia@newstylair.it",
-            password_hash=hash_password("sofia123"),
+            password_hash=hash_password_sync("sofia123"),
             role=UserRole.collaborator,
         )
         db.add(sofia_user)
@@ -146,7 +146,7 @@ async def seed():
         # ── Online account for first client ────────────────────────
         account = ClientAccount(
             email="giulia.marino@email.it",
-            password_hash=hash_password("giulia123"),
+            password_hash=hash_password_sync("giulia123"),
             is_active=True,
         )
         db.add(account)

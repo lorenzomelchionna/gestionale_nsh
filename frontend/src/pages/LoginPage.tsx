@@ -10,6 +10,11 @@ import {
   signIn, clientRegister, verifyEmail, resendVerificationCode,
 } from '@/services/publicApi'
 
+/** Deve corrispondere a `MIN_CLIENT_PASSWORD` in `schemas/client.py`. Il
+ *  controllo vero sta sul server — questo esiste perché il 422 di Pydantic
+ *  arriva in inglese e non dice quanti caratteri mancano. */
+const MIN_PASSWORD = 10
+
 type Mode = 'signin' | 'register' | 'verify'
 
 // Caps the date picker so a future birthday cannot be chosen at all, rather
@@ -95,6 +100,12 @@ export default function LoginPage() {
     setError('')
     // Checked here and not on the server: the second field exists to catch a
     // typo at the keyboard, and the server only ever receives one password.
+    if (password.length < MIN_PASSWORD) {
+      // Controllato anche qui, non solo dal server: il 422 di Pydantic arriva
+      // in inglese e non dice quanti caratteri mancano.
+      setError(`La password deve essere di almeno ${MIN_PASSWORD} caratteri.`)
+      return
+    }
     if (password !== confirmPassword) {
       setError('Le due password non coincidono. Controlla di averle scritte uguali.')
       return
@@ -331,7 +342,7 @@ export default function LoginPage() {
                       value={password}
                       onChange={e => setPassword(e.target.value)}
                       placeholder="••••••••"
-                      minLength={mode === 'register' ? 6 : undefined}
+                      minLength={mode === 'register' ? MIN_PASSWORD : undefined}
                       required
                     />
                     <button

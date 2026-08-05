@@ -328,10 +328,17 @@ cose ancora aperte; il resto è chiuso.
   gli altri diventano rossi, quello passa. Senza la guardia sulla guardia, un
   giorno la matrice avrebbe potuto smettere di guardare qualcosa senza che
   nessuno se ne accorgesse.
-- [ ] **FastAPI 0.115.6 → 0.141.1 (e con lui starlette 0.41 → 1.4)** — adesso
-  l'ostacolo non c'è più: la matrice regge già la versione nuova. Resta da
-  fare l'aggiornamento vero e girare la suite intera, non solo quel file.
-  `pip-audit` era già passato sulla PR #65, quindi chiude le ultime nove voci.
+- [x] ~~**FastAPI 0.115.6 → 0.141.1 (e con lui starlette 0.41 → 1.4)**~~ —
+  fatto 2026-08-05, dopo aver riscritto la matrice: 584 test passano.
+  Con questo `pip-audit` resta con **una sola** voce, `ecdsa`, che è quella
+  già esclusa con la motivazione scritta. Cioè l'audit Python è verde.
+  Chiude anche PYSEC-2026-249 alla radice. Il tetto sul corpo del webhook
+  resta comunque dov'è: è una difesa che non dipende da quale versione di
+  starlette è installata, e quell'endpoint ha già visto passare due problemi
+  della stessa famiglia.
+  Sistemate due deprecation che l'aggiornamento ha reso rumorose:
+  `HTTP_413_REQUEST_ENTITY_TOO_LARGE` → `HTTP_413_CONTENT_TOO_LARGE` (stesso
+  valore) e `Query(regex=)` → `Query(pattern=)` in `dashboard.py`.
   Delle 7 di starlette, sei non ci riguardano: `FileResponse`, `StaticFiles` e
   `HTTPEndpoint` qui non si usano; quelle su multipart passano solo dall'upload
   delle foto prodotto, che è `require_admin` e legge al massimo 10 MB

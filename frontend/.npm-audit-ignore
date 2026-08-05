@@ -1,0 +1,42 @@
+# Avvisi npm che l'audit non deve più segnalare, uno per riga.
+#
+# Stessa regola di `backend/.pip-audit-ignore`, e vale la pena ripeterla:
+# **scrivere perché**, sopra la riga, con l'argomento di raggiungibilità. Un
+# identificativo silenziato senza una frase accanto è un buco che nessuno
+# ritroverà più — fra sei mesi non si distingue «valutato e non ci riguarda»
+# da «dava fastidio».
+#
+# Non è il posto per ciò che si correggerebbe aggiornando. Se esiste una
+# versione corretta, la risposta è la PR di Dependabot, non una riga qui.
+
+# ── react-router 7.18.2 ──────────────────────────────────────────────
+# GHSA-qwww-vcr4-c8h2 — CSRF bypass in modalità RSC: un'azione viene eseguita
+# prima che la richiesta venga respinta con 400.
+#
+# **Non esiste una versione che chiuda tutto**, ed è l'unico motivo per cui
+# questa riga esiste. I due avvisi di react-router hanno intervalli che si
+# accavallano:
+#
+#   open redirect (`<Link>`, `useNavigate`)  6.0.0 – 7.17.0   corretto da 7.18.0
+#   CSRF in modalità RSC                     7.12.0 – 8.2.0   nessuna correzione
+#
+# Qualunque versione che corregga il primo ricade dentro il secondo. Restare
+# alla 6.30.4 avrebbe tenuto l'audit verde — il CSRF non la tocca — ma è la
+# scelta peggiore per questa applicazione, e il motivo è quale dei due può
+# davvero mordere qui.
+#
+# La modalità RSC (React Server Components) **non esiste in questo frontend**:
+# è una SPA servita da Vite, con `BrowserRouter` e le rotte a componenti.
+# Non c'è un server che esegua azioni, quindi non c'è niente da eseguire prima
+# di un 400. È irraggiungibile per come è fatta l'applicazione, non per come
+# è scritto un singolo punto — e cambierebbe solo riscrivendola in Next.js o
+# simili.
+#
+# L'open redirect invece vive in `<Link>` e `useNavigate`, che questo codice
+# usa in dodici file. Oggi è coperto: `next` in `LoginPage.tsx` è l'unico
+# punto in cui un valore esterno arriva a `navigate()`, e
+# `destinazioneInterna()` rifiuta `//` e `/\` prima di passarlo. Ma è una
+# proprietà del codice di oggi, non una garanzia: il tredicesimo file che
+# passerà un valore dall'URL non avrà quel filtro addosso. Correggerlo nella
+# libreria copre anche quello.
+GHSA-qwww-vcr4-c8h2

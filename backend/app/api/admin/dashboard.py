@@ -17,7 +17,9 @@ router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 async def get_stats(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(require_admin)],
-    period: str = Query("today", regex="^(today|week|month|year)$"),
+    # `pattern` e non `regex`: stesso significato, ma `regex` è deprecato da
+    # Pydantic v2 e FastAPI lo rimuoverà. Il vincolo non cambia.
+    period: str = Query("today", pattern="^(today|week|month|year)$"),
 ):
     now = datetime.now(timezone.utc)
     if period == "today":

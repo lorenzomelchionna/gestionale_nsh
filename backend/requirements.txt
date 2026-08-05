@@ -1,5 +1,13 @@
 # Web framework
-fastapi==0.115.6
+# 0.141.1 e non 0.115.6: la 0.115 trascina starlette 0.41, che aveva sette
+# avvisi aperti — fra cui PYSEC-2026-249, il corpo urlencoded senza limiti su
+# cui il webhook Twilio ha dovuto mettere un tetto a mano.
+#
+# Non è stato un aggiornamento di versione. La 0.141 non appiattisce più le
+# rotte in `app.routes`: le avvolge in `_IncludedRouter`, e la matrice dei
+# permessi in `tests/test_permissions_matrix.py` smetteva di vederle. È stata
+# riscritta prima, e regge entrambe le versioni.
+fastapi==0.141.1
 uvicorn[standard]==0.32.1
 
 # Database

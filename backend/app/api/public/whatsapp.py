@@ -88,7 +88,10 @@ async def whatsapp_webhook(
             percorso=request.url.path,
             limite_byte=MAX_WEBHOOK_BYTES,
         )
-        return Response(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE)
+        # `CONTENT_TOO_LARGE` e non `REQUEST_ENTITY_TOO_LARGE`: stesso 413, ma
+        # il secondo nome è deprecato da starlette 1.x. Il valore è identico,
+        # quindi per chi chiama non cambia niente.
+        return Response(status_code=status.HTTP_413_CONTENT_TOO_LARGE)
 
     # I byte già limitati tornano al parser di starlette invece di essere
     # interpretati a mano. Riscrivere il parsing con `parse_qsl` avrebbe

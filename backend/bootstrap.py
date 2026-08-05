@@ -22,7 +22,7 @@ from app.models.appointment import Appointment, AppointmentService, AppointmentS
 from app.models.product import Product
 from app.models.payment import Payment, PaymentMethod, PaymentType
 from app.models.expense import Expense
-from app.utils.auth import hash_password
+from app.utils.auth import hash_password_sync
 
 
 async def ensure_admin(db, email, password):
@@ -45,7 +45,7 @@ async def ensure_admin(db, email, password):
 
     db.add(User(
         email=email,
-        password_hash=hash_password(password),
+        password_hash=hash_password_sync(password),
         role=UserRole.admin,
     ))
     print(f"✓ Admin creato: {email}")
@@ -110,7 +110,7 @@ async def seed_demo(db):
     # Sofia user
     sofia_user = User(
         email="sofia@newstylair.it",
-        password_hash=hash_password("sofia123"),
+        password_hash=hash_password_sync("sofia123"),
         role=UserRole.collaborator,
     )
     db.add(sofia_user)
@@ -161,7 +161,7 @@ async def seed_demo(db):
     # Online account for Giulia
     account = ClientAccount(
         email="giulia.marino@email.it",
-        password_hash=hash_password("giulia123"),
+        password_hash=hash_password_sync("giulia123"),
         is_active=True,
     )
     db.add(account)

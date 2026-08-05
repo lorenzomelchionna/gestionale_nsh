@@ -27,6 +27,10 @@ os.environ.setdefault(
 os.environ.setdefault("SECRET_KEY", "test-secret-key-not-used-anywhere-else")
 os.environ.setdefault("APP_ENV", "test")
 os.environ.setdefault("REDIS_URL", "redis://localhost:6379/15")
+# I limiti di frequenza restano configurati ma con contatori in memoria: la CI
+# ha solo Postgres, e puntare slowapi su un Redis assente farebbe fallire i
+# test sbagliati — quelli sull'autenticazione invece che quelli sui limiti.
+os.environ.setdefault("RATE_LIMIT_STORAGE_URI", "memory://")
 
 from datetime import time  # noqa: E402
 from typing import AsyncIterator  # noqa: E402
@@ -125,6 +129,23 @@ async def client(session_factory) -> AsyncIterator[AsyncClient]:
 
 
 @pytest.fixture(autouse=True)
+def no_rate_limit():
+    """Spegne i limiti, tranne dove sono l'oggetto del test.
+
+    Quasi tutta la suite fa login di fila di proposito — dieci al minuto li
+    supera senza fatica — e un 429 lì dentro segnalerebbe un problema di
+    autenticazione che non esiste. `tests/test_rate_limit.py` li riaccende
+    per conto suo.
+    """
+    from app.rate_limit import limiter
+
+    precedente = limiter.enabled
+    limiter.enabled = False
+    yield
+    limiter.enabled = precedente
+
+
+@pytest.fixture(autouse=True)
 def no_celery(monkeypatch):
     """
     Neutralise the fire-and-forget Celery dispatch.
@@ -172,7 +193,7 @@ async def booking_config(db) -> BookingConfig:
 async def admin_user(db) -> User:
     user = User(
         email="admin@nsh-test.it",
-        password_hash=hash_password(ADMIN_PASSWORD),
+        password_hash=await hash_password(ADMIN_PASSWORD),
         role=UserRole.admin,
     )
     db.add(user)
@@ -184,7 +205,7 @@ async def admin_user(db) -> User:
 async def collaborator_user(db) -> User:
     user = User(
         email="collab@nsh-test.it",
-        password_hash=hash_password(COLLAB_PASSWORD),
+        password_hash=await hash_password(COLLAB_PASSWORD),
         role=UserRole.collaborator,
     )
     db.add(user)
@@ -280,7 +301,7 @@ async def client_account(db) -> ClientAccount:
     """A portal account with its linked Client record."""
     account = ClientAccount(
         email="cliente@nsh-test.it",
-        password_hash=hash_password(CLIENT_PASSWORD),
+        password_hash=await hash_password(CLIENT_PASSWORD),
         is_active=True,
         # An established client: they proved the address when they signed up.
         # Verification itself is exercised in tests/test_email_verification.py.

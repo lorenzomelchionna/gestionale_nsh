@@ -29,7 +29,7 @@ def generate_code() -> str:
     return f"{secrets.randbelow(10 ** CODE_LENGTH):0{CODE_LENGTH}d}"
 
 
-def issue_code(account: ClientAccount) -> str:
+async def issue_code(account: ClientAccount) -> str:
     """
     Attach a fresh code to `account` and return the plaintext to email.
 
@@ -37,7 +37,7 @@ def issue_code(account: ClientAccount) -> str:
     exists, and the caller has to send it before it goes out of scope.
     """
     code = generate_code()
-    account.verification_code_hash = hash_password(code)
+    account.verification_code_hash = await hash_password(code)
     account.verification_expires = datetime.now(timezone.utc) + timedelta(
         minutes=CODE_TTL_MINUTES
     )
@@ -53,7 +53,7 @@ class VerificationError(Exception):
         super().__init__(detail)
 
 
-def check_code(account: ClientAccount, code: str) -> None:
+async def check_code(account: ClientAccount, code: str) -> None:
     """
     Consume one attempt against `account`, or raise with the reason.
 
@@ -75,7 +75,7 @@ def check_code(account: ClientAccount, code: str) -> None:
     # cost an attempt, or the budget can be sidestepped by disconnecting.
     account.verification_attempts += 1
 
-    if not verify_password(code, account.verification_code_hash):
+    if not await verify_password(code, account.verification_code_hash):
         left = MAX_ATTEMPTS - account.verification_attempts
         if left <= 0:
             raise VerificationError("Codice errato. Richiedi un nuovo codice.")

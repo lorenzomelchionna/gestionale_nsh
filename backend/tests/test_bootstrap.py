@@ -29,7 +29,7 @@ class TestQuandoLAdminEsisteGia:
         """Il caso che ha fatto fallire il deploy."""
         db.add(User(
             email=ESISTENTE,
-            password_hash=hash_password("la-password-vera-ruotata"),
+            password_hash=await hash_password("la-password-vera-ruotata"),
             role=UserRole.admin,
         ))
         await db.commit()
@@ -42,7 +42,7 @@ class TestQuandoLAdminEsisteGia:
     async def test_la_password_esistente_non_viene_toccata(self, db):
         db.add(User(
             email=ESISTENTE,
-            password_hash=hash_password("la-password-vera-ruotata"),
+            password_hash=await hash_password("la-password-vera-ruotata"),
             role=UserRole.admin,
         ))
         await db.commit()
@@ -50,7 +50,7 @@ class TestQuandoLAdminEsisteGia:
         await ensure_admin(db, ESISTENTE, "un-altra-password")
 
         utente = (await db.execute(select(User))).scalar_one()
-        assert verify_password("la-password-vera-ruotata", utente.password_hash), \
+        assert await verify_password("la-password-vera-ruotata", utente.password_hash), \
             "bootstrap ha riscritto la password di un admin esistente"
 
 
@@ -71,4 +71,4 @@ class TestQuandoLAdminVaCreato:
         utente = (await db.execute(select(User))).scalar_one()
         assert utente.email == "nuovo@nsh-test.it"
         assert utente.role == UserRole.admin
-        assert verify_password("una-password-scelta-apposta", utente.password_hash)
+        assert await verify_password("una-password-scelta-apposta", utente.password_hash)

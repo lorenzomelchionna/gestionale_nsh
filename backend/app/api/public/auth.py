@@ -1,10 +1,11 @@
 from typing import Annotated
 from datetime import datetime, timedelta, timezone
 import secrets
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import Request, APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func, select
 from app.database import get_db
+from app.rate_limit import limiter
 from app.models.client import Client, ClientAccount
 from app.models.user import User
 from app.schemas.client import (
@@ -30,7 +31,7 @@ async def _send_code(db: AsyncSession, account: ClientAccount, first_name: str) 
     is reported: telling someone a code is on its way when the send failed
     leaves them waiting for an email that will never arrive.
     """
-    code = issue_code(account)
+    code = await issue_code(account)
     await db.flush()
     try:
         await send_verification_code_email(
@@ -43,7 +44,10 @@ async def _send_code(db: AsyncSession, account: ClientAccount, first_name: str) 
 
 
 @router.post("/register", response_model=VerificationRequired, status_code=status.HTTP_201_CREATED)
-async def register(payload: ClientRegister, db: Annotated[AsyncSession, Depends(get_db)]):
+@limiter.limit("5/hour")
+async def register(
+    request: Request, payload: ClientRegister, db: Annotated[AsyncSession, Depends(get_db)]
+):
     existing = (await db.execute(
         select(ClientAccount).where(ClientAccount.email == payload.email)
     )).scalar_one_or_none()
@@ -64,13 +68,13 @@ async def register(payload: ClientRegister, db: Annotated[AsyncSession, Depends(
         # An unverified account proves nothing about who owns the address, so it
         # must not be able to hold it hostage: whoever registers next takes it
         # over and gets the new code. Only the mailbox owner can finish.
-        existing.password_hash = hash_password(payload.password)
+        existing.password_hash = await hash_password(payload.password)
         sent = await _send_code(db, existing, payload.first_name)
         return VerificationRequired(email=existing.email, email_sent=sent)
 
     account = ClientAccount(
         email=payload.email,
-        password_hash=hash_password(payload.password),
+        password_hash=await hash_password(payload.password),
         email_verified=False,
     )
     db.add(account)
@@ -161,7 +165,10 @@ async def _adopt_salon_record(db: AsyncSession, account: ClientAccount) -> None:
 
 
 @router.post("/verify-email", response_model=TokenResponse)
-async def verify_email(payload: EmailVerification, db: Annotated[AsyncSession, Depends(get_db)]):
+@limiter.limit("10/minute")
+async def verify_email(
+    request: Request, payload: EmailVerification, db: Annotated[AsyncSession, Depends(get_db)]
+):
     """Exchange the emailed code for a session. This is where the account starts."""
     account = (await db.execute(
         select(ClientAccount).where(ClientAccount.email == payload.email)
@@ -170,7 +177,7 @@ async def verify_email(payload: EmailVerification, db: Annotated[AsyncSession, D
         raise HTTPException(status_code=400, detail="Codice o indirizzo non validi")
 
     try:
-        check_code(account, payload.code)
+        await check_code(account, payload.code)
     except VerificationError as e:
         # Committed, not flushed: get_db rolls back on any exception, so a
         # flush here would be undone by the raise below and every wrong guess
@@ -189,7 +196,10 @@ async def verify_email(payload: EmailVerification, db: Annotated[AsyncSession, D
 
 
 @router.post("/resend-code", response_model=ResendResult)
-async def resend_code(payload: PasswordResetRequest, db: Annotated[AsyncSession, Depends(get_db)]):
+@limiter.limit("3/hour")
+async def resend_code(
+    request: Request, payload: PasswordResetRequest, db: Annotated[AsyncSession, Depends(get_db)]
+):
     """Issue a new code, replacing any outstanding one."""
     account = (await db.execute(
         select(ClientAccount).where(ClientAccount.email == payload.email)
@@ -211,10 +221,13 @@ async def resend_code(payload: PasswordResetRequest, db: Annotated[AsyncSession,
 
 
 @router.post("/login", response_model=TokenResponse)
-async def login(payload: ClientLoginRequest, db: Annotated[AsyncSession, Depends(get_db)]):
+@limiter.limit("10/minute")
+async def login(
+    request: Request, payload: ClientLoginRequest, db: Annotated[AsyncSession, Depends(get_db)]
+):
     result = await db.execute(select(ClientAccount).where(ClientAccount.email == payload.email))
     account = result.scalar_one_or_none()
-    if not account or not verify_password(payload.password, account.password_hash):
+    if not account or not await verify_password(payload.password, account.password_hash):
         raise HTTPException(status_code=401, detail="Credenziali non valide")
     if not account.is_active:
         raise HTTPException(status_code=403, detail="Account disabilitato")
@@ -233,7 +246,10 @@ async def login(payload: ClientLoginRequest, db: Annotated[AsyncSession, Depends
 
 
 @router.post("/forgot-password", response_model=MessageResponse)
-async def forgot_password(payload: PasswordResetRequest, db: Annotated[AsyncSession, Depends(get_db)]):
+@limiter.limit("3/hour")
+async def forgot_password(
+    request: Request, payload: PasswordResetRequest, db: Annotated[AsyncSession, Depends(get_db)]
+):
     from app.config import settings
     from app.utils.notifications import notify_password_reset
 
@@ -254,7 +270,10 @@ async def forgot_password(payload: PasswordResetRequest, db: Annotated[AsyncSess
 
 
 @router.post("/reset-password", response_model=MessageResponse)
-async def reset_password(payload: PasswordReset, db: Annotated[AsyncSession, Depends(get_db)]):
+@limiter.limit("10/minute")
+async def reset_password(
+    request: Request, payload: PasswordReset, db: Annotated[AsyncSession, Depends(get_db)]
+):
     result = await db.execute(
         select(ClientAccount).where(ClientAccount.reset_token == payload.token)
     )
@@ -264,7 +283,7 @@ async def reset_password(payload: PasswordReset, db: Annotated[AsyncSession, Dep
     if account.reset_token_expires < datetime.now(timezone.utc):
         raise HTTPException(status_code=400, detail="Token scaduto")
 
-    account.password_hash = hash_password(payload.new_password)
+    account.password_hash = await hash_password(payload.new_password)
     account.reset_token = None
     account.reset_token_expires = None
     return MessageResponse(message="Password aggiornata con successo")

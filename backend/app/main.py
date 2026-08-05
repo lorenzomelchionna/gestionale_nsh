@@ -2,8 +2,10 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from slowapi.errors import RateLimitExceeded
 
 from app.config import settings
+from app.rate_limit import limiter, rate_limit_handler
 
 # Sentry — init only when SENTRY_DSN is configured
 if settings.SENTRY_DSN:
@@ -55,6 +57,12 @@ app = FastAPI(
     description="API per il gestionale del salone New Style Hair",
     lifespan=lifespan,
 )
+
+# Rate limiting sugli endpoint pubblici. `app.state.limiter` è dove slowapi
+# lo cerca; senza il gestore dedicato, un 429 finirebbe nel gestore generico
+# di Exception qui sotto e uscirebbe come «Errore interno del server».
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, rate_limit_handler)
 
 # CORS — FRONTEND_URL drives production origins; localhost:5173 always allowed for dev
 _cors_origins = list({settings.FRONTEND_URL, "http://localhost:5173"})

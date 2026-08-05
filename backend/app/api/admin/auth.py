@@ -1,8 +1,9 @@
 from typing import Annotated
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import Request, APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.database import get_db
+from app.rate_limit import limiter
 from app.models.user import User
 from app.schemas.user import UserLogin, UserOut
 from app.schemas.common import TokenResponse, MessageResponse
@@ -13,10 +14,13 @@ router = APIRouter(prefix="/auth", tags=["Admin Auth"])
 
 
 @router.post("/login", response_model=TokenResponse)
-async def login(payload: UserLogin, db: Annotated[AsyncSession, Depends(get_db)]):
+@limiter.limit("10/minute")
+async def login(
+    request: Request, payload: UserLogin, db: Annotated[AsyncSession, Depends(get_db)]
+):
     result = await db.execute(select(User).where(User.email == payload.email))
     user = result.scalar_one_or_none()
-    if not user or not verify_password(payload.password, user.password_hash):
+    if not user or not await verify_password(payload.password, user.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Credenziali non valide")
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account disabilitato")

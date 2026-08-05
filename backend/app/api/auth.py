@@ -13,11 +13,12 @@ codebase already had once.
 """
 from typing import Annotated, Literal, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import Request, APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.rate_limit import limiter
 from app.models.client import ClientAccount
 from app.models.user import User
 from app.schemas.common import TokenResponse
@@ -36,7 +37,10 @@ class SignInResponse(TokenResponse):
 
 
 @router.post("/login", response_model=SignInResponse)
-async def login(payload: UserLogin, db: Annotated[AsyncSession, Depends(get_db)]):
+@limiter.limit("10/minute")
+async def login(
+    request: Request, payload: UserLogin, db: Annotated[AsyncSession, Depends(get_db)]
+):
     """
     Sign in as staff or as a client, whichever the address belongs to.
 
@@ -46,7 +50,7 @@ async def login(payload: UserLogin, db: Annotated[AsyncSession, Depends(get_db)]
     """
     result = await db.execute(select(User).where(User.email == payload.email))
     user = result.scalar_one_or_none()
-    if user and verify_password(payload.password, user.password_hash):
+    if user and await verify_password(payload.password, user.password_hash):
         if not user.is_active:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN, detail="Account disabilitato"
@@ -62,7 +66,7 @@ async def login(payload: UserLogin, db: Annotated[AsyncSession, Depends(get_db)]
         select(ClientAccount).where(ClientAccount.email == payload.email)
     )
     account = account_result.scalar_one_or_none()
-    if account and verify_password(payload.password, account.password_hash):
+    if account and await verify_password(payload.password, account.password_hash):
         if not account.is_active:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN, detail="Account disabilitato"

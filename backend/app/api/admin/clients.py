@@ -1,3 +1,4 @@
+import logging
 from typing import Annotated, List
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -6,12 +7,29 @@ from app.database import get_db
 from app.models.client import Client
 from app.models.appointment import Appointment, appointment_detail_loads
 from app.models.user import User
-from app.schemas.client import ClientCreate, ClientUpdate, ClientOut
+from app.schemas.client import (
+    ClientCreate, ClientUpdate, ClientOut, MergePreview, MergeRequest,
+)
 from app.schemas.appointment import AppointmentOutWithNames
 from app.schemas.common import PaginatedResponse
 from app.dependencies import get_current_user, require_admin
+from app.services import client_merge
 
 router = APIRouter(prefix="/clients", tags=["Clients"])
+
+log = logging.getLogger("nsh.clienti")
+
+
+def _anteprima_in_schema(a: client_merge.Anteprima) -> MergePreview:
+    return MergePreview(
+        source=ClientOut.model_validate(a.origine),
+        target=ClientOut.model_validate(a.destinazione),
+        moved=a.conteggi,
+        filled_fields=a.campi_riempiti,
+        notes_merged=a.note_unite,
+        account_moved=a.account_spostato,
+        total_rows=a.righe_totali,
+    )
 
 
 @router.get("", response_model=PaginatedResponse[ClientOut])
@@ -99,6 +117,57 @@ async def delete_client(
     if not client:
         raise HTTPException(status_code=404, detail="Cliente non trovato")
     client.is_active = False
+
+
+@router.get("/{client_id}/merge-preview", response_model=MergePreview)
+async def preview_merge(
+    client_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(require_admin)],
+    source_id: int = Query(..., description="La scheda che verrà svuotata"),
+):
+    """Cosa comporterebbe unire `source_id` dentro `client_id`. Non tocca niente."""
+    try:
+        anteprima = await client_merge.prepara(db, client_id, source_id)
+    except client_merge.MergeRefused as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return _anteprima_in_schema(anteprima)
+
+
+@router.post("/{client_id}/merge", response_model=MergePreview)
+async def merge_clients(
+    client_id: int,
+    payload: MergeRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(require_admin)],
+):
+    """Unisce due schede: `source_id` confluisce in `client_id`, che resta.
+
+    `require_admin` e non `get_current_user`: sposta appuntamenti, incassi e
+    buoni regalo fra due persone e non si annulla. È della stessa famiglia di
+    `POST /api/admin/clients`, che è già admin — non di `GET`, che è staff.
+    """
+    try:
+        esito = await client_merge.esegui(db, client_id, payload.source_id)
+    except client_merge.MergeRefused as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    # Il singolo passaggio di questo codice in cui i dati di una persona
+    # diventano quelli di un'altra. Se un domani una cliente si ritrova
+    # appuntamenti che non sono i suoi, questa riga dice quando è successo,
+    # fra quali schede, e quale operatore l'ha chiesto — `attore` lo mette il
+    # registro accessi.
+    log.info(
+        "schede cliente unite",
+        extra={
+            "id_destinazione": client_id,
+            "id_origine": payload.source_id,
+            "righe_spostate": esito.righe_totali,
+            "dettaglio": esito.conteggi,
+            "account_spostato": esito.account_spostato,
+        },
+    )
+    return _anteprima_in_schema(esito)
 
 
 @router.get("/{client_id}/appointments", response_model=List[AppointmentOutWithNames])

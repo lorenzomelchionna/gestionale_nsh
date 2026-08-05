@@ -237,11 +237,34 @@ cose ancora aperte; il resto è chiuso.
   l'`await` si ritrova una coroutine al posto dell'hash — errore rumoroso
   invece di un rallentamento silenzioso di tutta l'applicazione. È successo
   davvero durante il lavoro, ed è stato immediato accorgersene.
-- [ ] **Unione di due schede dall'area admin** — conseguenza del fix sopra: il
-  salone può ritrovarsi due righe per la stessa persona (una sua, una creata
-  dalla registrazione) e oggi le può solo modificare a mano una per volta.
-  Serve un pulsante "unisci": sposta appuntamenti e pagamenti su una riga sola
-  e cancella l'altra. Diventa meno urgente quando il numero sarà verificabile.
+- [x] ~~**Unione schede duplicate**~~ — fatto 2026-08-05.
+  `POST /api/admin/clients/{id}/merge` più `GET .../merge-preview`, admin, con
+  `app/services/client_merge.py` a fare il lavoro.
+  **Chi resta lo sceglie l'operatore, non un'euristica.** La destinazione sta
+  nell'URL. «Vince la più vecchia» o «vince quella con più appuntamenti»
+  sarebbero entrambe ragionevoli e ogni tanto sbagliate, e l'operazione non si
+  annulla: il codice esegue invece di indovinare.
+  L'ordine di spostamento non è alfabetico. `waitlist_entries` va per prima
+  perché è l'unica in `CASCADE`: sparirebbe con la scheda. `appointments` è in
+  `RESTRICT` e blocca la cancellazione finché punta lì. Le altre quattro sono
+  `SET NULL`, cioè diventerebbero righe orfane — un incasso senza cliente.
+  I campi vuoti della destinazione si riempiono, quelli pieni **non** si
+  sovrascrivono; le note si concatenano invece di sceglierne una, perché sono
+  testo libero del salone (allergie, preferenze) e scartarne metà perde sapere
+  che non sta scritto altrove.
+  Due account del portale **rifiutano** la fusione: vuol dire due persone con
+  due password, e unirle ne chiuderebbe fuori una senza dirglielo. Il controllo
+  sta prima di spostare qualunque riga — c'è un test che verifica proprio che
+  un rifiuto non lasci le cose a metà.
+  La scheda di partenza viene **disattivata, non cancellata**, come fa già
+  `DELETE /api/admin/clients`, con una nota che dice dove è finita.
+  Anteprima e esecuzione condividono la stessa funzione con un flag `applica`,
+  non due copie delle regole: due copie divergono, e il giorno che divergessero
+  l'anteprima mostrerebbe una cosa e la fusione ne farebbe un'altra. C'è un
+  test che le confronta.
+  Provato nel browser sul database di sviluppo: l'anteprima ha annunciato «6
+  appuntamenti, 1 pagamento, 1 conversazione WhatsApp» e il pulsante di
+  conferma resta disabilitato finché quell'anteprima non è arrivata.
 - [x] ~~**Due `scalar_one_or_none()` ancora esposti in `availability.py`**~~ —
   fatto 2026-08-05. Erano gli ultimi due della famiglia chiusa il 2026-08-04
   sulle assenze.

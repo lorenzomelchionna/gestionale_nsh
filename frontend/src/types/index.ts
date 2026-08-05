@@ -57,6 +57,20 @@ export interface Client {
   created_at: string
 }
 
+/** Cosa comporta unire due schede: restituito sia dall'anteprima sia
+ *  dall'esecuzione, così l'interfaccia mostra prima e conferma dopo con la
+ *  stessa forma di dati. */
+export interface MergePreview {
+  source: Client
+  target: Client
+  /** Righe per tabella: appointments, payments, waitlist_entries, … */
+  moved: Record<string, number>
+  filled_fields: string[]
+  notes_merged: boolean
+  account_moved: boolean
+  total_rows: number
+}
+
 // ── Service ───────────────────────────────────────────────────────
 
 export interface Service {

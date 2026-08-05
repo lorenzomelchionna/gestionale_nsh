@@ -220,7 +220,7 @@ export default function LoginPage() {
             Il registro del salone: appuntamenti, incassi e clienti in un unico
             posto.
           </p>
-          <p className="text-sm text-chrome-dim">Corso Italia 32, Melito Irpino (AV)</p>
+          <p className="text-sm text-chrome-dim">Corso Italia, 32 · Melito Irpino (AV)</p>
         </div>
 
         <span className="text-xs text-chrome-dim lg:mt-0 ml-auto lg:ml-0 text-right lg:text-left">

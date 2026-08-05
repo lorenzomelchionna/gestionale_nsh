@@ -102,7 +102,7 @@ async def _verifica(http, db, email: str):
     account = (await db.execute(
         select(ClientAccount).where(ClientAccount.email == email)
     )).scalar_one()
-    code = issue_code(account)
+    code = await issue_code(account)
     await db.commit()
     resp = await http.post("/api/public/auth/verify-email", json={"email": email, "code": code})
     assert resp.status_code == 200, resp.text

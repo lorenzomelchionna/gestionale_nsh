@@ -1,6 +1,6 @@
 from datetime import datetime, date
 from typing import Optional
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from app.utils.phone import to_e164
 
@@ -39,12 +39,20 @@ class ClientOut(ClientBase):
     created_at: datetime
 
 
+# Dieci e non dodici come per lo staff: chi lavora in salone ha accesso a
+# tutta l'anagrafica e alla cassa, una cliente solo ai propri appuntamenti,
+# quindi la soglia segue quello che c'è dietro la porta. Prima non c'era
+# nessun minimo lato server — il campo accettava `1` — e un limite scritto
+# solo nel form del browser non è un limite: basta chiamare l'API.
+MIN_CLIENT_PASSWORD = 10
+
+
 class ClientRegister(BaseModel):
     first_name: str
     last_name: str
     phone: str
     email: EmailStr
-    password: str
+    password: str = Field(min_length=MIN_CLIENT_PASSWORD)
     # Asked for at sign-up rather than left to be filled in later: the birthday
     # greeting only reaches people whose date is on file, and a field the form
     # never asks about stays empty.
@@ -121,4 +129,7 @@ class PasswordResetRequest(BaseModel):
 
 class PasswordReset(BaseModel):
     token: str
-    new_password: str
+    # Stesso minimo della registrazione: senza, il reset sarebbe la strada
+    # per aggirarlo — si registra con una password lunga e la si accorcia
+    # subito dopo.
+    new_password: str = Field(min_length=MIN_CLIENT_PASSWORD)

@@ -395,16 +395,37 @@ cose ancora aperte; il resto è chiuso.
   che è la strada per una dipendenza transitiva che nessuno può aggiornare
   direttamente.
   `npm audit --omit=dev --audit-level=high` adesso esce 0.
-- [ ] **`react-router` 6 → 7** — restano due avvisi *moderate*, e la
-  correzione è una major (`react-router-dom@7.18.2`), quindi non entra di
-  straforo in un aggiornamento di manutenzione.
-  Uno dei due è l'open redirect via backslash in `<Link>` e `useNavigate`,
-  cioè **lo stesso bug** corretto a mano in `LoginPage.tsx` — ed è coperto:
-  `next` è l'unico punto in cui un valore esterno arriva a `navigate()`, e
-  `destinazioneInterna()` rifiuta esplicitamente `//` e `/\` prima di
-  passarlo. L'altro riguarda l'idratazione SSR, che qui non c'è: il frontend
-  è una SPA servita da Vite.
-  Quindi è una major da fare con calma, non una falla aperta.
+- [x] ~~**`react-router` 6 → 7**~~ — fatto 2026-08-05. Zero righe di codice
+  toccate: qui si usano solo le API classiche a componenti (`BrowserRouter`,
+  `Routes`, `Route`, `Navigate`, `Outlet`, `Link`, `NavLink`, e gli hook
+  `useLocation`/`useNavigate`/`useParams`/`useSearchParams`), e la v7 le tiene.
+  Quello che la v7 ha rivoluzionato sono i data router — `createBrowserRouter`,
+  i `loader`, le `action` — che questo frontend non ha mai usato. React 18.3.1
+  soddisfa già il peer `>=18`, quindi nessun aggiornamento a cascata.
+  **Il fatto che ha deciso la scelta: non esiste una versione che chiuda
+  tutto.** I due avvisi si accavallano —
+
+      open redirect (`<Link>`, `useNavigate`)  6.0.0 – 7.17.0   corretto da 7.18.0
+      CSRF in modalità RSC                     7.12.0 – 8.2.0   nessuna correzione
+
+  — quindi qualunque versione che corregga il primo ricade dentro il secondo.
+  Restare alla 6.30.4 avrebbe tenuto l'audit verde senza toccare niente, ed è
+  proprio per questo che vale la pena scrivere perché è la scelta peggiore:
+  la modalità RSC (React Server Components) **non esiste in questa
+  applicazione** — è una SPA servita da Vite — quindi il CSRF è irraggiungibile
+  per architettura, non per come è scritto un punto preciso. L'open redirect
+  invece vive in `<Link>` e `useNavigate`, usati in dodici file: oggi è coperto
+  dal filtro in `LoginPage.tsx`, ma è una proprietà del codice di oggi, non una
+  garanzia sul tredicesimo file che passerà un valore preso dall'URL.
+  L'esclusione motivata sta in `frontend/.npm-audit-ignore`, e per applicarla è
+  servito `frontend/scripts/audit.mjs`: `npm audit` da solo non sa escludere un
+  singolo avviso, ha solo `--audit-level`, che è una soglia di gravità — alzarla
+  per far tacere una voce fa tacere tutte le altre della stessa gravità.
+  Verificato nel browser, non solo con typecheck e build: navigazione
+  client-side senza ricaricare la pagina, `<Navigate>` che protegge le rotte
+  admin, e i payload dell'avviso (`//evil`, `/\evil`, `\\evil`,
+  `https://evil`) tutti respinti dal filtro mentre i percorsi legittimi
+  passano. Console pulita.
 - [x] ~~**Un minimo di logging**~~ — fatto 2026-08-05. Due cose, non una.
   Il **registro degli accessi** (`nsh.accessi`): una riga per richiesta, con
   metodo, percorso, stato, durata, IP e soprattutto **attore** — `admin:3`,

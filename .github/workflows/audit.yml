@@ -114,8 +114,15 @@ jobs:
       # su questo repository. Conta — una dipendenza di build compromessa
       # riscrive ciò che viene pubblicato — ma non è la stessa urgenza, quindi
       # viene riportata senza far fallire il job.
+      #
+      # Lo script e non `npm audit --audit-level=high` diretto: quel comando
+      # non sa escludere un singolo avviso, ha solo una soglia di gravità.
+      # Alzarla per far tacere una voce fa tacere tutte le altre della stessa
+      # gravità, cioè si perde molto più di quel che si voleva perdere. Le
+      # esclusioni stanno in `frontend/.npm-audit-ignore`, una per riga e
+      # ognuna con scritto il perché — come `.pip-audit-ignore` per il backend.
       - name: Codice spedito al browser
-        run: npm audit --omit=dev --audit-level=high
+        run: node scripts/audit.mjs
 
       - name: Catena di build (solo segnalazione)
         if: always()

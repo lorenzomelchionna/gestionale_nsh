@@ -111,6 +111,20 @@ export const updateClient = (id: number, data: Partial<Client>) =>
 export const getClientAppointments = (id: number) =>
   api.get<Appointment[]>(`/admin/clients/${id}/appointments`).then(r => r.data)
 
+import type { MergePreview } from '@/types'
+
+/** Cosa comporterebbe unire `sourceId` dentro `targetId`. Non tocca niente. */
+export const previewClientMerge = (targetId: number, sourceId: number) =>
+  api.get<MergePreview>(`/admin/clients/${targetId}/merge-preview`, {
+    params: { source_id: sourceId },
+  }).then(r => r.data)
+
+/** Unisce le due schede: `sourceId` confluisce in `targetId`, che resta.
+ *  Non si annulla — chiamarla solo dopo aver mostrato l'anteprima. */
+export const mergeClients = (targetId: number, sourceId: number) =>
+  api.post<MergePreview>(`/admin/clients/${targetId}/merge`, { source_id: sourceId })
+    .then(r => r.data)
+
 // ── Services ──────────────────────────────────────────────────────
 
 export const getServices = (params?: { page?: number; active_only?: boolean }) =>

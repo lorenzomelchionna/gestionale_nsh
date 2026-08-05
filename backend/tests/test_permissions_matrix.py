@@ -62,6 +62,13 @@ EXPECTED_GUARDS = {
     ("GET", "/api/admin/clients/{client_id}"): "staff",
     ("PUT", "/api/admin/clients/{client_id}"): "admin",
     ("GET", "/api/admin/clients/{client_id}/appointments"): "staff",
+    # Unione schede: admin, come `POST /api/admin/clients`. Sposta appuntamenti,
+    # incassi e buoni regalo fra due persone e non si annulla — non è la stessa
+    # cosa di leggere l'anagrafica, che è staff. L'anteprima è admin anche lei:
+    # mostra quanti incassi ha una cliente, cioè dati che il resto della cassa
+    # non fa vedere ai collaboratori.
+    ("GET", "/api/admin/clients/{client_id}/merge-preview"): "admin",
+    ("POST", "/api/admin/clients/{client_id}/merge"): "admin",
     ("GET", "/api/admin/collaborators"): "staff",
     ("POST", "/api/admin/collaborators"): "admin",
     ("DELETE", "/api/admin/collaborators/{collaborator_id}"): "admin",

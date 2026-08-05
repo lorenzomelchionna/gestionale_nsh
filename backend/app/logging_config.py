@@ -166,16 +166,45 @@ _STANDARD = frozenset(vars(logging.LogRecord("", 0, "", 0, "", (), None)).keys()
     "message", "asctime", "taskName",
 }
 
+# I quattro valori che Railway riconosce sono `debug`, `info`, `warn`, `error`;
+# Python ne produce altri due (`WARNING`, `CRITICAL`). La documentazione dice
+# che i livelli vengono «accostati al più vicino», ma quale sia il più vicino a
+# `CRITICAL` è una supposizione — e una supposizione sbagliata farebbe sparire
+# dai filtri proprio le righe più gravi. Meglio dirlo noi.
+_LIVELLI = {
+    "DEBUG": "debug",
+    "INFO": "info",
+    "WARNING": "warn",
+    "ERROR": "error",
+    "CRITICAL": "error",
+}
+
 
 class FormatoJson(logging.Formatter):
-    """Una riga = un oggetto JSON. Per i log di produzione."""
+    """Una riga = un oggetto JSON. Per i log di produzione.
+
+    Due nomi di campo sono in inglese in mezzo a tutti gli altri in italiano, e
+    non è una svista: `level` e `message` sono le **uniche due chiavi che
+    Railway interpreta** invece di limitarsi a indicizzarle. Tutto il resto
+    diventa un attributo su cui filtrare con `@nome:valore`, e lì il nome lo
+    scegliamo noi.
+
+    Il costo di sbagliarli è stato misurato, non immaginato. La prima versione
+    scriveva `livello`: in produzione ogni riga risultava `info` — Railway
+    considera `info` tutto ciò che arriva su stdout senza un `level` che
+    riconosce — e `@level:warn` non trovava niente. Cioè i login falliti erano
+    `WARNING` nel codice e indistinguibili dal traffico normale nel posto in
+    cui quei log si guardano davvero. L'unica ragione per cui un login fallito
+    è `WARNING` è potersi filtrare, quindi il campo sbagliato annullava la
+    scelta.
+    """
 
     def format(self, record: logging.LogRecord) -> str:
         riga: dict[str, Any] = {
             "ts": self.formatTime(record, "%Y-%m-%dT%H:%M:%S%z"),
-            "livello": record.levelname,
+            "level": _LIVELLI.get(record.levelname, record.levelname.lower()),
             "logger": record.name,
-            "msg": record.getMessage(),
+            "message": record.getMessage(),
             "richiesta": getattr(record, "richiesta", "-"),
             "attore": getattr(record, "attore", "anonimo"),
         }

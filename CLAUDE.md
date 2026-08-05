@@ -182,7 +182,15 @@ test stanno in `requirements-dev.txt`, fuori da `requirements.txt`.
 
 Tutto su stdout, che è quello che Railway raccoglie. In sviluppo escono
 leggibili a occhio, altrove in JSON — una riga, un oggetto — perché si possano
-filtrare per campo invece che a regex.
+filtrare per campo invece che a regex: `@level:warn`, `@attore:admin:3`,
+`@percorso:/api/admin/clients`.
+
+Due chiavi sono in inglese fra tutte le altre in italiano, e devono restarci:
+`level` e `message` sono le **uniche due che Railway interpreta**, tutte le
+altre le indicizza soltanto. Con `livello` al posto di `level` ogni riga
+risultava `info` (è il default per stdout) e `@level:warn` non trovava niente,
+cioè i login falliti erano `WARNING` nel codice e indistinguibili dal traffico
+normale nel posto in cui i log si guardano davvero.
 
 | Logger | Cosa scrive |
 |--------|-------------|

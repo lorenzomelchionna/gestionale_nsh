@@ -36,7 +36,7 @@ export const useClientAuth = create<ClientAuthState>()(
 const clientTabs = [
   { to: '/booking', end: true, label: 'Home' },
   { to: '/booking/new', end: false, label: 'Prenota' },
-  { to: '/booking/account', end: false, label: 'Area mia' },
+  { to: '/booking/account', end: false, label: 'Area personale' },
 ]
 
 export default function BookingLayout() {

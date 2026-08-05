@@ -54,7 +54,7 @@ export default function BookingAccountPage() {
   return (
     <div className="flex flex-col gap-8">
       <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-3 border-b border-rule pb-3.5">
-        <h1 className="text-title-lg text-foreground">La mia area</h1>
+        <h1 className="text-title-lg text-foreground">Area personale</h1>
         <Link to="/booking/new" className="btn-accent btn-sm">
           Nuova prenotazione
         </Link>

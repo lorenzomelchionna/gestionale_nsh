@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, Field, model_validator
 from app.models.product import MovementType
 
 
@@ -18,7 +18,18 @@ class ProductBase(BaseModel):
 
 
 class ProductCreate(ProductBase):
-    pass
+    """I vincoli sui numeri stanno qui e **non** su `ProductBase`.
+
+    `ProductOut` eredita da `ProductBase`, quindi un `ge=0` lì sarebbe un
+    vincolo anche in lettura: se a database esistesse già una riga storta,
+    a fallire non sarebbe la scrittura che la corregge — sarebbe l'elenco
+    del magazzino, cioè la pagina da cui ci si accorge del problema.
+    """
+
+    purchase_price: float = Field(..., ge=0)
+    sale_price: float = Field(..., ge=0)
+    quantity: int = Field(0, ge=0)
+    min_quantity: int = Field(0, ge=0)
 
 
 class ProductUpdate(BaseModel):
@@ -40,10 +51,10 @@ class ProductUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     supplier: Optional[str] = None
-    purchase_price: Optional[float] = None
-    sale_price: Optional[float] = None
+    purchase_price: Optional[float] = Field(None, ge=0)
+    sale_price: Optional[float] = Field(None, ge=0)
     category: Optional[str] = None
-    min_quantity: Optional[int] = None
+    min_quantity: Optional[int] = Field(None, ge=0)
     is_active: Optional[bool] = None
 
     @model_validator(mode="after")

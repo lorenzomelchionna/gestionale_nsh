@@ -3,13 +3,13 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { format, parseISO } from 'date-fns'
 import { it } from 'date-fns/locale'
 import {
-  Plus, Gift, Mail, MailCheck, Ban, ChevronRight, Copy, Check,
+  Plus, Gift, Mail, MailCheck, Ban, ChevronRight, Copy, Check, X,
 } from 'lucide-react'
 import {
   getGiftCards, createGiftCard, redeemGiftCard, cancelGiftCard,
-  resendGiftCardEmail,
+  resendGiftCardEmail, getAppointments,
 } from '@/services/api'
-import type { GiftCard, GiftCardStatus } from '@/types'
+import type { Appointment, GiftCard, GiftCardStatus } from '@/types'
 import Sheet from '@/components/ui/Sheet'
 import {
   PageHeader, SearchInput, Segmented, EmptyState, SkeletonList, Pagination,
@@ -368,12 +368,30 @@ function DetailSheet({ card, onClose }: { card: GiftCard; onClose: () => void })
   const [motivo, setMotivo] = useState('')
   const [nuovaEmail, setNuovaEmail] = useState('')
   const [copiato, setCopiato] = useState(false)
+  const [cercaVisita, setCercaVisita] = useState('')
+  const [visita, setVisita] = useState<Appointment | null>(null)
 
   const aggiorna = () => qc.invalidateQueries({ queryKey: ['gift-cards'] })
 
+  // Cercata per nome invece che scelta da un elenco: al banco si sta
+  // chiudendo una cliente precisa, e sfogliare tutti gli appuntamenti del
+  // mese per trovarla sarebbe più lento che digitarne il cognome.
+  const { data: visite } = useQuery({
+    queryKey: ['gift-card-visite', cercaVisita],
+    queryFn: () => getAppointments({
+      search: cercaVisita, order: 'desc', page_size: 8,
+    }),
+    enabled: cercaVisita.trim().length >= 2,
+  })
+
   const riscatta = useMutation({
-    mutationFn: () => redeemGiftCard(card.id, { amount: Number(importo) }),
-    onSuccess: () => { aggiorna(); setImporto('') },
+    mutationFn: () => redeemGiftCard(card.id, {
+      amount: Number(importo),
+      appointment_id: visita?.id,
+    }),
+    onSuccess: () => {
+      aggiorna(); setImporto(''); setVisita(null); setCercaVisita('')
+    },
   })
   const storna = useMutation({
     mutationFn: () => cancelGiftCard(card.id, motivo.trim() || undefined),
@@ -481,6 +499,56 @@ function DetailSheet({ card, onClose }: { card: GiftCard; onClose: () => void })
           <p className="text-xs text-muted-foreground">
             Scala solo la parte coperta dal buono. Il resto si incassa come sempre.
           </p>
+
+          {/* Facoltativo, e detto: senza appuntamento il riscatto resta
+              valido — capita per un prodotto, o per chi passa senza
+              prenotare. Con l'appuntamento resta scritto su cosa è finito. */}
+          {visita ? (
+            <div className="flex items-center justify-between gap-3 border border-border bg-band px-3 py-2.5">
+              <span className="text-[13px] text-foreground min-w-0 truncate">
+                {format(parseISO(visita.start_time), 'dd/MM/yyyy')} · {visita.client_name}
+                <span className="text-ink-3">
+                  {' · '}{visita.service_names?.join(' + ') || '–'}
+                </span>
+              </span>
+              <button
+                type="button"
+                onClick={() => { setVisita(null); setCercaVisita('') }}
+                className="btn-icon shrink-0"
+                aria-label="Togli l'appuntamento"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <input
+                className="input text-sm"
+                placeholder="Collega a un appuntamento (facoltativo): cerca la cliente…"
+                value={cercaVisita}
+                onChange={e => setCercaVisita(e.target.value)}
+              />
+              {(visite?.items?.length ?? 0) > 0 && (
+                <div className="border border-border divide-y divide-rule-soft max-h-44 overflow-y-auto">
+                  {visite!.items.map(a => (
+                    <button
+                      key={a.id} type="button"
+                      onClick={() => setVisita(a)}
+                      className="w-full text-left px-3 py-2 text-[13px] hover:bg-foreground/[0.05] transition-colors"
+                    >
+                      <span className="tabular-nums text-muted-foreground">
+                        {format(parseISO(a.start_time), 'dd/MM/yyyy')}
+                      </span>
+                      {' · '}{a.client_name}
+                      <span className="block text-ink-3 truncate">
+                        {a.service_names?.join(' + ') || '–'}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
           {riscatta.isError && (
             <p className="text-[13px] text-danger">{leggiErrore(riscatta.error)}</p>
           )}
@@ -493,10 +561,15 @@ function DetailSheet({ card, onClose }: { card: GiftCard; onClose: () => void })
           <div className="mt-2 divide-y divide-rule-soft">
             {card.redemptions.map(r => (
               <div key={r.id} className="flex items-baseline justify-between gap-3 py-2">
-                <span className="text-[13px] text-muted-foreground tabular-nums">
+                <span className="text-[13px] text-muted-foreground tabular-nums min-w-0">
                   {format(parseISO(r.created_at), 'd MMM yyyy, HH:mm', { locale: it })}
+                  {r.appointment_label && (
+                    <span className="block text-[13px] text-ink-3 truncate">
+                      {r.appointment_label}
+                    </span>
+                  )}
                 </span>
-                <span className="amount">−€{r.amount.toFixed(2)}</span>
+                <span className="amount shrink-0">−€{r.amount.toFixed(2)}</span>
               </div>
             ))}
           </div>

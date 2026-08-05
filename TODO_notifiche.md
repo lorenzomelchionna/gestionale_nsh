@@ -350,23 +350,28 @@ solo il collegamento in UI, dove non esiste serve una migration.
   prodotto è finito e va riordinato, cioè una riga alla volta, non
   scorrendo una colonna.
 
-#### Rimasto fuori da questo giro (prodotti)
-- **Archiviare un prodotto fuori catalogo**: `is_active` esiste ed è
-  modificabile via API, ma la lista filtra `is_active == True` e non esiste
-  nessun filtro per rivederli — archiviarlo dalla UI vorrebbe dire perderlo
-  senza modo di tornare indietro. Servono il parametro `active_only` lato
-  backend (`api.ts` lo dichiara già, il backend non lo accetta: è codice
-  morto) più un interruttore in pagina.
-- **Prezzi negativi**: nessun vincolo lato server, solo `min="0"` nel form.
-  Da mettere su `ProductCreate`/`ProductUpdate` e **non** su `ProductBase`,
-  che è anche lo schema di lettura: un vincolo lì farebbe fallire l'elenco
-  invece della scrittura, se una riga storta esistesse già.
-- **Deriva modello/migration**: `alembic check` segnala
-  `product_images.created_at` NOT NULL nel modello ma nullable a database
-  (viene dalla migration delle foto, non da questa). Senza conseguenze —
-  `server_default=now()` lo riempie sempre — ma la prossima autogenerate si
-  porterà dietro l'operazione spuria. La CI fa `upgrade head`, non `check`,
-  quindi non se ne accorge.
+#### Rimasto fuori da questo giro (prodotti) — chiuso il 2026-08-05
+- [x] ~~**Archiviare un prodotto fuori catalogo**~~ — il parametro
+  `active_only` esiste ora davvero lato backend (`api.ts` lo dichiarava già:
+  era codice morto), e in pagina c'è «In catalogo / Archiviati». Archiviare
+  non è più una perdita: dall'archivio si rimette dentro. Un prodotto
+  archiviato **non** compare fra i sotto scorta — non è una scorta da
+  riordinare, è roba che non si vende più.
+  Archiviare e non cancellare: movimenti di magazzino e vendite passate
+  puntano a quel prodotto, e toglierlo lascerebbe lo storico a parlare di un
+  articolo che non esiste.
+- [x] ~~**Prezzi negativi**~~ — `ge=0` su `ProductCreate`/`ProductUpdate`,
+  **non** su `ProductBase`, che è anche lo schema di lettura: un vincolo lì
+  avrebbe fatto fallire l'elenco del magazzino se una riga storta esistesse
+  già, cioè proprio la pagina da cui ci si accorge del problema. C'è un test
+  che lo tiene fermo scrivendo un prezzo negativo direttamente in SQL.
+- [x] ~~**Deriva modello/migration**~~ — migration `b6e21c8f0a53`:
+  `product_images.created_at` ora è NOT NULL come dice il modello.
+  `alembic check` risponde «No new upgrade operations detected».
+  Con un `UPDATE` di sicurezza prima del `SET NOT NULL`: in teoria non serve
+  (il default l'ha sempre riempita), in pratica una sola riga nulla
+  manderebbe giù il servizio all'avvio, visto che le migration girano nello
+  startCommand.
 
 - [x] ~~Le note cliente si salvano?~~ — sì, verificato: `Client.notes` è già
   salvato, modificabile e mostrato in scheda cliente. **Ma** per l'uso che ne
@@ -442,18 +447,27 @@ solo il collegamento in UI, dove non esiste serve una migration.
   - **Tipo di pagamento suo** (`gift card`), così dieci buoni venduti non
     sembrano un mese di servizi record.
 
-#### Rimasto fuori (gift card)
-- **Riscatto agganciato all'appuntamento**: il campo `appointment_id` esiste
-  sul riscatto ma nessuna schermata lo valorizza — oggi si scala l'importo e
-  basta. Collegarlo direbbe *su quale visita* è stato speso il buono.
-- **Latenza col broker giù**: `_trigger_gift_card_email` usa `.delay()` come
-  tutte le altre notifiche, e con Redis irraggiungibile la richiesta resta
-  appesa finché Celery non smette di ritentare (visto in locale). La vendita
-  non si perde — l'eccezione viene raccolta e il buono resta emesso — ma alla
-  cassa un'attesa così è comunque brutta. Riguarda **tutti** i trigger
-  fire-and-forget, non solo questo: la correzione sta nella configurazione
-  Celery (timeout di connessione basso, niente retry), non nel singolo
-  endpoint.
+#### Rimasto fuori (gift card) — chiuso il 2026-08-05
+- [x] ~~**Riscatto agganciato all'appuntamento**~~ — nel riquadro «usa il
+  buono» si cerca la cliente per nome e si sceglie la visita. Resta
+  facoltativo, ed è detto in chiaro: al banco capita di scalare un buono
+  senza un appuntamento a cui agganciarlo (un prodotto, o chi passa senza
+  prenotare). Nello storico dei riscatti compare «05/08/2026 · Laura Ricci»,
+  etichetta composta dal server per non risolvere un id per ogni riga.
+  Aggiunto anche il controllo che l'appuntamento esista: senza, un id
+  sbagliato sarebbe arrivato alla foreign key e avrebbe dato 500 **dopo**
+  aver già ridotto il saldo in transazione.
+- [x] ~~**Latenza col broker giù**~~ — `task_publish_retry=False` più
+  `socket_connect_timeout`/`socket_timeout` a 2 secondi in
+  `tasks/celery_app.py`. Coi default Celery ritenta con backoff prima di
+  sollevare, quindi l'eccezione arrivava — solo troppo tardi per essere
+  utile, con qualcuno che aspettava alla cassa.
+  Vale per **tutti** i trigger fire-and-forget, non solo le gift card, ed è
+  per questo che sta nella configurazione e non nei singoli endpoint.
+  `broker_connection_retry_on_startup=True` resta: riguarda il worker che si
+  collega all'avvio, che invece Redis deve aspettarlo — altrimenti un riavvio
+  simultaneo dei due servizi lo fa morire prima che il broker sia pronto.
+  Toglie anche la deprecation che Celery stampava a ogni boot.
 
 ### Immagini dei prodotti — richiesta 2026-08-02, fatta 2026-08-03
 

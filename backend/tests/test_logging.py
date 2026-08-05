@@ -391,10 +391,42 @@ class TestIlFormato:
             )
 
         prodotto = come_json(caplog.records[-1])
-        assert prodotto["msg"] == "prova"
-        assert prodotto["livello"] == "INFO"
+        assert prodotto["message"] == "prova"
+        assert prodotto["level"] == "info"
         assert prodotto["id_cliente"] == 7
         assert "ts" in prodotto and "richiesta" in prodotto and "attore" in prodotto
+
+    @pytest.mark.parametrize(
+        "livello,atteso",
+        [
+            (logging.DEBUG, "debug"),
+            (logging.INFO, "info"),
+            (logging.WARNING, "warn"),
+            (logging.ERROR, "error"),
+            (logging.CRITICAL, "error"),
+        ],
+    )
+    async def test_il_livello_sta_nella_chiave_che_railway_legge(
+        self, caplog, livello, atteso
+    ):
+        """`level` e `message` sono le due chiavi che Railway *interpreta*;
+        tutte le altre le indicizza soltanto.
+
+        Trovato in produzione, non a tavolino: con `livello` al posto di
+        `level` ogni riga risultava `info` — è il default per stdout — e
+        `@level:warn` non trovava niente. I login falliti erano `WARNING` nel
+        codice e indistinguibili dal traffico normale nel posto in cui quei
+        log si leggono, il che annulla l'unico motivo per cui sono `WARNING`.
+        """
+        with caplog.at_level(logging.DEBUG):
+            logging.getLogger("nsh.test").log(livello, "prova")
+
+        prodotto = come_json(caplog.records[-1])
+        assert prodotto["level"] == atteso
+        assert prodotto["level"] in ("debug", "info", "warn", "error"), (
+            "Railway riconosce solo questi quattro"
+        )
+        assert "livello" not in prodotto
 
     async def test_un_valore_non_serializzabile_non_fa_esplodere_il_log(self, caplog):
         """Un `Decimal` o una `date` finiti in un campo capitano, e un log che

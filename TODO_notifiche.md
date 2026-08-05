@@ -320,6 +320,18 @@ cose ancora aperte; il resto è chiuso.
   e un log di sicurezza è a sua volta un archivio di dati personali.
   Conseguenza da ricordare: `code` è fra le parole oscurate, quindi un campo
   chiamato `status_code` sparirebbe. Qui si chiama `stato`.
+  **Corretto dopo il primo rilascio**, verificando i log veri invece di
+  fidarsi del deploy riuscito: il livello stava in una chiave `livello`, e
+  Railway interpreta solo `level` e `message` — tutto il resto lo indicizza
+  soltanto. Risultato: ogni riga risultava `info` (è il default per stdout) e
+  `@level:warn` non trovava niente, cioè i login falliti erano `WARNING` nel
+  codice e indistinguibili dal traffico normale nel posto in cui quei log si
+  leggono. Siccome l'unico motivo per cui un login fallito è `WARNING` è
+  potersi filtrare, il campo sbagliato annullava la scelta.
+  `WARNING` e `CRITICAL` sono mappati a mano su `warn` ed `error`: la
+  documentazione dice che i livelli vengono «accostati al più vicino», ma
+  quale sia il più vicino a `CRITICAL` è una supposizione, e sbagliarla
+  toglierebbe dai filtri proprio le righe più gravi.
   Chiusi per strada anche i ~20 `print()` di notifiche e task, che finivano sì
   nello stdout di Railway ma senza livello — invisibili a un filtro «mostrami
   gli errori» — e il gestore globale delle eccezioni in `main.py`, che

@@ -44,8 +44,19 @@ async def list_products(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     low_stock: bool = Query(False),
+    active_only: bool = Query(True),
 ):
-    q = select(Product).where(Product.is_active == True)
+    """Il magazzino. Di default solo quello che si vende ancora.
+
+    `active_only=false` mostra anche gli archiviati, ed è quello che rende
+    l'archiviazione una scelta reversibile: prima il filtro non esisteva —
+    la query fissava `is_active == True` — quindi togliere un prodotto dal
+    catalogo avrebbe voluto dire non poterlo più vedere né recuperare da
+    nessuna schermata.
+    """
+    q = select(Product)
+    if active_only:
+        q = q.where(Product.is_active == True)
     if low_stock:
         q = q.where(Product.quantity <= Product.min_quantity)
     total = (await db.execute(select(func.count()).select_from(q.subquery()))).scalar_one()

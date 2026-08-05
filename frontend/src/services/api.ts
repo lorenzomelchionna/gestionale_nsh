@@ -387,6 +387,12 @@ export const createGiftCard = (data: {
   payment_method?: PaymentMethod
 }) => api.post<GiftCard>('/admin/gift-cards', data).then(r => r.data)
 
+/** `appointment_id` è facoltativo: al banco capita di scalare un buono senza
+ *  un appuntamento a cui agganciarlo (un prodotto, o chi passa senza
+ *  prenotare). Quando c'è, il riscatto ricorda su quale visita è stato speso. */
+/** `appointment_id` è facoltativo: al banco capita di scalare un buono senza
+ *  un appuntamento a cui agganciarlo (un prodotto, o chi passa senza
+ *  prenotare). Quando c'è, il riscatto ricorda su quale visita è finito. */
 export const redeemGiftCard = (id: number, data: {
   amount: number; appointment_id?: number; notes?: string
 }) => api.post<GiftCard>(`/admin/gift-cards/${id}/redeem`, data).then(r => r.data)

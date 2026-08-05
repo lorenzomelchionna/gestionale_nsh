@@ -76,8 +76,22 @@ class GiftCardRedemptionOut(BaseModel):
     id: int
     amount: float
     appointment_id: Optional[int] = None
+    # «05/08/2026 · Laura Ricci». Composta qui invece di lasciare al frontend
+    # un id da risolvere con una chiamata per riga: uno storico di riscatti
+    # ne farebbe una a testa, e la scheda si aprirebbe a pezzi.
+    appointment_label: Optional[str] = None
     notes: Optional[str] = None
     created_at: datetime
+
+    @classmethod
+    def from_redemption(cls, r) -> "GiftCardRedemptionOut":
+        out = cls.model_validate(r, from_attributes=True)
+        appt = getattr(r, "appointment", None)
+        if appt is not None:
+            quando = appt.start_time.strftime("%d/%m/%Y")
+            chi = f"{appt.client.first_name} {appt.client.last_name}" if appt.client else ""
+            out.appointment_label = f"{quando} · {chi}".strip(" ·")
+        return out
 
 
 class GiftCardOut(BaseModel):
@@ -115,4 +129,7 @@ class GiftCardOut(BaseModel):
         """
         out = cls.model_validate(card, from_attributes=True)
         out.status = card.compute_status()
+        out.redemptions = [
+            GiftCardRedemptionOut.from_redemption(r) for r in card.redemptions
+        ]
         return out

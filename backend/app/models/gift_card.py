@@ -167,3 +167,7 @@ class GiftCardRedemption(Base):
     )
 
     gift_card: Mapped["GiftCard"] = relationship("GiftCard", back_populates="redemptions")
+    # Su quale visita è stato speso. Facoltativo: al banco capita di scalare
+    # un buono senza che ci sia un appuntamento a cui agganciarlo (un
+    # prodotto, o una cliente passata senza prenotare).
+    appointment: Mapped[Optional["Appointment"]] = relationship("Appointment")

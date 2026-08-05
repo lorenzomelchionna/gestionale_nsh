@@ -128,23 +128,53 @@ class TestChiConta:
         )
         assert altro.status_code == 200, "un altro IP non deve pagare per il primo"
 
-    async def test_un_forwarded_for_inventato_non_azzera_il_budget(
+    async def test_railway_accoda_un_ip_che_cambia_a_ogni_richiesta(
         self, client, admin_user
     ):
-        """Dietro il proxy di Railway la catena è `<quello che manda il client>,
-        <quello vero>`. Prendendo l'ultima voce, cambiare la prima a ogni
-        richiesta non serve a niente; prendendo la prima, il limite sarebbe
-        aggirabile con un header."""
+        """Il caso che ha fatto fallire la prima versione, in produzione.
+
+        Railway accoda alla catena l'IP di un suo nodo interno, e quel nodo
+        cambia da una richiesta all'altra (`100.64.0.2`, `.3`, `.4`). Chiavando
+        sull'**ultima** voce ogni richiesta prendeva un secchio nuovo: dodici
+        login sbagliati di fila passavano tutti. Chiavando sulla prima, il
+        chiamante resta lo stesso e il tetto scatta.
+        """
+        for n in range(10):
+            await client.post(
+                "/api/admin/auth/login",
+                headers={"X-Forwarded-For": f"203.0.113.5, 100.64.0.{n % 4}"},
+                json={"email": admin_user.email, "password": "sbagliata"},
+            )
+
+        bloccato = await client.post(
+            "/api/admin/auth/login",
+            headers={"X-Forwarded-For": "203.0.113.5, 100.64.0.9"},
+            json={"email": admin_user.email, "password": ADMIN_PASSWORD},
+        )
+        assert bloccato.status_code == 429
+
+    async def test_l_indirizzo_di_envoy_vince_sulla_catena(
+        self, client, admin_user
+    ):
+        """Dove c'è, `X-Envoy-External-Address` è la fonte giusta: lo scrive il
+        bordo di Railway con l'indirizzo esterno reale, e il chiamante non può
+        imporlo. Un `X-Forwarded-For` inventato non deve poterlo scavalcare."""
         for _ in range(10):
             await client.post(
                 "/api/admin/auth/login",
-                headers={"X-Forwarded-For": "1.2.3.4, 198.51.100.7"},
+                headers={
+                    "X-Envoy-External-Address": "203.0.113.77",
+                    "X-Forwarded-For": "1.2.3.4",
+                },
                 json={"email": admin_user.email, "password": "sbagliata"},
             )
 
         travestito = await client.post(
             "/api/admin/auth/login",
-            headers={"X-Forwarded-For": "9.9.9.9, 198.51.100.7"},
+            headers={
+                "X-Envoy-External-Address": "203.0.113.77",
+                "X-Forwarded-For": "9.9.9.9",
+            },
             json={"email": admin_user.email, "password": ADMIN_PASSWORD},
         )
         assert travestito.status_code == 429

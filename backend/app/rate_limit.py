@@ -21,21 +21,42 @@ from app.config import settings
 def client_ip(request: Request) -> str:
     """Chi sta chiamando, visto da dietro il proxy di Railway.
 
-    Contare sull'IP della connessione qui sarebbe inutile: in produzione è
-    sempre quello del proxy, quindi tutte le clienti finirebbero nello stesso
-    secchio e la prima che sfora bloccherebbe le altre.
+    L'IP della connessione non serve: è sempre quello del proxy, quindi tutte
+    le clienti finirebbero nello stesso secchio e la prima che sfora
+    bloccherebbe le altre.
 
-    Di `X-Forwarded-For` si prende l'**ultima** voce, non la prima. La catena
-    si legge da sinistra (client) a destra (proxy più vicino), e ogni proxy
-    accoda: chi manda un `X-Forwarded-For` inventato lo vede quindi apparire
-    *prima* di quello vero che aggiunge Railway. La prima voce è scrivibile da
-    chi chiama — cioè aggirabile cambiandola a ogni richiesta — l'ultima no.
+    L'ordine di preferenza sotto non è teorico, è quello che ha funzionato
+    quando è stato provato in produzione.
+
+    **Prima versione, sbagliata**: prendeva l'ultima voce di
+    `X-Forwarded-For`, ragionando che la catena si legge client → proxy e che
+    quindi l'ultima è l'unica non scrivibile da chi chiama. Il ragionamento è
+    giusto in generale e falso qui: Railway accoda l'IP di un suo nodo
+    interno, e quel nodo **cambia a ogni richiesta** (nei log si vedono
+    `100.64.0.2`, `.3`, `.4` alternarsi). Ogni richiesta prendeva quindi una
+    chiave diversa, cioè un secchio nuovo, cioè nessun limite: dodici login
+    sbagliati di fila in produzione passavano tutti.
+
+    `X-Envoy-External-Address` è la risposta giusta dove c'è: Railway sta
+    dietro Envoy, e quel campo lo scrive il suo bordo con l'indirizzo esterno
+    reale — non è un valore che il chiamante può imporre.
+
+    La prima voce di `X-Forwarded-For` è il ripiego. È falsificabile, e va
+    detto: chi la cambia a ogni richiesta si compra un secchio nuovo ogni
+    volta. Resta comunque meglio dell'alternativa vera, che non è «un limite
+    inviolabile» ma «nessun limite affatto» — che è esattamente quello che
+    c'era prima di questa correzione.
     """
+    esterno = request.headers.get("x-envoy-external-address")
+    if esterno and esterno.strip():
+        return esterno.strip()
+
     inoltrato = request.headers.get("x-forwarded-for")
     if inoltrato:
         catena = [pezzo.strip() for pezzo in inoltrato.split(",") if pezzo.strip()]
         if catena:
-            return catena[-1]
+            return catena[0]
+
     return request.client.host if request.client else "sconosciuto"
 
 

@@ -6,6 +6,7 @@ Failures on one channel never block the other.
 
 For custom messages (admin Messaggi page), the caller picks the channel(s).
 """
+import logging
 from typing import Literal, Optional
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,6 +17,29 @@ from app.utils import whatsapp as wa_util
 
 
 Channel = Literal["email", "whatsapp", "both"]
+
+log = logging.getLogger("nsh.notifiche")
+
+
+def _fallita(notifica: str, canale: str, **campi) -> None:
+    """Una notifica che non è partita.
+
+    Prima erano `print()`: finivano sì nello stdout di Railway, ma senza
+    livello — quindi invisibili a un filtro «mostrami gli errori» — senza data
+    e senza modo di collegarle alla richiesta che le aveva generate.
+
+    `exception` e non `error`: la riga da sola dice che l'email non è partita,
+    lo stack dice *perché* (SMTP che rifiuta, quota Brevo finita, numero non
+    in whitelist nel Sandbox Twilio), e senza il perché non si sa cosa fare.
+
+    Nessun indirizzo e nessun numero fra i campi: per ritrovare la persona
+    bastano gli id, e un log di notifiche fallite non deve diventare una
+    rubrica.
+    """
+    log.exception(
+        "notifica non inviata",
+        extra={"notifica": notifica, "canale": canale, **campi},
+    )
 
 
 async def _get_config(db: AsyncSession) -> Optional[BookingConfig]:
@@ -38,13 +62,13 @@ async def notify_booking_confirmation(db: AsyncSession, appointment) -> None:
     if client.email:
         try:
             await email_util.send_booking_confirmation_email(appointment)
-        except Exception as e:
-            print(f"[NOTIFY:booking-confirm:email] appt={appointment.id} err={e}")
+        except Exception:
+            _fallita("conferma_prenotazione", "email", id_appuntamento=appointment.id)
     if _wa_enabled(cfg) and client.phone:
         try:
             await wa_util.send_booking_confirmation(appointment, cfg)
-        except Exception as e:
-            print(f"[NOTIFY:booking-confirm:wa] appt={appointment.id} err={e}")
+        except Exception:
+            _fallita("conferma_prenotazione", "whatsapp", id_appuntamento=appointment.id)
 
 
 async def notify_appointment_reminder(db: AsyncSession, appointment) -> None:
@@ -56,13 +80,13 @@ async def notify_appointment_reminder(db: AsyncSession, appointment) -> None:
     if client.email:
         try:
             await email_util.send_appointment_reminder(appointment)
-        except Exception as e:
-            print(f"[NOTIFY:reminder:email] appt={appointment.id} err={e}")
+        except Exception:
+            _fallita("promemoria", "email", id_appuntamento=appointment.id)
     if _wa_enabled(cfg) and client.phone:
         try:
             await wa_util.send_reminder_message(appointment, cfg)
-        except Exception as e:
-            print(f"[NOTIFY:reminder:wa] appt={appointment.id} err={e}")
+        except Exception:
+            _fallita("promemoria", "whatsapp", id_appuntamento=appointment.id)
 
 
 async def notify_staff_new_booking(db: AsyncSession, appointment) -> list[str]:
@@ -101,8 +125,8 @@ async def notify_staff_new_booking(db: AsyncSession, appointment) -> list[str]:
         try:
             await email_util.send_new_booking_staff_email(address, appointment)
             sent.append(address)
-        except Exception as e:
-            print(f"[NOTIFY:new-booking:email] appt={appointment.id} to={address} err={e}")
+        except Exception:
+            _fallita("nuova_prenotazione_staff", "email", id_appuntamento=appointment.id)
     return sent
 
 
@@ -112,13 +136,13 @@ async def notify_birthday(db: AsyncSession, client) -> None:
     if client.email:
         try:
             await email_util.send_birthday_greeting(client)
-        except Exception as e:
-            print(f"[NOTIFY:birthday:email] client={client.id} err={e}")
+        except Exception:
+            _fallita("compleanno", "email", id_cliente=client.id)
     if _wa_enabled(cfg) and client.phone:
         try:
             await wa_util.send_birthday_message(client)
-        except Exception as e:
-            print(f"[NOTIFY:birthday:wa] client={client.id} err={e}")
+        except Exception:
+            _fallita("compleanno", "whatsapp", id_cliente=client.id)
 
 
 async def notify_password_reset(
@@ -136,15 +160,15 @@ async def notify_password_reset(
     # Email
     try:
         await email_util.send_password_reset_email(account.email, first_name, reset_url)
-    except Exception as e:
-        print(f"[NOTIFY:reset:email] account={account.id} err={e}")
+    except Exception:
+        _fallita("reset_password", "email", id_account=account.id)
 
     # WhatsApp (only if linked client has a phone)
     if _wa_enabled(cfg) and client and client.phone:
         try:
             await wa_util.send_password_reset_message(client.phone, first_name, reset_url)
-        except Exception as e:
-            print(f"[NOTIFY:reset:wa] account={account.id} err={e}")
+        except Exception:
+            _fallita("reset_password", "whatsapp", id_account=account.id)
 
 
 async def notify_custom(
@@ -166,14 +190,14 @@ async def notify_custom(
         try:
             await email_util.send_custom_message(client, subject, body)
             email_ok = True
-        except Exception as e:
-            print(f"[NOTIFY:custom:email] client={client.id} err={e}")
+        except Exception:
+            _fallita("messaggio_manuale", "email", id_cliente=client.id)
 
     if channel in ("whatsapp", "both") and _wa_enabled(cfg) and client.phone:
         try:
             await wa_util.send_custom_message_wa(client, body)
             wa_ok = True
-        except Exception as e:
-            print(f"[NOTIFY:custom:wa] client={client.id} err={e}")
+        except Exception:
+            _fallita("messaggio_manuale", "whatsapp", id_cliente=client.id)
 
     return email_ok, wa_ok

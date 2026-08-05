@@ -1,9 +1,12 @@
 """Celery tasks for appointment reminders and booking notifications."""
 import asyncio
+import logging
 from datetime import datetime, timedelta, timezone
 from sqlalchemy import select, and_, extract
 from sqlalchemy.orm import selectinload
 from app.tasks.celery_app import celery_app
+
+log = logging.getLogger("nsh.attivita")
 
 
 def _run_async(coro):
@@ -65,8 +68,11 @@ async def _async_send_reminders():
                     await notify_appointment_reminder(db, appt)
                     appt.reminder_sent = True
                     appt.whatsapp_reminder_sent = True
-                except Exception as e:
-                    print(f"[REMINDER] failed for appointment {appt.id}: {e}")
+                except Exception:
+                    log.exception(
+                        "promemoria non inviato",
+                        extra={"id_appuntamento": appt.id},
+                    )
 
             await db.commit()
     finally:
@@ -103,8 +109,10 @@ async def _async_send_birthday_greetings():
             for client in result.scalars().all():
                 try:
                     await notify_birthday(db, client)
-                except Exception as e:
-                    print(f"[BIRTHDAY] failed for client {client.id}: {e}")
+                except Exception:
+                    log.exception(
+                        "auguri non inviati", extra={"id_cliente": client.id}
+                    )
     finally:
         await task_engine.dispose()
 
@@ -162,14 +170,20 @@ async def _async_notify_new_booking(appointment_id: int):
             )
             appt = result.scalar_one_or_none()
             if not appt:
-                print(f"[NEW-BOOKING] appointment {appointment_id} vanished before notifying")
+                log.warning(
+                    "prenotazione sparita prima di poterla annunciare",
+                    extra={"id_appuntamento": appointment_id},
+                )
                 return
             sent = await notify_staff_new_booking(db, appt)
             # An online booking nobody hears about is the failure this task
             # exists to prevent, so a silent salon is logged as a problem
             # rather than as a successful run.
             if not sent:
-                print(f"[NEW-BOOKING] appointment {appointment_id}: no staff address to notify")
+                log.error(
+                    "nessun indirizzo dello staff a cui annunciare la prenotazione",
+                    extra={"id_appuntamento": appointment_id},
+                )
     finally:
         await task_engine.dispose()
 

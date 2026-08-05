@@ -370,12 +370,23 @@ cose ancora aperte; il resto è chiuso.
   davvero tutte le vulnerabilità rimaste, e il solo ostacolo è il test da
   riscrivere. Le due previsioni fatte a mano sono state confermate dalla CI in
   modo indipendente.
-- [ ] **npm: `axios` e `react-router`** — 7 voci sul codice che finisce nel
-  browser (le altre 7 sono catena di build). Curiosità che vale la pena
-  annotare: fra quelle di `react-router` c'è un open redirect via `//` e via
-  backslash, cioè **lo stesso bug** corretto a mano in `LoginPage.tsx` il
-  2026-08-05, ma dentro `<Link>` e `useNavigate`. Il filtro scritto lì continua
-  a valere; queste sono le altre porte della stessa casa.
+- [x] ~~**npm: `axios` e `lodash`**~~ — fatto 2026-08-05. `axios` 1.13.6 →
+  1.19.0 chiude ventotto avvisi in un colpo (SSRF, prototype pollution,
+  CRLF injection, un paio di ReDoS). `lodash` non era in `package.json`:
+  arriva da `recharts`, quindi è stato forzato a 4.18.1 con un `overrides`,
+  che è la strada per una dipendenza transitiva che nessuno può aggiornare
+  direttamente.
+  `npm audit --omit=dev --audit-level=high` adesso esce 0.
+- [ ] **`react-router` 6 → 7** — restano due avvisi *moderate*, e la
+  correzione è una major (`react-router-dom@7.18.2`), quindi non entra di
+  straforo in un aggiornamento di manutenzione.
+  Uno dei due è l'open redirect via backslash in `<Link>` e `useNavigate`,
+  cioè **lo stesso bug** corretto a mano in `LoginPage.tsx` — ed è coperto:
+  `next` è l'unico punto in cui un valore esterno arriva a `navigate()`, e
+  `destinazioneInterna()` rifiuta esplicitamente `//` e `/\` prima di
+  passarlo. L'altro riguarda l'idratazione SSR, che qui non c'è: il frontend
+  è una SPA servita da Vite.
+  Quindi è una major da fare con calma, non una falla aperta.
 - [x] ~~**Un minimo di logging**~~ — fatto 2026-08-05. Due cose, non una.
   Il **registro degli accessi** (`nsh.accessi`): una riga per richiesta, con
   metodo, percorso, stato, durata, IP e soprattutto **attore** — `admin:3`,

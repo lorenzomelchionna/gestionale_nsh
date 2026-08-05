@@ -13,12 +13,24 @@
 # sé: qui vuol dire una decina a settimana su un progetto seguito da una
 # persona sola. Una casella di posta piena di PR non lette è un meccanismo
 # spento, quindi le patch arrivano insieme e restano leggibili.
+# **Le PR vanno su `develop`, non su `main`.**
+#
+# Trovato al primo giro: senza `target-branch` Dependabot punta al branch di
+# default del repository, che qui è `main` — cioè il branch che Railway
+# deploya. Le cinque PR aperte il 2026-08-05 puntavano tutte lì, e mergiarne
+# una avrebbe messo un aggiornamento di dipendenza in produzione **senza che
+# fosse mai passato da `develop`**, oltre a lasciare `develop` indietro e a
+# rompere l'allineamento che il flusso di rilascio tiene a mano.
+#
+# Con `develop` come bersaglio, un aggiornamento segue la stessa strada di
+# qualunque altra modifica: CI su develop, poi PR di rilascio verso main.
 version: 2
 
 updates:
   # ── Backend Python ──────────────────────────────────────────────────
   - package-ecosystem: pip
     directory: /backend
+    target-branch: develop
     schedule:
       interval: weekly
       day: monday
@@ -65,6 +77,7 @@ updates:
   # ── Frontend ────────────────────────────────────────────────────────
   - package-ecosystem: npm
     directory: /frontend
+    target-branch: develop
     schedule:
       interval: weekly
       day: monday
@@ -92,6 +105,7 @@ updates:
   # compromessa è un problema di sicurezza, non di manutenzione.
   - package-ecosystem: github-actions
     directory: /
+    target-branch: develop
     schedule:
       interval: monthly
     open-pull-requests-limit: 3

@@ -321,12 +321,33 @@ cose ancora aperte; il resto è chiuso.
   permessi, va riscritto per scendere ricorsivamente — ed è esattamente il
   test che non si può permettere di sbagliare, visto che nasce dalla
   escalation cliente→admin già arrivata in produzione una volta.
-  Nessuna delle 9 di starlette è intanto raggiungibile senza autenticazione:
-  quelle su `FileResponse`, `StaticFiles` e `HTTPEndpoint` riguardano cose che
-  qui non si usano; quelle su multipart passano solo dall'upload delle foto
-  prodotto, che è `require_admin` e legge al massimo 10 MB (`_read_capped`);
-  quelle sull'header `Host` mordono chi costruisce URL da `request.url`, mentre
-  qui il link di reset si costruisce da `settings.FRONTEND_URL`.
+  Delle 7 di starlette, sei non ci riguardano: `FileResponse`, `StaticFiles` e
+  `HTTPEndpoint` qui non si usano; quelle su multipart passano solo dall'upload
+  delle foto prodotto, che è `require_admin` e legge al massimo 10 MB
+  (`_read_capped`); quelle sull'header `Host` mordono chi costruisce URL da
+  `request.url`, mentre qui il link di reset nasce da `settings.FRONTEND_URL`.
+  **La settima sì**, ed è la riga sotto.
+- [ ] **PYSEC-2026-249: corpo urlencoded senza limiti sul webhook Twilio** —
+  trovato leggendo le descrizioni dell'audit invece di fermarsi al conteggio.
+  `request.form()` accetta `max_fields` e `max_part_size`, li applica al
+  multipart e **li ignora in silenzio** per `application/x-www-form-urlencoded`.
+  `/api/public/whatsapp/webhook` è senza autenticazione per forza — Twilio non
+  può tenere le nostre credenziali — e chiama `await request.form()` **prima**
+  di `is_valid_twilio_request`, che è a sua volta obbligatorio: la firma si
+  calcola sui parametri, quindi per verificarla bisogna prima averli letti.
+  Non ha nemmeno un `@limiter.limit`, quindi il numero di richieste non è
+  limitato.
+  Misurato in locale: 200.000 campi (1,8 MB) vengono parsati per intero in
+  0,42 s prima del 403. Il costo è lineare, non quadratico — quindi non è «una
+  richiesta uccide il servizio» ma «chiunque può far spendere CPU e memoria al
+  worker, gratis e senza limite di tentativi», su un deploy a un worker solo.
+  **È la stessa forma esatta del DoS di `python-multipart`** già annotato in
+  `requirements.txt`: stesso endpoint, stessa ragione — il corpo va letto prima
+  che si possa decidere se buttarlo.
+  Due strade: l'aggiornamento a starlette ≥ 1.3.1 (che però trascina la riga
+  qui sopra), oppure un tetto sul corpo prima di parsarlo, sulla falsariga di
+  `_read_capped` che esiste già per le immagini. La seconda è contenuta e non
+  aspetta nessuno.
 - [ ] **npm: `axios` e `react-router`** — 7 voci sul codice che finisce nel
   browser (le altre 7 sono catena di build). Curiosità che vale la pena
   annotare: fra quelle di `react-router` c'è un open redirect via `//` e via

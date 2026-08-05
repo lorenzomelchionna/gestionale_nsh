@@ -242,22 +242,33 @@ cose ancora aperte; il resto è chiuso.
   dalla registrazione) e oggi le può solo modificare a mano una per volta.
   Serve un pulsante "unisci": sposta appuntamenti e pagamenti su una riga sola
   e cancella l'altra. Diventa meno urgente quando il numero sarà verificabile.
-- [ ] **Due `scalar_one_or_none()` ancora esposti in `availability.py`** —
-  stessa famiglia del bug chiuso il 2026-08-04 sulle assenze, trovati mentre
-  lo si sistemava. Riga 81 (`CollaboratorExtraDay`) e riga 98
-  (`CollaboratorSchedule`): nessuna delle due tabelle ha un vincolo unico, e
-  `POST /api/admin/extra-days` non controlla nulla, quindi due giorni extra
-  sulla stessa data si creano con due click — e da quel momento il calcolo
-  della disponibilità **solleva** per quel collaboratore, in quel giorno,
-  invece di rispondere. Il fix è lo stesso: `scalars().all()` più una regola
-  su cosa fare con più righe (e possibilmente un vincolo unico in migration).
+- [x] ~~**Due `scalar_one_or_none()` ancora esposti in `availability.py`**~~ —
+  fatto 2026-08-05. Erano gli ultimi due della famiglia chiusa il 2026-08-04
+  sulle assenze.
+  **Nessun vincolo unico in migration, ed è la decisione che conta**: più
+  righe sulla stessa data non sono un errore da vietare, sono il **turno
+  spezzato** — mattina, pausa pranzo, pomeriggio — che in un salone è la
+  norma. Un vincolo unico avrebbe reso impossibile una cosa legittima per
+  chiudere un bug che si chiude leggendo tutte le righe.
+  Quindi si tengono come fasce separate, e **non si fondono**: unire 09–13 e
+  15–19 in 09–19 aprirebbe alle prenotazioni due ore in cui non c'è nessuno.
+  Un appuntamento deve stare dentro una fascia, non a cavallo di due: un
+  colore da due ore non può cominciare alle 12 e finire dopo pranzo.
+  Verificato al contrario: rimettendo le due vecchie query, cinque test
+  falliscono.
 - [ ] **Ordine dei controlli in `services/images.py`**: `image.format in
   ALLOWED_FORMATS` e un tetto sui pixel vanno **fra** `Image.open()` e
   `image.load()`. Oggi l'allowlist arriva dopo che il decoder ha già girato. Il
   commento "Pillow refuses absurd pixel counts on its own" è sbagliato.
-- [ ] **Open redirect** in `LoginPage.tsx:58`: `next` letto dalla query e
-  passato a `navigate()` senza validazione, quindi `?next=//sito-cattivo` porta
-  fuori dominio dopo il login. Due righe.
+- [x] ~~**Open redirect** in `LoginPage.tsx`~~ — fatto 2026-08-05. Erano
+  **due** i punti di uscita, non uno: login e registrazione. Ora il parametro
+  passa da un filtro che accetta solo percorsi interni.
+  `//` è la parte che si dimentica: per il browser `//host` è un URL assoluto
+  con lo schema corrente, non un percorso — e così `/\host`, che alcuni
+  browser normalizzano allo stesso modo. Un controllo che si fermasse a
+  «inizia con /» li lascerebbe passare entrambi.
+  L'unico che genera `next` è `RequireClient`, che passa un
+  `location.pathname`: il flusso legittimo non cambia.
 - [x] ~~**`visit_notes` fuori dal portale**~~ — fatto 2026-08-04, e proprio
   come diceva questa riga: **prima** di iniziare a usarla. Le due rotte
   pubbliche degli appuntamenti ora rispondono con `PortalAppointmentOut`,

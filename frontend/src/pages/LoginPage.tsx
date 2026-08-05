@@ -15,6 +15,26 @@ import {
  *  arriva in inglese e non dice quanti caratteri mancano. */
 const MIN_PASSWORD = 10
 
+/** Filtra il `next` della query prima di passarlo a `navigate()`.
+ *
+ *  Il parametro serve a riprendere una prenotazione interrotta, ma arriva
+ *  dall'URL, cioè da chiunque sappia scrivere un link. Senza controllo,
+ *  `?next=//sito-cattivo` portava fuori dominio **subito dopo** aver
+ *  inserito le credenziali: è l'aggancio classico per una pagina che imita
+ *  il salone e richiede di nuovo la password.
+ *
+ *  Passano solo i percorsi interni. `//` è la parte che si dimentica: per il
+ *  browser `//host` è un URL assoluto con lo schema corrente, non un
+ *  percorso — e così `/\host`, che alcuni browser normalizzano allo stesso
+ *  modo. Un controllo che si limitasse a «inizia con /» li lascerebbe
+ *  passare entrambi. */
+function destinazioneInterna(valore: string | null): string | null {
+  if (!valore) return null
+  if (!valore.startsWith('/')) return null
+  if (valore.startsWith('//') || valore.startsWith('/\\')) return null
+  return valore
+}
+
 type Mode = 'signin' | 'register' | 'verify'
 
 // Caps the date picker so a future birthday cannot be chosen at all, rather
@@ -60,7 +80,7 @@ export default function LoginPage() {
 
   // Where to land after signing in — set when the portal bounced someone here
   // mid-booking, so they resume instead of restarting.
-  const next = params.get('next')
+  const next = destinazioneInterna(params.get('next'))
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -200,7 +220,7 @@ export default function LoginPage() {
             Il registro del salone: appuntamenti, incassi e clienti in un unico
             posto.
           </p>
-          <p className="text-sm text-chrome-dim">Via Etnea 214, Catania</p>
+          <p className="text-sm text-chrome-dim">Corso Italia 32, Melito Irpino (AV)</p>
         </div>
 
         <span className="text-xs text-chrome-dim lg:mt-0 ml-auto lg:ml-0 text-right lg:text-left">

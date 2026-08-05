@@ -52,7 +52,7 @@ export default function BookingLayout() {
           <Link to="/booking" className="flex items-center gap-4 min-w-0 text-foreground">
             <Logo height={26} />
             <span className="hidden sm:inline text-[13px] text-ink-3 border-l border-border pl-4 whitespace-nowrap">
-              Via Etnea 214, Catania · 095 441 220
+              Corso Italia 32, Melito Irpino (AV) · 095 441 220
             </span>
           </Link>
 

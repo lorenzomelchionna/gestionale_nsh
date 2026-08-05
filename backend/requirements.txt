@@ -44,7 +44,7 @@ jinja2==3.1.6
 httpx==0.28.1
 
 # Utilities
-python-dateutil==2.9.0
+python-dateutil==2.9.0.post0
 pytz==2024.2
 
 # Image processing — every uploaded product photo is decoded and re-encoded by

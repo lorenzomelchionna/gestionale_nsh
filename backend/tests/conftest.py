@@ -32,7 +32,7 @@ os.environ.setdefault("REDIS_URL", "redis://localhost:6379/15")
 # test sbagliati — quelli sull'autenticazione invece che quelli sui limiti.
 os.environ.setdefault("RATE_LIMIT_STORAGE_URI", "memory://")
 
-from datetime import time  # noqa: E402
+from datetime import time, timedelta  # noqa: E402
 from typing import AsyncIterator  # noqa: E402
 
 import pytest  # noqa: E402
@@ -361,3 +361,32 @@ async def client_tokens(client, client_account) -> dict:
 def auth(tokens: dict) -> dict:
     """Authorization header from a token pair."""
     return {"Authorization": f"Bearer {tokens['access_token']}"}
+
+
+def giorno_lavorativo(quando):
+    """Sposta avanti una data finché non è un giorno in cui si lavora.
+
+    Il fixture `collaborator` lavora lun–sab, e la domenica non ha orario.
+    Un test che sceglie la data come «oggi + N giorni» ci cade sopra una volta
+    ogni sette, e allora una prenotazione legittima viene rifiutata con 409 per
+    un motivo che non c'entra niente con quello che il test controlla.
+
+    Sta qui, e non copiato in ogni file, perché è già successo quattro volte:
+    `test_turni_spezzati.py`, `test_booking_collaborator_service.py`,
+    `test_new_booking_alert.py` e `test_visit_notes.py` avevano ciascuno la
+    propria data mobile senza protezione. Il rimedio era già scritto in
+    `test_booking_slot_validation.py` e in `test_partial_absences.py`, ma
+    stando dentro quei file non era a disposizione di chi ne scriveva un
+    quinto.
+
+    Un test che fallisce un giorno su sette è peggio di uno che fallisce
+    sempre: si presenta come un guasto misterioso proprio mentre si sta
+    guardando dell'altro. In questa sessione ha fatto sospettare prima un
+    aggiornamento di SQLAlchemy e poi una regressione della prenotazione
+    online, e non era né l'uno né l'altra.
+
+    Accetta `date` e `datetime` e restituisce lo stesso tipo.
+    """
+    while quando.weekday() == 6:
+        quando += timedelta(days=1)
+    return quando

@@ -18,9 +18,9 @@ from sqlalchemy import select
 from app.models.appointment import Appointment
 from app.models.collaborator import Collaborator, CollaboratorSchedule, CollaboratorService
 from app.models.service import Service
-from tests.conftest import auth
+from tests.conftest import auth, giorno_lavorativo
 
-TOMORROW = (datetime.now(timezone.utc) + timedelta(days=1)).date()
+TOMORROW = giorno_lavorativo((datetime.now(timezone.utc) + timedelta(days=1)).date())
 
 
 def _slot(hour: int = 10) -> tuple[str, str]:

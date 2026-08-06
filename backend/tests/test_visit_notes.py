@@ -25,7 +25,7 @@ from app.models.appointment import (
     Appointment, AppointmentService, AppointmentStatus, AppointmentOrigin,
 )
 from app.models.client import Client
-from tests.conftest import auth
+from tests.conftest import auth, giorno_lavorativo
 
 pytestmark = pytest.mark.asyncio
 
@@ -36,7 +36,7 @@ async def visita(db, collaborator, service, client_account) -> Appointment:
     c = (await db.execute(
         select(Client).where(Client.account_id == client_account.id)
     )).scalar_one()
-    start = datetime.now(timezone.utc) + timedelta(days=1)
+    start = giorno_lavorativo(datetime.now(timezone.utc) + timedelta(days=1))
     a = Appointment(
         client_id=c.id,
         collaborator_id=collaborator.id,
@@ -179,8 +179,13 @@ class TestIlPortaleNonLaVede:
     ):
         """La prenotazione online risponde con l'appuntamento appena creato:
         stessa proiezione, stesso confine."""
-        start = (datetime.now(timezone.utc) + timedelta(days=3)).replace(
-            hour=10, minute=0, second=0, microsecond=0
+        # `giorno_lavorativo`: il fixture lavora lun–sab, e su una domenica
+        # questa prenotazione legittima verrebbe rifiutata con 409 per un
+        # motivo che non c'entra niente col confine che il test controlla.
+        start = giorno_lavorativo(
+            (datetime.now(timezone.utc) + timedelta(days=3)).replace(
+                hour=10, minute=0, second=0, microsecond=0
+            )
         )
         resp = await client.post(
             "/api/public/appointments",

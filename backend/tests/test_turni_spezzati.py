@@ -20,6 +20,7 @@ import pytest_asyncio
 from app.models.collaborator import CollaboratorSchedule
 from app.models.extra_day import CollaboratorExtraDay
 from app.services.availability import get_available_slots
+from tests.conftest import giorno_lavorativo
 
 pytestmark = pytest.mark.asyncio
 
@@ -35,13 +36,7 @@ pytestmark = pytest.mark.asyncio
 # sta guardando dell'altro.
 #
 # Stesso rimedio già usato in `test_partial_absences.py`.
-def _giorno_lavorativo(base: date) -> date:
-    while base.weekday() == 6:
-        base += timedelta(days=1)
-    return base
-
-
-GIORNO = _giorno_lavorativo(date.today() + timedelta(days=10))
+GIORNO = giorno_lavorativo(date.today() + timedelta(days=10))
 
 
 def _orari(slot):

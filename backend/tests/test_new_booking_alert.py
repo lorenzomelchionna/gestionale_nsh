@@ -16,6 +16,8 @@ import concurrent.futures
 from datetime import datetime, timedelta, timezone
 
 import pytest
+
+from tests.conftest import giorno_lavorativo
 import pytest_asyncio
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import create_async_engine
@@ -29,7 +31,7 @@ from app.models.user import User, UserRole
 from app.utils.auth import hash_password
 from tests.conftest import TEST_DATABASE_URL, auth
 
-TOMORROW = (datetime.now(timezone.utc) + timedelta(days=1)).date()
+TOMORROW = (giorno_lavorativo(datetime.now(timezone.utc) + timedelta(days=1))).date()
 
 # Captured at import, before the autouse `no_celery` fixture stubs it out, so a
 # test can put the real dispatch back when the dispatch is what it is testing.

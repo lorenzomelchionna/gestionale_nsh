@@ -460,18 +460,12 @@ privata Railway restano facoltative.
   due spia `Request.form` per controllare che non venga proprio interpellato —
   perché rifiutare *dopo* aver parsato darebbe lo stesso 413 senza servire a
   niente.
-- [ ] **PR #65 di Dependabot: il gruppo «minori» contiene FastAPI** — la CI la
-  blocca (pytest rosso sulla matrice permessi, esattamente come previsto), ma
-  intanto sedici aggiornamenti buoni restano fermi dietro a uno che nessuno può
-  mergiare. La causa: sotto la 1.0 la major è `0`, quindi per semver **ogni**
-  rilascio di FastAPI è un minor e la riga `ignore` sui major non lo prendeva.
-  `dependabot.yml` ora esclude `fastapi`, `starlette`, `sqlalchemy` e
-  `pydantic*` dal gruppo, così prendono una PR ciascuno. La #65 va chiusa e
-  riaperta da Dependabot con la configurazione nuova.
-  Nota utile: sulla #65 `pip-audit` è **passato**. Cioè l'aggiornamento chiude
-  davvero tutte le vulnerabilità rimaste, e il solo ostacolo è il test da
-  riscrivere. Le due previsioni fatte a mano sono state confermate dalla CI in
-  modo indipendente.
+- [x] ~~**PR #65 di Dependabot: il gruppo «minori» contiene FastAPI**~~ —
+  chiusa su GitHub, superata: `dependabot.yml` esclude ora `fastapi`,
+  `starlette`, `sqlalchemy` e `pydantic*` dal gruppo «minori» (sotto la 1.0
+  ogni rilascio è un minor per semver, la riga `ignore` sui major non li
+  prendeva), e l'aggiornamento FastAPI 0.115.6 → 0.141.1 è stato fatto a
+  parte (voce sopra). Verificato chiusa il 2026-08-12.
 - [x] ~~**npm: `axios` e `lodash`**~~ — fatto 2026-08-05. `axios` 1.13.6 →
   1.19.0 chiude ventotto avvisi in un colpo (SSRF, prototype pollution,
   CRLF injection, un paio di ReDoS). `lodash` non era in `package.json`:
@@ -653,7 +647,7 @@ solo il collegamento in UI, dove non esiste serve una migration.
   Tolti dallo schema di update, quindi rifiutati dal backend e non solo
   nascosti nel form. Verificato al contrario: rimettendoli, tre test falliscono.
 
-- [ ] **I prodotti non sono visibili ai clienti** — risposta diretta alla sua
+- [x] ~~**I prodotti non sono visibili ai clienti**~~ — non un task, una
   domanda: verificato, non esiste nessun endpoint pubblico per i prodotti
   (`/api/public/` ha solo `services` e `collaborators`). Il magazzino è solo
   staff. Non serve fare nulla per questo punto, era solo un dubbio.

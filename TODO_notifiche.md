@@ -30,15 +30,25 @@ fallback SMTP (solo dev locale). Mittente verificato: `newstylehair2019@gmail.co
 ### Restano (NON bloccanti)
 - [ ] **WhatsApp produzione**: ora è Sandbox (solo numeri che fanno `join`, scade 72h).
   Per clienti reali serve numero WhatsApp Business + template Meta approvati.
-- [ ] **Reset password cliente dal pannello admin**: oggi esiste solo per lo
-  staff (`POST /api/admin/team/{user_id}/reset-password`, in `team.py`).
-  Per un account cliente (`ClientAccount`) l'unica strada è il flusso
-  self-service via email (`forgot-password`) — se la cliente non ha più
-  accesso a quella casella, o l'ha scritta sbagliata in fase di
-  registrazione, in salone non c'è modo di sbloccarla. Serve un endpoint
-  admin equivalente, con lo stesso confine di permessi da decidere (`staff`
-  o `admin`?) e da aggiungere a `EXPECTED_GUARDS` in
-  `test_permissions_matrix.py`.
+- [x] ~~**Reset password cliente dal pannello admin**~~ — fatto 2026-08-11.
+  `POST /api/admin/clients/{client_id}/reset-password`, `require_admin`
+  (stessa famiglia del merge: dà accesso all'account di un'altra persona,
+  non è consultazione). Pulsante «Password portale» sulla scheda cliente,
+  visibile solo se la cliente ha un account online.
+  Due cose emerse leggendo il flusso, che non erano nell'idea iniziale:
+  - il reset azzera `reset_token`, altrimenti un link chiesto per email e
+    mai usato resterebbe valido e sovrascriverebbe la password appena
+    dettata al telefono;
+  - su un account con email non verificata la rotta **rifiuta**: il login
+    blocca comunque quegli account, quindi cambiare la password non farebbe
+    entrare nessuno e l'operatore non capirebbe perché. La strada per quel
+    caso è rimandare il codice. Verificare l'indirizzo da qui non è
+    un'opzione: è la prova che l'indirizzo è suo, e da quella prova dipende
+    l'aggancio alla scheda del salone.
+  Minimo password 10 e non 12 come lo staff: è il minimo del portale, e uno
+  più alto solo qui durerebbe fino al primo cambio password della cliente.
+  Nel registro l'evento è `reset_password_eseguito` con `via=admin`, per
+  distinguerlo da quello self-service che scrive lo stesso nome.
 - [x] ~~`SEED_DEMO` da disattivare~~ — verificato 2026-08-01: `SEED_DEMO=false`
   sul backend, non impostata sul worker. Anche se tornasse `true` non
   succederebbe nulla: `seed_demo()` esce subito se esiste almeno un servizio,

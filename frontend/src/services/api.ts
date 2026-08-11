@@ -125,6 +125,10 @@ export const mergeClients = (targetId: number, sourceId: number) =>
   api.post<MergePreview>(`/admin/clients/${targetId}/merge`, { source_id: sourceId })
     .then(r => r.data)
 
+/** Imposta la password del portale per una cliente che non riesce più a entrare. */
+export const resetClientPassword = (id: number, new_password: string) =>
+  api.post(`/admin/clients/${id}/reset-password`, { new_password }).then(r => r.data)
+
 // ── Services ──────────────────────────────────────────────────────
 
 export const getServices = (params?: { page?: number; active_only?: boolean }) =>

@@ -191,6 +191,42 @@ sistema sostanzialmente sano — confine fra i tre pubblici solido, nessun
 segreto nella storia di git, nessun XSS, CSRF o IDOR. Sotto restano solo le
 cose ancora aperte; il resto è chiuso.
 
+### Da fare — rotazione credenziali dopo doppia esposizione in chat (2026-08-12)
+
+`list_variables` (MCP Railway) ha ristampato in chiaro nella conversazione,
+due volte, tutte le variabili del servizio backend — non un furto, una
+chiamata di troppo. Rotazione decisa solo dove la stringa da sola basta a
+fare danno (raggiungibile da internet pubblico); le due dietro la rete
+privata Railway restano facoltative.
+
+- [x] ~~`SECRET_KEY`~~ — ruotata 2026-08-12, 64 caratteri esadecimali nuovi,
+  redeploy verificato (`/health` ok). Effetto: tutte le sessioni JWT
+  invalidate, staff e clienti devono rientrare — nessuna perdita dati.
+- [ ] `BREVO_API_KEY` — rigenerare su dashboard Brevo, poi aggiornare la
+  variabile su Railway (backend + worker). Raggiungibile da internet
+  pubblico: la sola stringa basta a mandare email a nome del salone o a
+  leggere contatti/statistiche.
+- [ ] `SMTP_PASSWORD` (App Password Gmail `newstylehair2019@gmail.com`) —
+  revocare e rigenerare da Account Google → Sicurezza → Password per le
+  app, poi aggiornare su Railway. Stesso motivo: pubblico, e se l'account
+  ha IMAP attivo l'app password può anche leggere la casella.
+- [ ] `TWILIO_AUTH_TOKEN` — Twilio supporta rotazione con token secondario,
+  zero downtime: farla dalla Console prima di sostituire la variabile.
+- [ ] `POSTGRES_PASSWORD` — dietro rete privata Railway, non raggiungibile
+  da internet: priorità bassa. Se si fa comunque, **cambiare solo la
+  variabile non basta** — il Postgres già acceso non se ne accorge, la
+  legge solo al primo avvio. Serve `ALTER ROLE ... PASSWORD` sul DB live
+  via tunnel SSH (`railway connect --tunnel-only`, chiave registrata)
+  *prima* di aggiornare la variabile, altrimenti backend e worker perdono
+  la connessione a metà operazione.
+- [ ] `REDIS_URL` — dietro rete privata Railway, stesso discorso di
+  priorità. Rotazione più semplice della password Postgres (si riapplica
+  a ogni riavvio di Redis, niente `ALTER ROLE`), ma il riavvio perde i
+  task Celery in coda in quel momento.
+- [ ] Marcare le variabili sensibili come **sealed** su Railway una volta
+  ruotate, così `list_variables` non le ristampa più in chiaro a nessuno —
+  chiude la causa, non solo il sintomo di oggi.
+
 ### Chiuso il 2026-08-04
 - [x] ~~La prenotazione pubblica accettava `start_time`/`end_time` arbitrari~~ —
   ora lo slot deve comparire in `get_available_slots` e la durata la calcola il

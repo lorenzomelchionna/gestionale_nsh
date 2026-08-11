@@ -30,11 +30,26 @@ fallback SMTP (solo dev locale). Mittente verificato: `newstylehair2019@gmail.co
 ### Restano (NON bloccanti)
 - [ ] **WhatsApp produzione**: ora è Sandbox (solo numeri che fanno `join`, scade 72h).
   Per clienti reali serve numero WhatsApp Business + template Meta approvati.
+- [ ] **Reset password cliente dal pannello admin**: oggi esiste solo per lo
+  staff (`POST /api/admin/team/{user_id}/reset-password`, in `team.py`).
+  Per un account cliente (`ClientAccount`) l'unica strada è il flusso
+  self-service via email (`forgot-password`) — se la cliente non ha più
+  accesso a quella casella, o l'ha scritta sbagliata in fase di
+  registrazione, in salone non c'è modo di sbloccarla. Serve un endpoint
+  admin equivalente, con lo stesso confine di permessi da decidere (`staff`
+  o `admin`?) e da aggiungere a `EXPECTED_GUARDS` in
+  `test_permissions_matrix.py`.
 - [x] ~~`SEED_DEMO` da disattivare~~ — verificato 2026-08-01: `SEED_DEMO=false`
   sul backend, non impostata sul worker. Anche se tornasse `true` non
   succederebbe nulla: `seed_demo()` esce subito se esiste almeno un servizio,
   e in produzione ce ne sono 19 reali coi prezzi del salone.
-- [ ] (Opz.) Dominio + branding `noreply@newstylehair.it` (ora From = Gmail).
+- [x] ~~(Opz.) Dominio + branding `noreply@newstylehair.it`~~ — fatto 2026-08-11.
+  Dominio comprato su Aruba, autenticato su Brevo con 4 record DNS (TXT
+  verifica, due CNAME DKIM, TXT DMARC `p=none`). `EMAILS_FROM_EMAIL` cambiata
+  su Railway, redeploy fatto. Verificato con un invio vero
+  (`forgot-password` su un account reale): `reset_password_chiesto` nei log
+  di produzione, nessun errore, email arrivata. Il vecchio mittente Gmail
+  non è più usato per la posta transazionale.
 - [x] ~~`notify_new_booking` è solo un `print()`~~ — fatto 2026-08-02. Erano tre
   bug in fila, non uno: l'endpoint non accodava niente, il task stampava e
   basta, e accodare prima del commit avrebbe fatto trovare al worker una

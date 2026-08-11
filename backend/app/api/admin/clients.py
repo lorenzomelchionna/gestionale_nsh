@@ -3,17 +3,20 @@ from typing import Annotated, List
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_
+from app.audit import RESET_ESEGUITO, evento
 from app.database import get_db
-from app.models.client import Client
+from app.logging_config import maschera_email
+from app.models.client import Client, ClientAccount
 from app.models.appointment import Appointment, appointment_detail_loads
 from app.models.user import User
 from app.schemas.client import (
-    ClientCreate, ClientUpdate, ClientOut, MergePreview, MergeRequest,
+    AdminPasswordReset, ClientCreate, ClientUpdate, ClientOut, MergePreview, MergeRequest,
 )
 from app.schemas.appointment import AppointmentOutWithNames
 from app.schemas.common import PaginatedResponse
 from app.dependencies import get_current_user, require_admin
 from app.services import client_merge
+from app.utils.auth import hash_password
 
 router = APIRouter(prefix="/clients", tags=["Clients"])
 
@@ -168,6 +171,68 @@ async def merge_clients(
         },
     )
     return _anteprima_in_schema(esito)
+
+
+@router.post("/{client_id}/reset-password", status_code=status.HTTP_204_NO_CONTENT)
+async def reset_client_password(
+    client_id: int,
+    payload: AdminPasswordReset,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(require_admin)],
+):
+    """Admin sets a client's portal password, e.g. after they call in locked out.
+
+    Mirrors `POST /api/admin/team/{user_id}/reset-password` for staff. Before
+    this there was no way in for a client who lost access to their own inbox:
+    the only path was the self-service `forgot-password` email, which is no
+    help if the email itself is unreachable.
+    """
+    result = await db.execute(select(Client).where(Client.id == client_id))
+    client = result.scalar_one_or_none()
+    if not client:
+        raise HTTPException(status_code=404, detail="Cliente non trovato")
+    if not client.account_id:
+        raise HTTPException(
+            status_code=400, detail="Questo cliente non ha un account sul portale"
+        )
+
+    account = (await db.execute(
+        select(ClientAccount).where(ClientAccount.id == client.account_id)
+    )).scalar_one_or_none()
+    if not account:
+        raise HTTPException(status_code=404, detail="Account portale non trovato")
+
+    # Su un account non verificato il login rifiuta comunque, password giusta o
+    # no. Senza questo controllo l'operatore detterebbe una password che non
+    # funziona e non saprebbe perché: la strada per quel caso è rimandare il
+    # codice, non cambiare la password. Verificare l'indirizzo da qui non è
+    # un'opzione — è la prova che l'indirizzo è suo, e da quella prova dipende
+    # l'aggancio alla scheda del salone.
+    if not account.email_verified:
+        raise HTTPException(
+            status_code=400,
+            detail="Indirizzo email non ancora verificato: la cliente deve prima "
+                   "inserire il codice ricevuto per posta. Cambiare la password "
+                   "non la farebbe entrare.",
+        )
+
+    account.password_hash = await hash_password(payload.new_password)
+    # Un link di reset chiesto per email e non ancora usato resterebbe valido:
+    # chi ce l'ha in mano potrebbe sovrascrivere la password appena impostata.
+    account.reset_token = None
+    account.reset_token_expires = None
+    await db.flush()
+
+    # `via` distingue questo reset da quello self-service, che scrive lo stesso
+    # nome di evento: chi guarda il registro deve poter dire se la password
+    # l'ha cambiata la cliente col token via email o un operatore dal
+    # gestionale. Chi sia l'operatore lo mette già `attore`.
+    evento(
+        RESET_ESEGUITO,
+        id_account=account.id,
+        email=maschera_email(account.email),
+        via="admin",
+    )
 
 
 @router.get("/{client_id}/appointments", response_model=List[AppointmentOutWithNames])

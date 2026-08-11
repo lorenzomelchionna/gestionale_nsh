@@ -69,6 +69,7 @@ EXPECTED_GUARDS = {
     # non fa vedere ai collaboratori.
     ("GET", "/api/admin/clients/{client_id}/merge-preview"): "admin",
     ("POST", "/api/admin/clients/{client_id}/merge"): "admin",
+    ("POST", "/api/admin/clients/{client_id}/reset-password"): "admin",
     ("GET", "/api/admin/collaborators"): "staff",
     ("POST", "/api/admin/collaborators"): "admin",
     ("DELETE", "/api/admin/collaborators/{collaborator_id}"): "admin",

@@ -161,3 +161,14 @@ class PasswordReset(BaseModel):
     # per aggirarlo — si registra con una password lunga e la si accorcia
     # subito dopo.
     new_password: str = Field(min_length=MIN_CLIENT_PASSWORD)
+
+
+class AdminPasswordReset(BaseModel):
+    """Reset fatto dal gestionale: nessun token, ci si fida di `require_admin`.
+
+    Il minimo è quello della cliente e non quello dello staff (12): la password
+    che l'admin imposta qui la cliente può cambiarla subito dopo dal portale,
+    dove la regola è `MIN_CLIENT_PASSWORD`. Un minimo più alto solo qui
+    sembrerebbe una difesa e durerebbe fino al primo cambio.
+    """
+    new_password: str = Field(min_length=MIN_CLIENT_PASSWORD)

@@ -219,13 +219,21 @@ privata Railway restano facoltative.
   via tunnel SSH (`railway connect --tunnel-only`, chiave registrata)
   *prima* di aggiornare la variabile, altrimenti backend e worker perdono
   la connessione a metà operazione.
-- [ ] `REDIS_URL` — dietro rete privata Railway, stesso discorso di
-  priorità. Rotazione più semplice della password Postgres (si riapplica
-  a ogni riavvio di Redis, niente `ALTER ROLE`), ma il riavvio perde i
-  task Celery in coda in quel momento.
-- [ ] Marcare le variabili sensibili come **sealed** su Railway una volta
-  ruotate, così `list_variables` non le ristampa più in chiaro a nessuno —
-  chiude la causa, non solo il sintomo di oggi.
+- [x] ~~`REDIS_URL`~~ — ruotata 2026-08-12. `REDIS_PASSWORD` rigenerata sul
+  servizio Redis, riavviato, nessun errore nei log del worker dopo il
+  redeploy.
+  **Guasto reale trovato facendolo**: `REDIS_URL` su backend e worker era
+  scritta a mano (valore letterale con la password vecchia), non un
+  riferimento a Redis — la rotazione l'avrebbe rotta in silenzio, backend
+  e worker avrebbero continuato a provare la password di prima. Convertita
+  in riferimento vero (`${{Redis.REDIS_URL}}`) su entrambi i servizi:
+  ora una futura rotazione della password su Redis si propaga da sola,
+  senza dover toccare backend/worker a mano come stavolta.
+- [x] ~~Marcare le variabili sensibili come **sealed** su Railway~~ — fatto
+  2026-08-12 per `SECRET_KEY` (backend) e `REDIS_PASSWORD` (Redis): non
+  più rileggibili in chiaro da nessuno, `list_variables` compreso. Le
+  altre (Brevo, SMTP, Twilio, Postgres) da sigillare quando vengono
+  ruotate.
 
 ### Chiuso il 2026-08-04
 - [x] ~~La prenotazione pubblica accettava `start_time`/`end_time` arbitrari~~ —

@@ -71,6 +71,17 @@ export interface MergePreview {
   total_rows: number
 }
 
+/** L'accesso al portale appena creato dal salone.
+ *
+ *  `temp_password` è in chiaro e arriva una volta sola, nella risposta alla
+ *  chiamata che l'ha generata: a database ne resta solo l'hash. Non va messa
+ *  in cache né in un log — si mostra, si consegna, e se si perde si rigenera. */
+export interface PortalAccountCreated {
+  client: Client
+  email: string
+  temp_password: string
+}
+
 // ── Service ───────────────────────────────────────────────────────
 
 export interface Service {

@@ -49,6 +49,71 @@ fallback SMTP (solo dev locale). Mittente verificato: `newstylehair2019@gmail.co
   più alto solo qui durerebbe fino al primo cambio password della cliente.
   Nel registro l'evento è `reset_password_eseguito` con `via=admin`, per
   distinguerlo da quello self-service che scrive lo stesso nome.
+- [x] ~~**Accesso al portale creato dal salone**~~ — fatto 2026-08-25.
+  `POST /api/admin/clients/{client_id}/portal-account`, `require_admin`.
+  Pulsante «Crea accesso portale» sulla scheda cliente, dove prima c'era il
+  vuoto: i due pulsanti si alternano, perché sono lo stesso posto in due
+  momenti — prima si crea l'accesso, dopo si rigenera la password.
+  Chiude il caso più comune di tutti: una cliente iscritta al banco non
+  aveva `account_id`, quindi nessun modo di entrare, e in un salone al banco
+  ci finisce quasi tutta l'anagrafica.
+
+  **La richiesta era una password di default tipo `0000`, e non si è fatta
+  così.** Un valore uguale per tutte non è una password: chi conosce
+  l'indirizzo email di una cliente — che in un salone di quartiere è la cosa
+  meno segreta che ci sia — entrerebbe nel suo account e ne leggerebbe lo
+  storico. È la stessa famiglia di `admin123`, chiusa nell'audit di agosto,
+  moltiplicata per ogni cliente invece che su un solo account demo. Al suo
+  posto una password **casuale per account**, mostrata una volta sola a chi
+  la crea. Stesso alfabeto dei codici gift card e per la stessa ragione:
+  niente `0`/`O` né `1`/`I`/`L`, perché viene dettata al telefono.
+  `test_due_clienti_non_ricevono_la_stessa` è la regressione contro il
+  ritorno dell'idea.
+
+  **`email_verified=True` alla creazione, ed è la decisione che pesa.**
+  Senza, il login rifiuta l'account e la password consegnata non apre
+  niente. La verifica per email serve a dimostrare che l'indirizzo è di chi
+  lo ha digitato, e qui a digitarlo è il salone con la cliente davanti — la
+  stessa fiducia su cui poggiano già gli accessi dello staff, che di
+  verifica non ne hanno affatto. Il prezzo, scritto in chiaro perché è
+  reale: un indirizzo sbagliato di battitura diventa un account funzionante
+  intestato a un estraneo, che con «password dimenticata» potrebbe
+  entrarci. Per questo la schermata chiede di rileggere l'indirizzo **prima**
+  di creare, non dopo.
+
+  Tre rifiuti, tutti prima di scrivere una riga: cliente che ha già un
+  account, cliente senza email, e indirizzo già usato — dallo staff o da un
+  altro account cliente. L'ultimo non è formalità: `ClientAccount.email` è
+  unique, quindi senza controllo arriverebbe un 500 dal database invece di
+  una frase leggibile (verificato togliendolo: esce l'`IntegrityError`).
+  Su un account non verificato lasciato a metà da una registrazione la
+  rotta **rifiuta invece di sovrascrivere**, al contrario di `register`: lì
+  è giusto perché un account non verificato non prova niente, qui no perché
+  a quell'account può essere già appesa una scheda cliente, e assorbirla in
+  silenzio sposterebbe dati fra due persone che nessuno ha confrontato.
+
+  La password in chiaro esce **solo** nella risposta del `POST` che l'ha
+  generata, con uno schema suo (`PortalAccountCreated`) e non dentro
+  `ClientOut`: un campo password su un modello di lettura prima o poi
+  comparirebbe in una risposta di elenco. Nei log non entra — verificato con
+  un test che cerca proprio quella stringa in tutti i record emessi.
+  Nel registro l'evento è `registrazione` con `tipo=creato_da_admin`, stesso
+  nome di quella dal portale: chi cerca «quando è nato questo account» ha
+  una riga sola da cercare.
+
+  23 test nuovi, 645 in tutto. Le quattro protezioni che contano sono state
+  verificate **rompendole**: tolto `email_verified` cadono i due test di
+  login, resa fissa la password ne cadono due di generazione, tolta ognuna
+  delle due guardie sulle collisioni cade la sua. Provato anche nel browser
+  sul database di sviluppo: accesso creato per una cliente demo, password
+  `3CHQ-…` usata per entrare davvero sia dal portale sia dalla schermata
+  unica (200 e token emesso), e il caso «scheda senza email» che mostra il
+  messaggio col pulsante disabilitato.
+
+  **Resta fuori, di proposito**: il cambio password obbligatorio al primo
+  accesso. Servirebbe una colonna `must_change_password` più una migration
+  e un passaggio in più nel login, ed è una funzione a sé — oggi la cliente
+  la password può cambiarla dal portale, ma nessuno la obbliga.
 - [x] ~~`SEED_DEMO` da disattivare~~ — verificato 2026-08-01: `SEED_DEMO=false`
   sul backend, non impostata sul worker. Anche se tornasse `true` non
   succederebbe nulla: `seed_demo()` esce subito se esiste almeno un servizio,

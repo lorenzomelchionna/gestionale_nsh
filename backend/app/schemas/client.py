@@ -163,6 +163,21 @@ class PasswordReset(BaseModel):
     new_password: str = Field(min_length=MIN_CLIENT_PASSWORD)
 
 
+class PortalAccountCreated(BaseModel):
+    """L'accesso appena creato dal salone, con la password in chiaro.
+
+    **È l'unico punto di tutto il progetto in cui una password esce da
+    un'API**, ed è per questo che ha uno schema suo invece di finire dentro
+    `ClientOut`: un campo password su un modello di lettura prima o poi
+    comparirebbe in una risposta di elenco. Qui esce una volta, in risposta a
+    un `POST` che l'ha appena generata, e non è più recuperabile — a database
+    ne resta solo l'hash. Se l'operatore la perde, si rigenera.
+    """
+    client: ClientOut
+    email: str
+    temp_password: str
+
+
 class AdminPasswordReset(BaseModel):
     """Reset fatto dal gestionale: nessun token, ci si fida di `require_admin`.
 

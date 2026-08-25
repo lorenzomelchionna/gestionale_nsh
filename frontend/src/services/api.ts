@@ -111,7 +111,7 @@ export const updateClient = (id: number, data: Partial<Client>) =>
 export const getClientAppointments = (id: number) =>
   api.get<Appointment[]>(`/admin/clients/${id}/appointments`).then(r => r.data)
 
-import type { MergePreview } from '@/types'
+import type { MergePreview, PortalAccountCreated } from '@/types'
 
 /** Cosa comporterebbe unire `sourceId` dentro `targetId`. Non tocca niente. */
 export const previewClientMerge = (targetId: number, sourceId: number) =>
@@ -128,6 +128,15 @@ export const mergeClients = (targetId: number, sourceId: number) =>
 /** Imposta la password del portale per una cliente che non riesce più a entrare. */
 export const resetClientPassword = (id: number, new_password: string) =>
   api.post(`/admin/clients/${id}/reset-password`, { new_password }).then(r => r.data)
+
+/** Crea l'accesso al portale per una cliente iscritta al banco.
+ *
+ *  `temp_password` arriva in chiaro **solo qui** e non è più recuperabile:
+ *  a database ne resta l'hash. Va mostrata subito a chi sta al banco, e se si
+ *  perde si rigenera con `resetClientPassword`. */
+export const createClientPortalAccount = (id: number) =>
+  api.post<PortalAccountCreated>(`/admin/clients/${id}/portal-account`)
+    .then(r => r.data)
 
 // ── Services ──────────────────────────────────────────────────────
 

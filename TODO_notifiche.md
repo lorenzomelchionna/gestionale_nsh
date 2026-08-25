@@ -49,6 +49,71 @@ fallback SMTP (solo dev locale). Mittente verificato: `newstylehair2019@gmail.co
   più alto solo qui durerebbe fino al primo cambio password della cliente.
   Nel registro l'evento è `reset_password_eseguito` con `via=admin`, per
   distinguerlo da quello self-service che scrive lo stesso nome.
+- [x] ~~**Accesso al portale creato dal salone**~~ — fatto 2026-08-25.
+  `POST /api/admin/clients/{client_id}/portal-account`, `require_admin`.
+  Pulsante «Crea accesso portale» sulla scheda cliente, dove prima c'era il
+  vuoto: i due pulsanti si alternano, perché sono lo stesso posto in due
+  momenti — prima si crea l'accesso, dopo si rigenera la password.
+  Chiude il caso più comune di tutti: una cliente iscritta al banco non
+  aveva `account_id`, quindi nessun modo di entrare, e in un salone al banco
+  ci finisce quasi tutta l'anagrafica.
+
+  **La richiesta era una password di default tipo `0000`, e non si è fatta
+  così.** Un valore uguale per tutte non è una password: chi conosce
+  l'indirizzo email di una cliente — che in un salone di quartiere è la cosa
+  meno segreta che ci sia — entrerebbe nel suo account e ne leggerebbe lo
+  storico. È la stessa famiglia di `admin123`, chiusa nell'audit di agosto,
+  moltiplicata per ogni cliente invece che su un solo account demo. Al suo
+  posto una password **casuale per account**, mostrata una volta sola a chi
+  la crea. Stesso alfabeto dei codici gift card e per la stessa ragione:
+  niente `0`/`O` né `1`/`I`/`L`, perché viene dettata al telefono.
+  `test_due_clienti_non_ricevono_la_stessa` è la regressione contro il
+  ritorno dell'idea.
+
+  **`email_verified=True` alla creazione, ed è la decisione che pesa.**
+  Senza, il login rifiuta l'account e la password consegnata non apre
+  niente. La verifica per email serve a dimostrare che l'indirizzo è di chi
+  lo ha digitato, e qui a digitarlo è il salone con la cliente davanti — la
+  stessa fiducia su cui poggiano già gli accessi dello staff, che di
+  verifica non ne hanno affatto. Il prezzo, scritto in chiaro perché è
+  reale: un indirizzo sbagliato di battitura diventa un account funzionante
+  intestato a un estraneo, che con «password dimenticata» potrebbe
+  entrarci. Per questo la schermata chiede di rileggere l'indirizzo **prima**
+  di creare, non dopo.
+
+  Tre rifiuti, tutti prima di scrivere una riga: cliente che ha già un
+  account, cliente senza email, e indirizzo già usato — dallo staff o da un
+  altro account cliente. L'ultimo non è formalità: `ClientAccount.email` è
+  unique, quindi senza controllo arriverebbe un 500 dal database invece di
+  una frase leggibile (verificato togliendolo: esce l'`IntegrityError`).
+  Su un account non verificato lasciato a metà da una registrazione la
+  rotta **rifiuta invece di sovrascrivere**, al contrario di `register`: lì
+  è giusto perché un account non verificato non prova niente, qui no perché
+  a quell'account può essere già appesa una scheda cliente, e assorbirla in
+  silenzio sposterebbe dati fra due persone che nessuno ha confrontato.
+
+  La password in chiaro esce **solo** nella risposta del `POST` che l'ha
+  generata, con uno schema suo (`PortalAccountCreated`) e non dentro
+  `ClientOut`: un campo password su un modello di lettura prima o poi
+  comparirebbe in una risposta di elenco. Nei log non entra — verificato con
+  un test che cerca proprio quella stringa in tutti i record emessi.
+  Nel registro l'evento è `registrazione` con `tipo=creato_da_admin`, stesso
+  nome di quella dal portale: chi cerca «quando è nato questo account» ha
+  una riga sola da cercare.
+
+  23 test nuovi, 645 in tutto. Le quattro protezioni che contano sono state
+  verificate **rompendole**: tolto `email_verified` cadono i due test di
+  login, resa fissa la password ne cadono due di generazione, tolta ognuna
+  delle due guardie sulle collisioni cade la sua. Provato anche nel browser
+  sul database di sviluppo: accesso creato per una cliente demo, password
+  `3CHQ-…` usata per entrare davvero sia dal portale sia dalla schermata
+  unica (200 e token emesso), e il caso «scheda senza email» che mostra il
+  messaggio col pulsante disabilitato.
+
+  **Resta fuori, di proposito**: il cambio password obbligatorio al primo
+  accesso. Servirebbe una colonna `must_change_password` più una migration
+  e un passaggio in più nel login, ed è una funzione a sé — oggi la cliente
+  la password può cambiarla dal portale, ma nessuno la obbliga.
 - [x] ~~`SEED_DEMO` da disattivare~~ — verificato 2026-08-01: `SEED_DEMO=false`
   sul backend, non impostata sul worker. Anche se tornasse `true` non
   succederebbe nulla: `seed_demo()` esce subito se esiste almeno un servizio,
@@ -190,6 +255,50 @@ che ha riaperto i file citati per provare a demolire i finding. Verdetto:
 sistema sostanzialmente sano — confine fra i tre pubblici solido, nessun
 segreto nella storia di git, nessun XSS, CSRF o IDOR. Sotto restano solo le
 cose ancora aperte; il resto è chiuso.
+
+### Da fare — rotazione credenziali dopo doppia esposizione in chat (2026-08-12)
+
+`list_variables` (MCP Railway) ha ristampato in chiaro nella conversazione,
+due volte, tutte le variabili del servizio backend — non un furto, una
+chiamata di troppo. Rotazione decisa solo dove la stringa da sola basta a
+fare danno (raggiungibile da internet pubblico); le due dietro la rete
+privata Railway restano facoltative.
+
+- [x] ~~`SECRET_KEY`~~ — ruotata 2026-08-12, 64 caratteri esadecimali nuovi,
+  redeploy verificato (`/health` ok). Effetto: tutte le sessioni JWT
+  invalidate, staff e clienti devono rientrare — nessuna perdita dati.
+- [ ] `BREVO_API_KEY` — rigenerare su dashboard Brevo, poi aggiornare la
+  variabile su Railway (backend + worker). Raggiungibile da internet
+  pubblico: la sola stringa basta a mandare email a nome del salone o a
+  leggere contatti/statistiche.
+- [ ] `SMTP_PASSWORD` (App Password Gmail `newstylehair2019@gmail.com`) —
+  revocare e rigenerare da Account Google → Sicurezza → Password per le
+  app, poi aggiornare su Railway. Stesso motivo: pubblico, e se l'account
+  ha IMAP attivo l'app password può anche leggere la casella.
+- [ ] `TWILIO_AUTH_TOKEN` — Twilio supporta rotazione con token secondario,
+  zero downtime: farla dalla Console prima di sostituire la variabile.
+- [ ] `POSTGRES_PASSWORD` — dietro rete privata Railway, non raggiungibile
+  da internet: priorità bassa. Se si fa comunque, **cambiare solo la
+  variabile non basta** — il Postgres già acceso non se ne accorge, la
+  legge solo al primo avvio. Serve `ALTER ROLE ... PASSWORD` sul DB live
+  via tunnel SSH (`railway connect --tunnel-only`, chiave registrata)
+  *prima* di aggiornare la variabile, altrimenti backend e worker perdono
+  la connessione a metà operazione.
+- [x] ~~`REDIS_URL`~~ — ruotata 2026-08-12. `REDIS_PASSWORD` rigenerata sul
+  servizio Redis, riavviato, nessun errore nei log del worker dopo il
+  redeploy.
+  **Guasto reale trovato facendolo**: `REDIS_URL` su backend e worker era
+  scritta a mano (valore letterale con la password vecchia), non un
+  riferimento a Redis — la rotazione l'avrebbe rotta in silenzio, backend
+  e worker avrebbero continuato a provare la password di prima. Convertita
+  in riferimento vero (`${{Redis.REDIS_URL}}`) su entrambi i servizi:
+  ora una futura rotazione della password su Redis si propaga da sola,
+  senza dover toccare backend/worker a mano come stavolta.
+- [x] ~~Marcare le variabili sensibili come **sealed** su Railway~~ — fatto
+  2026-08-12 per `SECRET_KEY` (backend) e `REDIS_PASSWORD` (Redis): non
+  più rileggibili in chiaro da nessuno, `list_variables` compreso. Le
+  altre (Brevo, SMTP, Twilio, Postgres) da sigillare quando vengono
+  ruotate.
 
 ### Chiuso il 2026-08-04
 - [x] ~~La prenotazione pubblica accettava `start_time`/`end_time` arbitrari~~ —
@@ -424,18 +533,12 @@ cose ancora aperte; il resto è chiuso.
   due spia `Request.form` per controllare che non venga proprio interpellato —
   perché rifiutare *dopo* aver parsato darebbe lo stesso 413 senza servire a
   niente.
-- [ ] **PR #65 di Dependabot: il gruppo «minori» contiene FastAPI** — la CI la
-  blocca (pytest rosso sulla matrice permessi, esattamente come previsto), ma
-  intanto sedici aggiornamenti buoni restano fermi dietro a uno che nessuno può
-  mergiare. La causa: sotto la 1.0 la major è `0`, quindi per semver **ogni**
-  rilascio di FastAPI è un minor e la riga `ignore` sui major non lo prendeva.
-  `dependabot.yml` ora esclude `fastapi`, `starlette`, `sqlalchemy` e
-  `pydantic*` dal gruppo, così prendono una PR ciascuno. La #65 va chiusa e
-  riaperta da Dependabot con la configurazione nuova.
-  Nota utile: sulla #65 `pip-audit` è **passato**. Cioè l'aggiornamento chiude
-  davvero tutte le vulnerabilità rimaste, e il solo ostacolo è il test da
-  riscrivere. Le due previsioni fatte a mano sono state confermate dalla CI in
-  modo indipendente.
+- [x] ~~**PR #65 di Dependabot: il gruppo «minori» contiene FastAPI**~~ —
+  chiusa su GitHub, superata: `dependabot.yml` esclude ora `fastapi`,
+  `starlette`, `sqlalchemy` e `pydantic*` dal gruppo «minori» (sotto la 1.0
+  ogni rilascio è un minor per semver, la riga `ignore` sui major non li
+  prendeva), e l'aggiornamento FastAPI 0.115.6 → 0.141.1 è stato fatto a
+  parte (voce sopra). Verificato chiusa il 2026-08-12.
 - [x] ~~**npm: `axios` e `lodash`**~~ — fatto 2026-08-05. `axios` 1.13.6 →
   1.19.0 chiude ventotto avvisi in un colpo (SSRF, prototype pollution,
   CRLF injection, un paio di ReDoS). `lodash` non era in `package.json`:
@@ -617,7 +720,7 @@ solo il collegamento in UI, dove non esiste serve una migration.
   Tolti dallo schema di update, quindi rifiutati dal backend e non solo
   nascosti nel form. Verificato al contrario: rimettendoli, tre test falliscono.
 
-- [ ] **I prodotti non sono visibili ai clienti** — risposta diretta alla sua
+- [x] ~~**I prodotti non sono visibili ai clienti**~~ — non un task, una
   domanda: verificato, non esiste nessun endpoint pubblico per i prodotti
   (`/api/public/` ha solo `services` e `collaborators`). Il magazzino è solo
   staff. Non serve fare nulla per questo punto, era solo un dubbio.

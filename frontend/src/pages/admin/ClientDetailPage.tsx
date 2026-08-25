@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { KeyRound, Merge } from 'lucide-react'
+import { KeyRound, Merge, UserPlus } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { it } from 'date-fns/locale'
 import { getClient, getClientAppointments } from '@/services/api'
@@ -9,6 +9,7 @@ import type { Appointment } from '@/types'
 import { SkeletonList } from '@/components/ui'
 import MergeClientsSheet from '@/components/admin/MergeClientsSheet'
 import ClientPasswordSheet from '@/components/admin/ClientPasswordSheet'
+import ClientPortalAccountSheet from '@/components/admin/ClientPortalAccountSheet'
 import clsx from 'clsx'
 
 const STATUS_LABELS: Record<string, string> = {
@@ -25,6 +26,7 @@ export default function ClientDetailPage() {
   const clientId = Number(id)
   const [showMerge, setShowMerge] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+  const [showNewAccount, setShowNewAccount] = useState(false)
 
   const { data: client, isLoading } = useQuery({
     queryKey: ['client', clientId],
@@ -65,7 +67,7 @@ export default function ClientDetailPage() {
           {/* Solo per chi ha un accesso online: su una cliente da banco non
               c'è nessuna password da reimpostare, e il pulsante prometterebbe
               qualcosa che l'API rifiuta. */}
-          {client.account_id && (
+          {client.account_id ? (
             <button
               type="button"
               onClick={() => setShowPassword(true)}
@@ -74,6 +76,20 @@ export default function ClientDetailPage() {
             >
               <KeyRound className="w-4 h-4" />
               Password portale
+            </button>
+          ) : (
+            /* L'altra metà dello stesso interruttore: chi non ha un accesso
+               lo può ricevere qui. I due pulsanti non compaiono mai insieme
+               perché sono lo stesso posto in due momenti diversi — prima si
+               crea l'accesso, dopo si rigenera la password. */
+            <button
+              type="button"
+              onClick={() => setShowNewAccount(true)}
+              className="btn-secondary btn-sm"
+              title="Crea l'accesso al portale prenotazioni per questa cliente"
+            >
+              <UserPlus className="w-4 h-4" />
+              Crea accesso portale
             </button>
           )}
 
@@ -95,6 +111,13 @@ export default function ClientDetailPage() {
 
       {showPassword && (
         <ClientPasswordSheet client={client} onClose={() => setShowPassword(false)} />
+      )}
+
+      {showNewAccount && (
+        <ClientPortalAccountSheet
+          client={client}
+          onClose={() => setShowNewAccount(false)}
+        />
       )}
 
       <div className="grid gap-4 lg:grid-cols-[22rem_1fr] items-start">

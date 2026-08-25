@@ -3,7 +3,7 @@ from typing import Annotated, List
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_
-from app.audit import RESET_ESEGUITO, evento
+from app.audit import REGISTRAZIONE, RESET_ESEGUITO, evento
 from app.database import get_db
 from app.logging_config import maschera_email
 from app.models.client import Client, ClientAccount
@@ -11,11 +11,12 @@ from app.models.appointment import Appointment, appointment_detail_loads
 from app.models.user import User
 from app.schemas.client import (
     AdminPasswordReset, ClientCreate, ClientUpdate, ClientOut, MergePreview, MergeRequest,
+    PortalAccountCreated,
 )
 from app.schemas.appointment import AppointmentOutWithNames
 from app.schemas.common import PaginatedResponse
 from app.dependencies import get_current_user, require_admin
-from app.services import client_merge
+from app.services import client_merge, portal_account
 from app.utils.auth import hash_password
 
 router = APIRouter(prefix="/clients", tags=["Clients"])
@@ -232,6 +233,53 @@ async def reset_client_password(
         id_account=account.id,
         email=maschera_email(account.email),
         via="admin",
+    )
+
+
+@router.post(
+    "/{client_id}/portal-account",
+    response_model=PortalAccountCreated,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_portal_account(
+    client_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(require_admin)],
+):
+    """Crea l'accesso al portale per una cliente iscritta al banco.
+
+    `require_admin` come il reset e la fusione: crea una credenziale valida
+    per l'account di un'altra persona, che è un'altra cosa dal consultarne la
+    scheda.
+
+    La password in chiaro esce **solo qui**, in risposta alla chiamata che
+    l'ha generata. Non viene scritta da nessuna parte: a database ne resta
+    l'hash, nel registro nemmeno quello. Se l'operatore la perde prima di
+    darla alla cliente, si usa «Password portale» per rigenerarla.
+    """
+    try:
+        esito = await portal_account.crea(db, client_id)
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Cliente non trovato")
+    except portal_account.PortalAccountRefused as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    client = (await db.execute(select(Client).where(Client.id == client_id))).scalar_one()
+
+    # Stesso nome di evento della registrazione dal portale, con `tipo` a
+    # distinguerle: chi cerca «quando è nato questo account» trova una riga
+    # sola da cercare, non due a seconda di chi l'ha creato.
+    evento(
+        REGISTRAZIONE,
+        id_account=esito.account.id,
+        email=maschera_email(esito.account.email),
+        tipo="creato_da_admin",
+    )
+
+    return PortalAccountCreated(
+        client=ClientOut.model_validate(client),
+        email=esito.account.email,
+        temp_password=esito.password_temporanea,
     )
 
 

@@ -10,6 +10,7 @@ import {
 import { useAuthStore } from '@/store/authStore'
 import { useUIStore } from '@/store/uiStore'
 import { getPendingAppointments, getWaitlist, getChatUnreadCount } from '@/services/api'
+import { INDIRIZZO } from '@/config/business'
 import Logo from '@/components/ui/Logo'
 import clsx from 'clsx'
 
@@ -169,7 +170,7 @@ export default function AdminLayout() {
       <header className="hidden lg:flex items-center gap-5 h-14 px-[22px] bg-chrome shrink-0">
         <Logo height={26} className="text-chrome-ink" />
         <span className="text-xs text-chrome-dim border-l border-chrome-ink/20 pl-5 whitespace-nowrap">
-          Melito Irpino (AV) · Corso Italia, 32
+          {INDIRIZZO.visita}
         </span>
 
         <form onSubmit={runSearch} className="relative">

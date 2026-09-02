@@ -3,6 +3,7 @@ import { LogOut } from 'lucide-react'
 import clsx from 'clsx'
 import WelcomeDialog from '@/components/booking/WelcomeDialog'
 import Logo from '@/components/ui/Logo'
+import { INDIRIZZO, PARTITA_IVA, RAGIONE_SOCIALE, TELEFONO } from '@/config/business'
 
 // Simple client auth store (separate from admin)
 import { create } from 'zustand'
@@ -52,7 +53,7 @@ export default function BookingLayout() {
           <Link to="/booking" className="flex items-center gap-4 min-w-0 text-foreground">
             <Logo height={26} />
             <span className="hidden sm:inline text-[13px] text-ink-3 border-l border-border pl-4 whitespace-nowrap">
-              Corso Italia, 32 · Melito Irpino (AV) · 095 441 220
+              {INDIRIZZO.visita} · {TELEFONO.visibile}
             </span>
           </Link>
 
@@ -89,6 +90,31 @@ export default function BookingLayout() {
       >
         <Outlet />
       </main>
+
+      {/* Identificazione dell'attività: obbligatoria sul sito di chi ha una
+          partita IVA (art. 35 DPR 633/72), e non è solo un adempimento — è
+          anche il riscontro pubblico che Meta e Google cercano quando
+          verificano che l'azienda dietro un profilo esista davvero.
+
+          Sotto la barra delle schede quando c'è, altrimenti sparirebbe dietro
+          i pulsanti sul telefono. */}
+      <footer
+        className={clsx(
+          'border-t border-rule bg-surface',
+          token ? 'pb-[calc(theme(spacing.tabbar)+1rem)]' : 'pb-safe-b'
+        )}
+      >
+        <div className="max-w-3xl mx-auto px-4 py-5 text-[11px] leading-relaxed text-ink-3">
+          <p className="font-medium text-ink-2">{RAGIONE_SOCIALE}</p>
+          <p>{INDIRIZZO.legale}</p>
+          <p>
+            P.IVA / C.F. {PARTITA_IVA} ·{' '}
+            <a href={`tel:${TELEFONO.tel}`} className="hover:text-foreground">
+              {TELEFONO.visibile}
+            </a>
+          </p>
+        </div>
+      </footer>
 
       {/* Lives here rather than on the home page: verification can land someone
           on the booking flow when they were sent to sign in mid-booking. */}

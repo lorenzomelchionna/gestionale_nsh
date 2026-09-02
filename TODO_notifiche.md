@@ -30,6 +30,68 @@ fallback SMTP (solo dev locale). Mittente verificato: `newstylehair2019@gmail.co
 ### Restano (NON bloccanti)
 - [ ] **WhatsApp produzione**: ora è Sandbox (solo numeri che fanno `join`, scade 72h).
   Per clienti reali serve numero WhatsApp Business + template Meta approvati.
+
+  **Numero deciso (2026-08-25)**: il **fisso del vecchio gestionale**, da cui
+  va prima cancellato l'account WhatsApp Business esistente — un numero sta
+  su WhatsApp in un posto solo. Due conseguenze da mettere in conto: le chat
+  esistenti su quel numero **si perdono** (esportarle prima), e da quel
+  momento non si chatta più a mano dall'app. Il rimpiazzo però c'è già ed è
+  costruito: il webhook salva ogni messaggio in entrata e la pagina Chat del
+  gestionale li mostra e permette di rispondere. La verifica per un numero
+  fisso avviene per **chiamata vocale**, non per SMS.
+
+  Stato: **verifica azienda Meta inviata il 2026-08-25.** Da non confondere
+  con «Meta Verified», che è l'abbonamento a pagamento per la spunta blu e
+  **non serve**: quella richiesta è la *Business Verification*, gratuita, che
+  confronta denominazione legale e sede con la Camera di Commercio.
+
+  Passi che restano, in ordine: cancellare l'account WhatsApp sul fisso →
+  registrarlo come Sender su Twilio → far approvare i template →
+  `TWILIO_WHATSAPP_FROM` e i quattro SID su Railway (backend **e** worker) →
+  `whatsapp_enabled=true`.
+
+- [x] ~~**Codice pronto per i template Meta**~~ — fatto 2026-08-25, prima
+  dell'approvazione, perché è la parte che non dipende da Meta.
+
+  **Correzione a una nota che era sbagliata in questo file**: diceva
+  «aggiornare `TWILIO_WHATSAPP_FROM` (1 variabile, zero codice)». Non era
+  vero. `send_whatsapp()` mandava `Body`, cioè testo libero, e fuori dalla
+  finestra di 24 ore da un messaggio della cliente WhatsApp lo **rifiuta**
+  (errore 63016): vuole `ContentSid` di un template approvato più
+  `ContentVariables`. In Sandbox non si vedeva perché il `join` apre una
+  sessione — la Sandbox è più permissiva del posto in cui il codice deve
+  girare, ed è il motivo per cui un problema del genere si scopre al
+  rilascio.
+
+  Ora `_invia()` è la parte comune e sopra ci stanno due strade:
+  `send_whatsapp()` per il testo libero e `send_whatsapp_template()` per i
+  template. I quattro messaggi che parte il salone — conferma, promemoria,
+  compleanno, reset password — passano dai template; la pagina Chat resta a
+  testo libero, ed è corretto: quelle risposte stanno dentro la finestra per
+  costruzione, visto che esistono perché la cliente ha scritto per prima.
+
+  **Senza SID configurato si continua col testo libero**, con una riga di log
+  che dice perché. Non è un ripiego per la produzione — lì senza template il
+  messaggio non parte comunque — ma è ciò che tiene in piedi la Sandbox nel
+  tempo in cui Meta approva, quindi si può provare tutto il percorso adesso.
+
+  **Conseguenza da sapere prima del go-live**: una volta attivi i template, i
+  campi `whatsapp_booking_message` e `whatsapp_reminder_message` in
+  Impostazioni **non cambiano più** quello che la cliente riceve — comanda il
+  testo approvato da Meta. Restano a governare solo il ripiego. Se il salone
+  vuole cambiare un messaggio, va cambiato il template e rifatta approvare.
+
+  13 test nuovi, 658 in tutto. Verificati rompendoli: rimesso il promemoria a
+  `Body` cadono due test, scambiati i SID di conferma e promemoria ne cadono
+  due — ed è l'errore da copia-incolla più probabile fra queste due funzioni,
+  che manderebbe «confermata» il giorno prima e «ti ricordiamo» alla
+  prenotazione.
+
+  Il messaggio libero dalla pagina Messaggi resta scoperto **per forza**: un
+  testo scritto a mano non può essere pre-approvato, quindi arriva solo a chi
+  ha scritto nelle ultime 24 ore. Non è un difetto da correggere, è come
+  funziona WhatsApp; sta scritto nel docstring perché non venga «sistemato»
+  per sbaglio.
 - [x] ~~**Reset password cliente dal pannello admin**~~ — fatto 2026-08-11.
   `POST /api/admin/clients/{client_id}/reset-password`, `require_admin`
   (stessa famiglia del merge: dà accesso all'account di un'altra persona,
@@ -156,8 +218,17 @@ Passi WhatsApp produzione (qualunque scenario):
 1. Numero (nuovo per B, o migrazione per A)
 2. Account Meta Business verificato
 3. Registrare numero come WhatsApp Sender su Twilio (verifica SMS/voce)
-4. Template messaggi approvati da Meta (1-2 giorni) — testi in `whatsapp.py`
-5. Aggiornare `TWILIO_WHATSAPP_FROM` (1 variabile, zero codice)
+4. Template messaggi approvati da Meta (1-2 giorni) — testi in `whatsapp.py`.
+   Sono **cinque** messaggi, non due: conferma e promemoria (modificabili da
+   Impostazioni), più compleanno, reset password e messaggio libero, che
+   stanno scritti nel codice.
+5. Aggiornare `TWILIO_WHATSAPP_FROM` **e i quattro `TWILIO_TEMPLATE_*`** con i
+   SID dei template approvati, su backend **e** worker.
+
+   ~~«1 variabile, zero codice»~~ — **era sbagliato**, e il codice è stato
+   sistemato il 2026-08-25 (voce in cima al file). Il testo libero fuori dalla
+   finestra di 24 ore viene rifiutato da WhatsApp: serviva il passaggio a
+   `ContentSid`, che ora c'è. Restano solo le variabili da riempire.
 
 ### Altri step go-live
 - [x] **Accessi dei collaboratori** — 2026-07-29: tutti e tre creati e collegati

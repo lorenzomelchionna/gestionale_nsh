@@ -61,6 +61,23 @@ class Settings(BaseSettings):
     TWILIO_AUTH_TOKEN: str = ""
     TWILIO_WHATSAPP_FROM: str = ""   # e.g. "whatsapp:+14155238886"
 
+    # Template WhatsApp approvati da Meta, uno per tipo di messaggio.
+    #
+    # Servono per i messaggi che **il salone manda per primo**: fuori dalla
+    # finestra di 24 ore da un messaggio della cliente, WhatsApp accetta solo
+    # testo che Meta ha già approvato, e rifiuta il testo libero (errore
+    # 63016). Le risposte dalla pagina Chat non passano di qui — quelle sono
+    # dentro la finestra per definizione, visto che esistono perché la cliente
+    # ha scritto.
+    #
+    # Vuote finché Meta non approva: in quel caso si continua a mandare testo
+    # libero, che è ciò che serve per provare in Sandbox. Non è un ripiego per
+    # la produzione — lì senza template il messaggio non parte e basta.
+    TWILIO_TEMPLATE_CONFERMA: str = ""
+    TWILIO_TEMPLATE_PROMEMORIA: str = ""
+    TWILIO_TEMPLATE_COMPLEANNO: str = ""
+    TWILIO_TEMPLATE_RESET_PASSWORD: str = ""
+
     @model_validator(mode="after")
     def _refuse_published_secrets_outside_development(self) -> "Settings":
         """Fail to start rather than run on a key anyone can read on GitHub.

@@ -1,4 +1,5 @@
 """WhatsApp messaging via Twilio REST API (no twilio SDK needed — uses httpx)."""
+import json
 import logging
 import httpx
 from app.config import settings
@@ -31,12 +32,11 @@ def _render(template: str | None, default: str, **kwargs) -> str:
         return default.format(**kwargs)
 
 
-async def send_whatsapp(to_phone: str, message: str) -> None:
-    """
-    Send a WhatsApp message via Twilio.
+async def _invia(to_phone: str, contenuto: dict[str, str]) -> None:
+    """Parte comune fra testo libero e template: configurazione, numero, POST.
 
-    `to_phone` must be in E.164 format (e.g. '+393331234567').
-    If Twilio is not configured, logs to stdout (stub mode).
+    `contenuto` porta la sola differenza fra i due — `Body` per il testo
+    libero, `ContentSid` più `ContentVariables` per un template approvato.
     """
     if not _is_configured():
         # Il testo del messaggio non entra nel log: contiene il nome della
@@ -62,12 +62,75 @@ async def send_whatsapp(to_phone: str, message: str) -> None:
             data={
                 "From": settings.TWILIO_WHATSAPP_FROM,
                 "To": f"whatsapp:{phone}",
-                "Body": message,
+                **contenuto,
             },
             timeout=10.0,
         )
     if resp.status_code not in (200, 201):
         raise RuntimeError(f"Twilio error {resp.status_code}: {resp.text}")
+
+
+async def send_whatsapp(to_phone: str, message: str) -> None:
+    """
+    Manda testo libero via Twilio.
+
+    **Vale solo dentro la finestra di 24 ore** da un messaggio della cliente.
+    Fuori, WhatsApp lo rifiuta (errore 63016) e serve un template approvato:
+    vedi `send_whatsapp_template`. Le risposte dalla pagina Chat stanno dentro
+    la finestra per definizione — esistono perché la cliente ha scritto — ed è
+    l'unico posto in cui questa funzione va chiamata da sola.
+
+    `to_phone` in E.164 (es. '+393331234567'). Se Twilio non è configurato,
+    scrive un avviso e non manda niente.
+    """
+    await _invia(to_phone, {"Body": message})
+
+
+async def send_whatsapp_template(
+    to_phone: str,
+    content_sid: str,
+    variabili: dict[str, str],
+    *,
+    ripiego: str,
+) -> None:
+    """
+    Manda un template approvato da Meta.
+
+    È la forma obbligatoria per i messaggi che **parte il salone**: conferme,
+    promemoria, auguri, reset password. Quelli arrivano a freddo, quindi quasi
+    sempre fuori dalla finestra di 24 ore.
+
+    `variabili` sono posizionali, come vuole Meta: `{"1": "Giulia", "2": ...}`
+    riempie `{{1}}`, `{{2}}` nel testo approvato. L'ordine è quello con cui il
+    template è stato scritto, quindi cambiare il template senza cambiare qui
+    sposta i valori nei posti sbagliati — è il motivo per cui ogni chiamata
+    costruisce il dizionario per esteso invece di passare una lista.
+
+    **`ripiego` non è una rete di sicurezza per la produzione.** Serve finché
+    `content_sid` è vuoto, cioè in Sandbox e nel tempo in cui Meta sta ancora
+    approvando: lì il testo libero funziona e permette di provare tutto il
+    percorso. In produzione, senza template, quel testo verrebbe rifiutato da
+    WhatsApp — il ripiego non lo salva, lo fa solo fallire con un errore
+    parlante invece che con un `None` silenzioso.
+    """
+    if not content_sid:
+        log.info(
+            "nessun template configurato: invio come testo libero",
+            extra={
+                "destinatario": maschera_telefono(to_phone),
+                # Il testo no, il *perché* sì: senza questa riga un salone che
+                # ha dimenticato di configurare un SID dopo l'approvazione se
+                # ne accorge solo quando le clienti smettono di ricevere.
+                "motivo": "content_sid_assente",
+            },
+        )
+        await send_whatsapp(to_phone, ripiego)
+        return
+
+    await _invia(to_phone, {
+        "ContentSid": content_sid,
+        "ContentVariables": json.dumps(variabili, ensure_ascii=False),
+    })
 
 
 async def send_booking_confirmation(appointment, cfg) -> None:
@@ -87,7 +150,17 @@ async def send_booking_confirmation(appointment, cfg) -> None:
         ora=start.strftime("%H:%M"),
         collaboratore=collab_name,
     )
-    await send_whatsapp(client.phone, message)
+    await send_whatsapp_template(
+        client.phone,
+        settings.TWILIO_TEMPLATE_CONFERMA,
+        {
+            "1": client.first_name,
+            "2": start.strftime("%d/%m/%Y"),
+            "3": start.strftime("%H:%M"),
+            "4": collab_name,
+        },
+        ripiego=message,
+    )
 
 
 async def send_reminder_message(appointment, cfg) -> None:
@@ -107,7 +180,17 @@ async def send_reminder_message(appointment, cfg) -> None:
         ora=start.strftime("%H:%M"),
         collaboratore=collab_name,
     )
-    await send_whatsapp(client.phone, message)
+    await send_whatsapp_template(
+        client.phone,
+        settings.TWILIO_TEMPLATE_PROMEMORIA,
+        {
+            "1": client.first_name,
+            "2": start.strftime("%d/%m/%Y"),
+            "3": start.strftime("%H:%M"),
+            "4": collab_name,
+        },
+        ripiego=message,
+    )
 
 
 async def send_birthday_message(client) -> None:
@@ -119,7 +202,12 @@ async def send_birthday_message(client) -> None:
         f"un felice compleanno. Passa a trovarci, il tuo giorno speciale "
         f"merita una coccola in più. 💇"
     )
-    await send_whatsapp(client.phone, message)
+    await send_whatsapp_template(
+        client.phone,
+        settings.TWILIO_TEMPLATE_COMPLEANNO,
+        {"1": client.first_name},
+        ripiego=message,
+    )
 
 
 async def send_password_reset_message(phone: str, first_name: str, reset_url: str) -> None:
@@ -129,11 +217,26 @@ async def send_password_reset_message(phone: str, first_name: str, reset_url: st
         f"per New Style Hair. Apri questo link per impostarne una nuova "
         f"(valido 2h): {reset_url}"
     )
-    await send_whatsapp(phone, message)
+    await send_whatsapp_template(
+        phone,
+        settings.TWILIO_TEMPLATE_RESET_PASSWORD,
+        {"1": first_name or "", "2": reset_url},
+        ripiego=message,
+    )
 
 
 async def send_custom_message_wa(client, body: str) -> None:
-    """Send a custom WA message — body is plain text (no HTML)."""
+    """Messaggio libero dalla pagina Messaggi — testo semplice, niente HTML.
+
+    **Resta testo libero, e questo è il limite da conoscere**: arriva solo a
+    chi ha scritto al salone nelle ultime 24 ore. Fuori da quella finestra
+    WhatsApp lo rifiuta, e non c'è un template da usare al suo posto — per
+    definizione un messaggio scritto a mano non è un testo pre-approvato.
+
+    Non è un difetto da correggere qui: è come funziona WhatsApp. Chi scrive
+    a una cliente che non ha scritto per prima deve usare l'email, oppure uno
+    dei messaggi automatici, che i template ce l'hanno.
+    """
     if not client.phone:
         return
     # Personalizza con il nome se possibile (template con {nome})

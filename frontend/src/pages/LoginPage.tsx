@@ -6,6 +6,7 @@ import { useAuthStore } from '@/store/authStore'
 import { useClientAuth } from '@/components/layout/BookingLayout'
 import { getMe, setTokens } from '@/services/api'
 import Logo from '@/components/ui/Logo'
+import { INDIRIZZO, TELEFONO } from '@/config/business'
 import {
   signIn, clientRegister, verifyEmail, resendVerificationCode,
 } from '@/services/publicApi'
@@ -220,11 +221,11 @@ export default function LoginPage() {
             Il registro del salone: appuntamenti, incassi e clienti in un unico
             posto.
           </p>
-          <p className="text-sm text-chrome-dim">Corso Italia, 32 · Melito Irpino (AV)</p>
+          <p className="text-sm text-chrome-dim">{INDIRIZZO.visita}</p>
         </div>
 
         <span className="text-xs text-chrome-dim lg:mt-0 ml-auto lg:ml-0 text-right lg:text-left">
-          Assistenza 095 441 220
+          Assistenza {TELEFONO.visibile}
         </span>
       </div>
 

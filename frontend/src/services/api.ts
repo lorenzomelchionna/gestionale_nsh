@@ -24,6 +24,31 @@ const api = axios.create({
   baseURL: `${API_BASE}/api`,
 })
 
+/**
+ * Rende assoluto un percorso che arriva dal server, tipo `photo_url`.
+ *
+ * **Serve perché un `<img src>` non passa da axios.** Le chiamate API hanno
+ * `API_BASE` davanti; un tag `<img>` no, quindi un percorso come
+ * `/api/public/product-images/…` il browser lo risolve sull'origine da cui è
+ * servita la pagina — che in produzione è il frontend, un servizio diverso dal
+ * backend.
+ *
+ * E lì non dà nemmeno un errore pulito: il frontend è una SPA, quindi a
+ * qualunque percorso sconosciuto risponde **`200` con `index.html`**. Il
+ * browser riceve una pagina HTML dove si aspettava un'immagine, non riesce a
+ * decodificarla e mostra l'icona di immagine rotta — senza niente in console,
+ * perché lo stato è 200. In sviluppo non si vedeva: lì il proxy di Vite gira
+ * `/api` sul backend, quindi il percorso nudo funziona per caso.
+ *
+ * Le anteprime locali (`blob:`) e gli URL già assoluti passano intatti: una
+ * `blob:` con un'origine davanti diventerebbe irraggiungibile.
+ */
+export const mediaUrl = (percorso: string | null | undefined): string | undefined => {
+  if (!percorso) return undefined
+  if (/^(https?:|blob:|data:)/i.test(percorso)) return percorso
+  return `${API_BASE}${percorso}`
+}
+
 // ── Token management ──────────────────────────────────────────────
 
 let accessToken: string | null = localStorage.getItem('access_token')

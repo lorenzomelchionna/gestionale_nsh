@@ -6,7 +6,7 @@ import {
 } from 'lucide-react'
 import {
   getProducts, createProduct, updateProduct, addProductMovement,
-  setProductImage, deleteProductImage,
+  setProductImage, deleteProductImage, mediaUrl,
 } from '@/services/api'
 import type { Product } from '@/types'
 import { useAuthStore } from '@/store/authStore'
@@ -276,7 +276,7 @@ export default function ProductsPage() {
 function Thumbnail({ product, onClick }: { product: Product; onClick?: () => void }) {
   const inner = product.photo_url ? (
     <img
-      src={product.photo_url}
+      src={mediaUrl(product.photo_url)}
       alt=""
       loading="lazy"
       className="w-full h-full object-cover"
@@ -323,7 +323,9 @@ function PhotoModal({ product, onClose, onDone }: {
   })
 
   const busy = upload.isPending || remove.isPending
-  const shown = preview ?? product.photo_url
+  // `preview` è un `blob:` locale e passa intatto; `photo_url` viene dal server
+  // e ha bisogno dell'origine davanti.
+  const shown = preview ?? mediaUrl(product.photo_url)
 
   return (
     <Sheet
@@ -483,7 +485,7 @@ function ProductFormModal({ product, onClose, onSave, loading, error, onToggleAc
         <div className="flex items-center gap-3">
           <div className="w-16 h-16 border border-border bg-band flex items-center justify-center overflow-hidden shrink-0">
             {(preview ?? product?.photo_url)
-              ? <img src={preview ?? product?.photo_url ?? ''} alt="" className="w-full h-full object-cover" />
+              ? <img src={preview ?? mediaUrl(product?.photo_url)} alt="" className="w-full h-full object-cover" />
               : <Package className="w-5 h-5 text-ink-3" />}
           </div>
           <label className="btn-secondary btn-sm cursor-pointer">

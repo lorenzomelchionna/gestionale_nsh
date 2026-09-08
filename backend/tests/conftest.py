@@ -55,6 +55,28 @@ from app.models.service import Service  # noqa: E402
 from app.models.user import User, UserRole  # noqa: E402
 from app.utils.auth import hash_password  # noqa: E402
 
+# ── bcrypt al costo minimo, solo qui ──────────────────────────────
+#
+# In produzione bcrypt gira a 12 round, che è il punto: rendere costoso
+# provare le password una per una. Nei test quel costo lo paghiamo noi a ogni
+# fixture che crea un utente e a ogni login — misurato su questa macchina,
+# **188 ms per hash e 171 ms per verifica**, contro 0,7 ms a 4 round.
+#
+# La suite ne fa migliaia, e sono quasi tutto il suo tempo. Abbassare il costo
+# qui non indebolisce niente: i test verificano che la password giusta entri e
+# quella sbagliata no, non quanto costa calcolarla.
+#
+# Perché la produzione resti robusta c'è una guardia esplicita in
+# `tests/test_password_cost.py`, che legge la configurazione **vera**
+# dell'applicazione e fallisce se qualcuno abbassa i round fuori di qui.
+# Senza quella, questa riga sarebbe il modo perfetto per indebolire gli hash
+# di tutti senza che nessun test se ne accorga.
+from passlib.context import CryptContext  # noqa: E402
+
+from app.utils import auth as _auth  # noqa: E402
+
+_auth.pwd_context = CryptContext(schemes=["bcrypt"], bcrypt__rounds=4)
+
 TEST_DATABASE_URL = os.environ["DATABASE_URL"]
 
 ADMIN_PASSWORD = "admin-test-password"

@@ -239,13 +239,30 @@ class TestBcryptFuoriDallEventLoop:
             "prova-di-hash", auth.hash_password_sync("prova-di-hash")
         )
 
-    async def test_l_event_loop_resta_libero_durante_un_hash(self):
+    async def test_l_event_loop_resta_libero_durante_un_hash(self, monkeypatch):
         """La prova che il threadpool serve davvero: mentre bcrypt lavora, un
         altro task deve poter avanzare. Con la versione sincrona non girerebbe
-        finché l'hash non ha finito."""
+        finché l'hash non ha finito.
+
+        **Questo test paga di proposito il costo di produzione.** `conftest`
+        abbassa bcrypt a 4 round per tutta la suite, e a quel costo un hash
+        dura meno di un millesimo di secondo: non ci sarebbe nessuna finestra
+        in cui osservare se l'event loop avanza, e il test passerebbe o
+        fallirebbe a seconda di come gira la CPU quel giorno. Rimettendo i 12
+        round la domanda torna sensata — «mentre bcrypt occupa un core per un
+        decimo di secondo, il resto va avanti?» — al prezzo di ~190 ms su un
+        test solo.
+        """
         import asyncio
 
+        from passlib.context import CryptContext
+
+        from app.utils import auth
         from app.utils.auth import hash_password
+
+        monkeypatch.setattr(
+            auth, "pwd_context", CryptContext(schemes=["bcrypt"], bcrypt__rounds=12)
+        )
 
         battiti = 0
 

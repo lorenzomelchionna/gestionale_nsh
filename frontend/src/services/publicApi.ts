@@ -3,16 +3,19 @@ import type { Service, Collaborator, Appointment, TokenResponse, WaitlistEntry, 
 
 const API_BASE = import.meta.env.VITE_API_URL || ''
 
+// Niente `Content-Type` di default: axios lo mette da sé quando il corpo è un
+// oggetto, e imporlo qui romperebbe qualunque upload di file — un corpo
+// `FormData` vuole che sia il browser a scrivere l'intestazione, perché solo
+// lui conosce il `boundary`. Vedi la nota estesa in `api.ts`, dove quel
+// difetto è costato il caricamento delle foto prodotto.
 const publicApi = axios.create({
   baseURL: `${API_BASE}/api/public`,
-  headers: { 'Content-Type': 'application/json' },
 })
 
 // The shared sign-in lives outside /api/public: it serves staff too, and may
 // return either kind of token.
 const rootApi = axios.create({
   baseURL: `${API_BASE}/api`,
-  headers: { 'Content-Type': 'application/json' },
 })
 
 export interface SignInResponse extends TokenResponse {

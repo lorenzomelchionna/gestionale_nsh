@@ -31,24 +31,57 @@ fallback SMTP (solo dev locale). Mittente verificato: `newstylehair2019@gmail.co
 - [ ] **WhatsApp produzione**: ora è Sandbox (solo numeri che fanno `join`, scade 72h).
   Per clienti reali serve numero WhatsApp Business + template Meta approvati.
 
-  **Numero deciso (2026-08-25)**: il **fisso del vecchio gestionale**, da cui
-  va prima cancellato l'account WhatsApp Business esistente — un numero sta
-  su WhatsApp in un posto solo. Due conseguenze da mettere in conto: le chat
-  esistenti su quel numero **si perdono** (esportarle prima), e da quel
-  momento non si chatta più a mano dall'app. Il rimpiazzo però c'è già ed è
-  costruito: il webhook salva ogni messaggio in entrata e la pagina Chat del
-  gestionale li mostra e permette di rispondere. La verifica per un numero
-  fisso avviene per **chiamata vocale**, non per SMS.
+  **Numero deciso (2026-08-25)**: il **fisso del vecchio gestionale**. Un
+  numero sta su WhatsApp in un posto solo — app Business *oppure* API, mai
+  entrambi — quindi va liberato dall'account attuale. Due conseguenze: le
+  chat esistenti **si perdono** (esportarle prima), e da quel momento non si
+  chatta più a mano dall'app. Il rimpiazzo però c'è già ed è costruito: il
+  webhook salva ogni messaggio in entrata e la pagina Chat del gestionale li
+  mostra e permette di rispondere. La verifica per un fisso avviene per
+  **chiamata vocale**, non per SMS.
 
-  Stato: **verifica azienda Meta inviata il 2026-08-25.** Da non confondere
-  con «Meta Verified», che è l'abbonamento a pagamento per la spunta blu e
-  **non serve**: quella richiesta è la *Business Verification*, gratuita, che
-  confronta denominazione legale e sede con la Camera di Commercio.
+  **Verifica azienda Meta: completata il 2026-09-02.** Da non confondere con
+  «Meta Verified», l'abbonamento a pagamento per la spunta blu, che **non
+  serve**: quella fatta è la *Business Verification*, gratuita, che confronta
+  denominazione legale e sede con la Camera di Commercio.
 
-  Passi che restano, in ordine: cancellare l'account WhatsApp sul fisso →
-  registrarlo come Sender su Twilio → far approvare i template →
-  `TWILIO_WHATSAPP_FROM` e i quattro SID su Railway (backend **e** worker) →
-  `whatsapp_enabled=true`.
+  ### Ordine dei passi che restano
+
+  L'ordine conta, e non è quello che sembra ovvio.
+
+  1. **Esportare le chat** dal fisso (app → Impostazioni → Chat → Esporta).
+     Da fare comunque e per primo: lo storico **non passa all'API in nessun
+     caso**, nemmeno migrando. L'API non ha proprio il concetto di quelle
+     conversazioni.
+  2. **Aprire la registrazione del Sender su Twilio** (Console → Messaging →
+     Senders → WhatsApp senders → New sender) e arrivare al punto in cui si
+     inserisce il numero — **senza aver cancellato niente**.
+
+     Qui si guarda cosa risponde: se offre una **migrazione** app → API la si
+     usa e non si cancella nulla; se rifiuta il numero perché già su
+     WhatsApp, allora si cancella l'account dall'app e si riprende.
+
+     **Il motivo di quest'ordine**: provare non costa niente (al massimo un
+     errore), mentre cancellare è irreversibile e apre subito la finestra in
+     cui il numero è muto. Fra due strade, si rimanda quella che non torna
+     indietro. Una versione precedente di questa nota diceva di cancellare
+     per prima cosa: era un consiglio che regalava giorni di numero spento
+     senza motivo.
+  3. **Display name e profilo**, che si compilano nella stessa schermata del
+     Sender — non sono un passaggio separato, come invece diceva la nota
+     vecchia. Nome: `New Style Hair`, che è la parte distintiva della
+     ragione sociale verificata **e** il dominio **e** l'insegna: tre
+     riscontri che dicono la stessa cosa. Niente termini generici, niente
+     emoji, niente città nel nome. Nel profilo va l'indirizzo di **visita**
+     (Corso Italia, 32), non quello legale con `snc`.
+  4. **Verifica del numero per chiamata vocale** — serve qualcuno in salone
+     che risponda e trascriva il codice.
+  5. **Far approvare i template** (1–2 giorni l'uno).
+  6. **Railway**: `TWILIO_WHATSAPP_FROM` e i quattro `TWILIO_TEMPLATE_*` su
+     backend **e** worker, poi `whatsapp_enabled=true` da Impostazioni.
+
+  Il passo 2 va programmato in un giorno di chiusura: se finisce con la
+  cancellazione, il numero resta muto finché il 4 non è concluso.
 
 - [x] ~~**Codice pronto per i template Meta**~~ — fatto 2026-08-25, prima
   dell'approvazione, perché è la parte che non dipende da Meta.
@@ -200,35 +233,36 @@ fallback SMTP (solo dev locale). Mittente verificato: `newstylehair2019@gmail.co
 
 ## Roadmap go-live clienti reali
 
-### WhatsApp produzione — DECISIONE numero (da prendere al go-live)
-Il salone ha GIÀ un numero su WhatsApp Business usato col gestionale attuale.
-Vincolo Meta/Twilio: un numero può stare su WhatsApp Business in UN solo posto.
+### WhatsApp produzione — DECISIONE numero: PRESA il 2026-08-25
 
-- **Scenario A — migrare numero esistente su Twilio**: il numero passa all'API,
-  si PERDE l'app WhatsApp Business manuale (niente più chat a mano da quel numero).
-  Richiede port-in Meta.
-- **Scenario B — numero nuovo dedicato (consigliato)**: SIM nuova solo per le
-  notifiche automatiche; il numero attuale resta sull'app per le chat manuali.
-  Nessuna migrazione rischiosa.
+> ⚠️ Questa sezione registrava una scelta ancora aperta e **consigliava lo
+> Scenario B**. La decisione è stata presa, ed è **A**. Resta scritta perché
+> il ragionamento che ha fatto scartare B è la ragione per cui A oggi
+> funziona.
 
-→ Quasi sempre i saloni vogliono tenere la chat manuale = **Scenario B**.
-Decisione confermata: sostituzione numero SOLO al momento del go-live effettivo.
+Vincolo Meta/Twilio: un numero può stare su WhatsApp in UN solo posto — app
+Business *oppure* API.
 
-Passi WhatsApp produzione (qualunque scenario):
-1. Numero (nuovo per B, o migrazione per A)
-2. Account Meta Business verificato
-3. Registrare numero come WhatsApp Sender su Twilio (verifica SMS/voce)
-4. Template messaggi approvati da Meta (1-2 giorni) — testi in `whatsapp.py`.
-   Sono **cinque** messaggi, non due: conferma e promemoria (modificabili da
-   Impostazioni), più compleanno, reset password e messaggio libero, che
-   stanno scritti nel codice.
-5. Aggiornare `TWILIO_WHATSAPP_FROM` **e i quattro `TWILIO_TEMPLATE_*`** con i
-   SID dei template approvati, su backend **e** worker.
+- **Scenario A — il fisso esistente passa all'API** ✅ **scelto.** Si perde
+  l'app WhatsApp Business manuale su quel numero.
+- ~~**Scenario B — numero nuovo dedicato**~~: SIM nuova per le notifiche, il
+  numero attuale resta sull'app per le chat a mano.
 
-   ~~«1 variabile, zero codice»~~ — **era sbagliato**, e il codice è stato
-   sistemato il 2026-08-25 (voce in cima al file). Il testo libero fuori dalla
-   finestra di 24 ore viene rifiutato da WhatsApp: serviva il passaggio a
-   `ContentSid`, che ora c'è. Restano solo le variabili da riempire.
+**Perché B non serve più.** B era consigliato per non perdere la chat
+manuale: era l'unico modo di rispondere a una cliente. Nel frattempo quella
+capacità è stata costruita **dentro il gestionale** — il webhook salva ogni
+messaggio in entrata e la pagina Chat permette di rispondere — quindi
+passare all'API non toglie più niente, sposta soltanto dove si risponde.
+Con B, invece, le clienti si sarebbero trovate due numeri del salone.
+
+Il go-live vero e proprio dei dettagli operativi sta nella sezione in cima
+al file, che è quella aggiornata.
+
+**I passi operativi stanno in cima al file, in una lista sola.** Qui ce n'era
+una seconda copia: teneva ancora «numero nuovo per lo Scenario B» dopo che B
+era stato scartato, e diceva «1 variabile, zero codice» dopo che quella frase
+si era rivelata sbagliata. Due liste della stessa cosa divergono sempre, e
+quella che si legge non è mai quella aggiornata — quindi ne resta una.
 
 ### Altri step go-live
 - [x] **Accessi dei collaboratori** — 2026-07-29: tutti e tre creati e collegati

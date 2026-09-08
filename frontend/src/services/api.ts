@@ -8,9 +8,20 @@ import type {
 
 const API_BASE = import.meta.env.VITE_API_URL || ''
 
+// Niente `Content-Type` di default, ed è una correzione, non una dimenticanza.
+//
+// Con `application/json` imposto qui, axios lo mandava su **ogni** richiesta —
+// compresi gli upload di file. Un corpo `FormData` ha bisogno che sia il
+// browser a scrivere l'intestazione, perché solo lui conosce il `boundary` che
+// separa le parti: con l'intestazione già scritta a mano il boundary non c'è,
+// il server non trova nessun campo e risponde `422 Field required`. È
+// esattamente l'errore che compariva caricando la foto di un prodotto.
+//
+// Toglierlo non cambia niente per le chiamate JSON: quando il corpo è un
+// oggetto, axios mette `application/json` da sé. Cambia solo per i corpi che
+// quell'intestazione non la vogliono.
 const api = axios.create({
   baseURL: `${API_BASE}/api`,
-  headers: { 'Content-Type': 'application/json' },
 })
 
 // ── Token management ──────────────────────────────────────────────

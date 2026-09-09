@@ -73,10 +73,10 @@ class Settings(BaseSettings):
     # Vuote finché Meta non approva: in quel caso si continua a mandare testo
     # libero, che è ciò che serve per provare in Sandbox. Non è un ripiego per
     # la produzione — lì senza template il messaggio non parte e basta.
+    # Sono due e non quattro: auguri e reset password vanno solo per email.
+    # Il perché sta in `notifications.py`, accanto alle due funzioni.
     TWILIO_TEMPLATE_CONFERMA: str = ""
     TWILIO_TEMPLATE_PROMEMORIA: str = ""
-    TWILIO_TEMPLATE_COMPLEANNO: str = ""
-    TWILIO_TEMPLATE_RESET_PASSWORD: str = ""
 
     @model_validator(mode="after")
     def _refuse_published_secrets_outside_development(self) -> "Settings":

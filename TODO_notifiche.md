@@ -45,6 +45,24 @@ fallback SMTP (solo dev locale). Mittente verificato: `newstylehair2019@gmail.co
   serve**: quella fatta è la *Business Verification*, gratuita, che confronta
   denominazione legale e sede con la Camera di Commercio.
 
+  **Account Twilio a pagamento: fatto il 2026-09-09.** Blocco che nessuno
+  aveva previsto: l'account era **trial**, e la registrazione di un Mittente
+  WhatsApp richiede un account upgradato — il credito di prova residuo non
+  basta, perché il vincolo non è «avere credito» ma «non essere trial». Fatto
+  l'upgrade con carta e versamento iniziale.
+
+  Da controllare quando si arriva a regime: **attivare la ricarica
+  automatica** con soglia. Il credito che finisce di sabato mattina significa
+  promemoria che non partono, e nessuno se ne accorge finché una cliente non
+  si presenta il giorno sbagliato — è un guasto silenzioso, il tipo peggiore.
+
+  Costo atteso, per non trovarselo in faccia: **€20–40 al mese** a regime
+  (~500–1.000 messaggi). Le conversazioni **iniziate dalla cliente sono
+  gratuite**, e lo sono anche i template utility mandati entro 24 ore da un
+  suo messaggio: quindi tutta la chat quotidiana non costa niente, e quella
+  stima è un tetto, non il valore atteso. Si paga solo quando è il salone a
+  scrivere per primo a freddo.
+
   ### Ordine dei passi che restano
 
   L'ordine conta, e non è quello che sembra ovvio.

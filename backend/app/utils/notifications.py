@@ -131,44 +131,54 @@ async def notify_staff_new_booking(db: AsyncSession, appointment) -> list[str]:
 
 
 async def notify_birthday(db: AsyncSession, client) -> None:
-    """Sent every morning to clients whose birthday is today."""
-    cfg = await _get_config(db)
+    """Auguri di compleanno, **solo per email**.
+
+    WhatsApp è stato tolto di proposito, e non per un limite tecnico.
+
+    Meta divide i template per categoria, e il prezzo segue la categoria. Un
+    augurio che invita a passare in salone è **marketing**, non «utility»:
+    costa parecchio di più di una conferma o di un promemoria, che sono
+    transazionali. Sarebbe finito per essere il messaggio più caro che il
+    salone manda, a fronte del minor valore pratico — nessuna cliente
+    riorganizza la giornata per un augurio.
+
+    L'augurio per email parte lo stesso e non costa niente.
+    """
     if client.email:
         try:
             await email_util.send_birthday_greeting(client)
         except Exception:
             _fallita("compleanno", "email", id_cliente=client.id)
-    if _wa_enabled(cfg) and client.phone:
-        try:
-            await wa_util.send_birthday_message(client)
-        except Exception:
-            _fallita("compleanno", "whatsapp", id_cliente=client.id)
 
 
 async def notify_password_reset(
     db: AsyncSession, account, reset_url: str
 ) -> None:
-    """Sent when a client requests a password reset."""
-    cfg = await _get_config(db)
-    # Find linked client (for first_name + phone)
+    """Link per reimpostare la password, **solo per email**.
+
+    Anche qui WhatsApp è stato tolto di proposito, per due ragioni che si
+    sommano.
+
+    La prima è che Meta i link dinamici nel corpo di un template non li vuole
+    come variabile di testo: li vuole come pulsante con suffisso variabile.
+    Un template così com'era scritto rischiava il rifiuto, e farlo passare
+    avrebbe richiesto una forma diversa da quella che il codice sa mandare.
+
+    La seconda è che non serviva: il reset **nasce** da una richiesta fatta
+    sull'indirizzo email, e l'email è il canale che deve funzionare per
+    forza. WhatsApp aggiungeva una copia dello stesso link su un canale in
+    più, non una strada in più.
+    """
     client_result = await db.execute(
         select(Client).where(Client.account_id == account.id)
     )
     client = client_result.scalar_one_or_none()
     first_name = client.first_name if client else ""
 
-    # Email
     try:
         await email_util.send_password_reset_email(account.email, first_name, reset_url)
     except Exception:
         _fallita("reset_password", "email", id_account=account.id)
-
-    # WhatsApp (only if linked client has a phone)
-    if _wa_enabled(cfg) and client and client.phone:
-        try:
-            await wa_util.send_password_reset_message(client.phone, first_name, reset_url)
-        except Exception:
-            _fallita("reset_password", "whatsapp", id_account=account.id)
 
 
 async def notify_custom(

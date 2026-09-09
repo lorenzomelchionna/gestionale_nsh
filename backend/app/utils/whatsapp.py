@@ -193,36 +193,18 @@ async def send_reminder_message(appointment, cfg) -> None:
     )
 
 
-async def send_birthday_message(client) -> None:
-    """Send birthday greeting via WhatsApp."""
-    if not client.phone:
-        return
-    message = (
-        f"Ciao {client.first_name}! 🎉 Tutto il team di New Style Hair ti augura "
-        f"un felice compleanno. Passa a trovarci, il tuo giorno speciale "
-        f"merita una coccola in più. 💇"
-    )
-    await send_whatsapp_template(
-        client.phone,
-        settings.TWILIO_TEMPLATE_COMPLEANNO,
-        {"1": client.first_name},
-        ripiego=message,
-    )
-
-
-async def send_password_reset_message(phone: str, first_name: str, reset_url: str) -> None:
-    """Send password reset link via WhatsApp."""
-    message = (
-        f"Ciao {first_name or ''}! Hai richiesto il reset della password "
-        f"per New Style Hair. Apri questo link per impostarne una nuova "
-        f"(valido 2h): {reset_url}"
-    )
-    await send_whatsapp_template(
-        phone,
-        settings.TWILIO_TEMPLATE_RESET_PASSWORD,
-        {"1": first_name or "", "2": reset_url},
-        ripiego=message,
-    )
+# Qui stavano `send_birthday_message` e `send_password_reset_message`.
+#
+# Tolte il 2026-09-09 quando auguri e reset sono passati a solo email — le
+# ragioni stanno per esteso in `notifications.py`, accanto alle funzioni che
+# ora mandano solo la posta: gli auguri sono «marketing» per Meta e costano
+# molto più di un promemoria, il reset ha un link che Meta vuole come pulsante
+# e nasce comunque da una richiesta fatta via email.
+#
+# Cancellate invece che lasciate lì: una funzione irraggiungibile che sembra
+# viva è peggio di una assente, perché il prossimo che legge questo file
+# crede che il salone mandi gli auguri su WhatsApp. Se un domani si decide di
+# farlo davvero, `git log` le restituisce intatte.
 
 
 async def send_custom_message_wa(client, body: str) -> None:

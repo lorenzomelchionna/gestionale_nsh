@@ -195,40 +195,34 @@ class TestIQuattroAutomatici:
                  for c in spia.chiamate]
         assert usati == ["HX-conferma", "HX-promemoria"]
 
-    async def test_compleanno(self, spia, monkeypatch, other_client):
-        monkeypatch.setattr(settings, "TWILIO_TEMPLATE_COMPLEANNO", "HX-auguri")
-        other_client.phone = "+393330000003"
-
-        await whatsapp.send_birthday_message(other_client)
-
-        assert spia.ultimo["ContentSid"] == "HX-auguri"
-        assert json.loads(spia.ultimo["ContentVariables"]) == {
-            "1": other_client.first_name
-        }
-
-    async def test_reset_password(self, spia, monkeypatch):
-        monkeypatch.setattr(settings, "TWILIO_TEMPLATE_RESET_PASSWORD", "HX-reset")
-
-        await whatsapp.send_password_reset_message(
-            "+393330000004", "Giulia", "https://www.newstylehair.it/r/abc"
-        )
-
-        assert spia.ultimo["ContentSid"] == "HX-reset"
-        variabili = json.loads(spia.ultimo["ContentVariables"])
-        assert variabili["1"] == "Giulia"
-        assert variabili["2"] == "https://www.newstylehair.it/r/abc"
-
-    async def test_nessuno_dei_quattro_manda_body_col_template(
-        self, spia, monkeypatch, other_client
+    async def test_nessuno_dei_due_manda_body_col_template(
+        self, spia, monkeypatch, db, booking_config, collaborator, client_account
     ):
         """La regressione che conta: se uno tornasse a `Body`, in produzione
         smetterebbe di partire senza che nessun test se ne accorga."""
-        monkeypatch.setattr(settings, "TWILIO_TEMPLATE_COMPLEANNO", "HX-auguri")
-        monkeypatch.setattr(settings, "TWILIO_TEMPLATE_RESET_PASSWORD", "HX-reset")
-        other_client.phone = "+393330000003"
+        from datetime import datetime, timedelta, timezone
+        from app.models.appointment import Appointment
+        from sqlalchemy import select
+        from app.models.client import Client
 
-        await whatsapp.send_birthday_message(other_client)
-        await whatsapp.send_password_reset_message("+393330000004", "X", "https://x.it")
+        monkeypatch.setattr(settings, "TWILIO_TEMPLATE_CONFERMA", "HX-conferma")
+        monkeypatch.setattr(settings, "TWILIO_TEMPLATE_PROMEMORIA", "HX-promemoria")
+        scheda = (await db.execute(
+            select(Client).where(Client.account_id == client_account.id)
+        )).scalar_one()
+
+        quando = datetime.now(timezone.utc) + timedelta(days=1)
+        appuntamento = Appointment(
+            client_id=scheda.id, collaborator_id=collaborator.id,
+            start_time=quando, end_time=quando + timedelta(hours=1),
+        )
+        db.add(appuntamento)
+        await db.flush()
+        appuntamento.client = scheda
+        appuntamento.collaborator = collaborator
+
+        await whatsapp.send_booking_confirmation(appuntamento, booking_config)
+        await whatsapp.send_reminder_message(appuntamento, booking_config)
 
         for _, contenuto in spia.chiamate:
             assert "Body" not in contenuto
@@ -252,9 +246,65 @@ class TestQuelloCheResta:
         prenotazione che l'ha generata."""
         monkeypatch.setattr(settings, "TWILIO_ACCOUNT_SID", "")
         monkeypatch.setattr(settings, "TWILIO_WHATSAPP_FROM", "")
-        other_client.phone = "+393330000003"
 
-        await whatsapp.send_birthday_message(other_client)  # non solleva
+        await whatsapp.send_custom_message_wa(other_client, "ciao")  # non solleva
+
+
+class TestAuguriEResetSoloEmail:
+    """Due canali dove WhatsApp è stato tolto **di proposito**.
+
+    Non è una dimenticanza da correggere un giorno: gli auguri per Meta sono
+    «marketing» e costerebbero molto più di un promemoria per il minor valore
+    pratico, e il reset password nasce da una richiesta fatta via email, che
+    è il canale che deve funzionare comunque.
+
+    Senza questi test, «rimettiamo anche WhatsApp» sembrerebbe un
+    miglioramento ovvio, e la bolletta lo scoprirebbe un mese dopo.
+    """
+
+    async def test_gli_auguri_non_passano_da_whatsapp(
+        self, spia, monkeypatch, db, booking_config, other_client
+    ):
+        from app.utils import notifications
+
+        other_client.phone = "+393330000003"
+        other_client.email = "auguri@nsh-test.it"
+        booking_config.whatsapp_enabled = True
+        await db.flush()
+
+        inviate = []
+        async def finta_email(client):
+            inviate.append(client.id)
+        monkeypatch.setattr(
+            notifications.email_util, "send_birthday_greeting", finta_email
+        )
+
+        await notifications.notify_birthday(db, other_client)
+
+        assert inviate == [other_client.id], "l'augurio per email deve partire"
+        assert spia.chiamate == [], "su WhatsApp non deve partire niente"
+
+    async def test_il_reset_non_passa_da_whatsapp(
+        self, spia, monkeypatch, db, booking_config, client_account
+    ):
+        from app.utils import notifications
+
+        booking_config.whatsapp_enabled = True
+        await db.flush()
+
+        inviate = []
+        async def finta_email(email, nome, url):
+            inviate.append(email)
+        monkeypatch.setattr(
+            notifications.email_util, "send_password_reset_email", finta_email
+        )
+
+        await notifications.notify_password_reset(
+            db, client_account, "https://www.newstylehair.it/r/abc"
+        )
+
+        assert inviate == [client_account.email], "il link per email deve partire"
+        assert spia.chiamate == [], "su WhatsApp non deve partire niente"
 
     async def test_il_numero_viene_normalizzato(self, twilio_configurato, monkeypatch):
         """`_invia` è ora condivisa fra testo e template: la normalizzazione

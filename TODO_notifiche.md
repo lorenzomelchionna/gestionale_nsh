@@ -95,11 +95,41 @@ fallback SMTP (solo dev locale). Mittente verificato: `newstylehair2019@gmail.co
   4. **Verifica del numero per chiamata vocale** — serve qualcuno in salone
      che risponda e trascriva il codice.
   5. **Far approvare i template** (1–2 giorni l'uno).
-  6. **Railway**: `TWILIO_WHATSAPP_FROM` e i quattro `TWILIO_TEMPLATE_*` su
+  6. **Railway**: `TWILIO_WHATSAPP_FROM` e i due `TWILIO_TEMPLATE_*` su
      backend **e** worker, poi `whatsapp_enabled=true` da Impostazioni.
 
-  Il passo 2 va programmato in un giorno di chiusura: se finisce con la
-  cancellazione, il numero resta muto finché il 4 non è concluso.
+  ### Come è andata davvero, e il piano che ne è uscito (2026-09-09)
+
+  Twilio **rifiuta il fisso**: è ancora su WhatsApp Business, quindi va
+  liberato — la migrazione automatica non c'è. Ma il fisso **non si può
+  liberare adesso**: il salone lavora ancora col vecchio gestionale e quella
+  è la chat con cui risponde alle clienti.
+
+  Il problema non è il fisso in sé, è che **l'approvazione dei template
+  richiede 1–2 giorni**. Facendo tutto il giorno del passaggio, WhatsApp
+  resterebbe spento proprio mentre il salone cambia sistema.
+
+  **Piano scelto: numero ponte.** I template si approvano sul WhatsApp
+  Business Account, non sul singolo numero, e un WABA può avere più numeri.
+  Quindi:
+
+  - **Adesso** — comprato un numero Twilio (USA, attivo subito; uno italiano
+    richiede un bundle documentale che fa aspettare giorni, e questo numero
+    è temporaneo). Lo si registra come Sender → nasce il WABA → si
+    sottopongono i template e si aspetta con calma.
+  - **Il giorno del passaggio** — si cancella WhatsApp dal fisso, lo si
+    aggiunge come secondo Sender **sullo stesso WABA**, verifica per
+    chiamata vocale, si cambia `TWILIO_WHATSAPP_FROM`. I template sono già
+    approvati, quindi funziona subito.
+
+  Il giorno del go-live diventa un'ora di lavoro invece di giorni di attesa,
+  e permette di provare il percorso vero — template reali, non Sandbox —
+  settimane prima invece di scoprire un intoppo il giorno stesso.
+
+  **Da verificare appena il primo Sender è attivo**: che i template approvati
+  restino validi passando al secondo numero dello stesso WABA. È quello che
+  risulta, ma non è stato provato sul campo — e regge tutto il piano. Si
+  controlla a costo quasi zero sottoponendo **un** template e guardando.
 
 - [x] ~~**Codice pronto per i template Meta**~~ — fatto 2026-08-25, prima
   dell'approvazione, perché è la parte che non dipende da Meta.
@@ -116,10 +146,21 @@ fallback SMTP (solo dev locale). Mittente verificato: `newstylehair2019@gmail.co
 
   Ora `_invia()` è la parte comune e sopra ci stanno due strade:
   `send_whatsapp()` per il testo libero e `send_whatsapp_template()` per i
-  template. I quattro messaggi che parte il salone — conferma, promemoria,
-  compleanno, reset password — passano dai template; la pagina Chat resta a
-  testo libero, ed è corretto: quelle risposte stanno dentro la finestra per
-  costruzione, visto che esistono perché la cliente ha scritto per prima.
+  template. I messaggi che parte il salone — **conferma e promemoria** —
+  passano dai template; la pagina Chat resta a testo libero, ed è corretto:
+  quelle risposte stanno dentro la finestra per costruzione, visto che
+  esistono perché la cliente ha scritto per prima.
+
+  **Erano quattro, sono due dal 2026-09-09**: auguri di compleanno e reset
+  password sono passati a solo email, e le due funzioni WhatsApp sono state
+  cancellate invece che lasciate lì inutilizzate. Le ragioni stanno accanto
+  alle funzioni in `notifications.py`, in breve: l'augurio per Meta è
+  «marketing» e costerebbe molto più di un promemoria a fronte del minor
+  valore pratico, e il reset contiene un link — che Meta vuole come pulsante,
+  non come variabile di testo — e nasce comunque da una richiesta fatta via
+  email. Due test in `test_whatsapp_templates.py` tengono ferma la scelta:
+  senza, «rimettiamo anche WhatsApp» sembrerebbe un miglioramento ovvio e la
+  bolletta lo scoprirebbe un mese dopo.
 
   **Senza SID configurato si continua col testo libero**, con una riga di log
   che dice perché. Non è un ripiego per la produzione — lì senza template il

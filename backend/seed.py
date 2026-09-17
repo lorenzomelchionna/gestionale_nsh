@@ -15,6 +15,7 @@ from app.models.payment import Payment, PaymentMethod, PaymentType
 from app.models.expense import Expense
 from app.models.booking_config import BookingConfig
 from app.models.extra_day import CollaboratorExtraDay
+from app.utils.tempo import istante
 from app.utils.auth import hash_password_sync
 
 
@@ -174,7 +175,7 @@ async def seed():
         ]
 
         for ci, colli, days_ago, hour, si, appt_status in past_appts:
-            start = (now - timedelta(days=days_ago)).replace(hour=hour, minute=0)
+            start = istante((now - timedelta(days=days_ago)).date(), time(hour, 0))
             svc = services[si]
             end = start + timedelta(minutes=svc.duration_slots * 30)
             a = Appointment(
@@ -218,7 +219,7 @@ async def seed():
         ]
 
         for ci, colli, days_ahead, hour, si, appt_status, origin in future_appts:
-            start = (now + timedelta(days=days_ahead)).replace(hour=hour, minute=0)
+            start = istante((now + timedelta(days=days_ahead)).date(), time(hour, 0))
             svc = services[si]
             end = start + timedelta(minutes=svc.duration_slots * 30)
             a = Appointment(

@@ -3,6 +3,26 @@ Slot availability logic.
 
 A "slot" = slot_duration_minutes (default 30 min) block of time.
 A service with duration_slots=2 occupies 2 consecutive slots = 60 min.
+
+**Due unità di misura, e non vanno mischiate.** Dentro questa funzione si
+ragiona in *minuti dalla mezzanotte del salone*: è la scala su cui stanno gli
+orari di lavoro, i permessi e i giorni straordinari, che a database sono
+colonne `Time` senza fuso, cioè ore di orologio. Gli appuntamenti invece sono
+*istanti* (`timestamptz`), e per entrare in quella griglia vanno convertiti con
+`minuti_salone`. Il valore restituito torna a essere un istante, costruito con
+`istante()`.
+
+Fino al 2026-09-17 la conversione non c'era: gli slot nascevano da
+`combine(data, ora, tzinfo=utc)` e gli appuntamenti entravano nella griglia con
+`start_time.hour`, cioè l'ora UTC. Le due cose si compensavano fra loro — un
+appuntamento e uno slot si bloccavano correttamente a vicenda — ma non
+tornavano con gli orari di lavoro: d'estate il portale offriva le 11:00–20:00
+per un salone aperto 09:00–19:00, lasciava prenotare a serranda abbassata e
+teneva prenotabile un permesso.
+
+È il motivo per cui le due conversioni qui sotto (riga degli appuntamenti e
+riga degli slot) **vanno cambiate insieme**: correggerne una sola sposta la
+griglia sotto i piedi dell'altra e apre doppie prenotazioni.
 """
 from datetime import datetime, date, time, timedelta, timezone
 from typing import List, Optional, Sequence
@@ -14,6 +34,7 @@ from app.models.absence import Absence
 from app.models.extra_day import CollaboratorExtraDay
 from app.models.appointment import Appointment, AppointmentService, AppointmentStatus
 from app.models.booking_config import BookingConfig
+from app.utils.tempo import istante, minuti_salone
 
 
 def busy_slot_offsets(services: Sequence) -> List[int]:
@@ -155,8 +176,11 @@ async def get_available_slots(
 
     # 4. Appuntamenti del giorno. I servizi servono per sapere quali slot
     #    impegnano davvero il collaboratore e quali sono posa.
-    day_start = datetime.combine(target_date, time.min).replace(tzinfo=timezone.utc)
-    day_end = datetime.combine(target_date, time.max).replace(tzinfo=timezone.utc)
+    # La giornata del salone, non quella UTC: sono sfalsate di una o due ore, e
+    # con i confini UTC un appuntamento di prima mattina finirebbe nel giorno
+    # sbagliato — quindi non occuperebbe il suo slot.
+    day_start = istante(target_date, time.min)
+    day_end = istante(target_date + timedelta(days=1), time.min)
     appt_result = await db.execute(
         select(Appointment)
         .options(
@@ -167,7 +191,9 @@ async def get_available_slots(
             and_(
                 Appointment.collaborator_id == collaborator_id,
                 Appointment.start_time >= day_start,
-                Appointment.start_time <= day_end,
+                # `<` e non `<=`: `day_end` è la mezzanotte del giorno dopo,
+                # che appartiene già a quel giorno.
+                Appointment.start_time < day_end,
                 Appointment.status.in_([
                     AppointmentStatus.confirmed,
                     AppointmentStatus.pending,
@@ -180,8 +206,11 @@ async def get_available_slots(
     booked = appt_result.scalars().all()
 
     for a in booked:
-        start_min = a.start_time.hour * 60 + a.start_time.minute
-        end_min = a.end_time.hour * 60 + a.end_time.minute
+        # `minuti_salone` e non `.hour`: `start_time` è un istante in UTC, e
+        # leggerne l'ora così com'è lo collocherebbe una o due ore prima nella
+        # griglia, cioè su slot che non sono i suoi.
+        start_min = minuti_salone(a.start_time)
+        end_min = minuti_salone(a.end_time)
         span_minutes = end_min - start_min
 
         servizi = [s.service for s in a.appointment_services if s.service is not None]
@@ -224,7 +253,10 @@ async def get_available_slots(
                 for i in needed
             )
             if all_free:
-                slot_dt = datetime.combine(target_date, time(slot_start // 60, slot_start % 60), tzinfo=timezone.utc)
+                # `istante()` e non `tzinfo=utc`: `slot_start` è un'ora di
+                # orologio del salone, e va trasformata nell'istante in cui
+                # quell'ora accade davvero.
+                slot_dt = istante(target_date, time(slot_start // 60, slot_start % 60))
                 # Respect min advance
                 if (slot_dt - now_utc).total_seconds() / 60 >= min_advance_minutes:
                     available.append(slot_dt)

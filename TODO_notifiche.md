@@ -246,18 +246,97 @@ fallback SMTP (solo dev locale). Mittente verificato: `newstylehair2019@gmail.co
   orari nei messaggi sono sbagliati, attivare WhatsApp li manderebbe alle
   clienti su un canale in più.
 
-- [ ] **Fuso orario degli appuntamenti: sospetto di incoerenza** — emerso il
-  2026-09-17 preparando la prova WhatsApp, verifica in corso.
-  Il backend costruisce gli slot del portale come «ora del salone
-  etichettata UTC» (`datetime.combine(data, 09:00, tzinfo=UTC)` in
-  `services/availability.py`), mentre il calendario admin invia gli orari
-  con `Date.toISOString()`, che converte in UTC **vero**. Email e WhatsApp
-  scrivono l'ora con `strftime` senza conversione. Se il sospetto regge, lo
-  stesso appuntamento delle 9 in salone viene salvato in due modi diversi a
-  seconda di dove è stato creato, e per uno dei due la cliente legge
-  nell'email un orario sbagliato di una o due ore. Riguarda anche il
-  controllo delle sovrapposizioni e l'anticipo dei promemoria. **Da chiudere
-  prima di attivare WhatsApp in produzione.**
+- [ ] **Fuso orario degli appuntamenti: CONFERMATO, in produzione adesso** —
+  emerso il 2026-09-17 preparando la prova WhatsApp. Verificato con un
+  controllo a più agenti: quattro lettori, uno per percorso, e due
+  refutatori indipendenti per ogni conclusione. Quattro affermazioni su
+  quattro confermate, sette verifiche su otto **riprodotte eseguendo il
+  codice vero**.
+
+  **Correzione all'ipotesi iniziale.** La prima versione di questa nota
+  diceva che lo stesso appuntamento veniva salvato in due modi a seconda di
+  chi lo creava. Non è così: il database contiene sempre l'istante che la
+  cliente ha cliccato e che lo staff vede in calendario, e i due frontend
+  sono corretti. L'errore sta in tre punti del **backend** che trattano
+  l'ora del salone come fosse UTC:
+  - `services/availability.py:227` — slot costruiti con
+    `combine(data, ora, tzinfo=UTC)`;
+  - `services/availability.py:183` — occupazione degli appuntamenti letta in
+    ore UTC;
+  - `utils/email.py` e `utils/whatsapp.py` — `strftime` su `start_time`
+    senza `astimezone`.
+
+  **Effetti** (esempio: 18/09/2026, salone aperto 09–19, estate):
+  - **P1, portale**: le clienti vedono gli slot **dalle 11:00 alle 20:00**.
+    Si può prenotare alle 20:00 a salone chiuso, le 09:00–10:30 non
+    compaiono mai, un permesso 14–16 resta prenotabile alle 14:00. D'inverno
+    lo scarto è di 1 ora.
+  - **P2, messaggi**: **tutte** le email e i WhatsApp scrivono un orario 2
+    ore prima di quello in calendario (1 ora d'inverno). Un appuntamento
+    dello staff alle 09:00 arriva come «alle 07:00».
+  - **P3, preavvisi e promemoria**: corretti rispetto alle schermate, ma
+    sfasati rispetto al testo dei messaggi. Spariscono correggendo P1 e P2.
+
+  Controllo sovrapposizioni fra appuntamenti: coerente, perché confronta UTC
+  con UTC. Lo sfasamento riguarda solo il confronto con orari di lavoro,
+  giorni extra e permessi.
+
+  **Correzione scelta in linea di principio (opzione A): istanti reali
+  ovunque, con la conversione nel backend.** Un modulo con
+  `ZoneInfo("Europe/Rome")`, usato per:
+  - slot **e** occupazione in `availability.py`, **nello stesso rilascio**.
+    Correggere solo la riga 227 introduce doppie prenotazioni: lo slot delle
+    09:00 diventerebbe `07:00Z` e un appuntamento dello staff a `07:00Z`
+    continuerebbe a occupare il minuto 420, fuori griglia;
+  - `astimezone` nei messaggi;
+  - `booking.py` (valori senza fuso letti come ora di Roma, `date.today()`
+    sostituito con la data di Roma);
+  - confini di giornata in dashboard e filtri;
+  - seed, bootstrap e test, con test sui giorni del cambio d'ora (29/03 e
+    25/10/2026);
+  - `tzdata` dichiarato in `requirements.txt`, che oggi arriva solo come
+    dipendenza di `kombu`.
+
+  Il frontend non va toccato. Scartate l'opzione B (ora del salone come UTC
+  ovunque: toccherebbe tutto il frontend e lascerebbe in `timestamptz`
+  valori che non sono istanti) e l'opzione C (colonna senza fuso: più costi
+  che vantaggi).
+
+  **Dati esistenti**: le righe create dallo staff sono già giuste. Per
+  quelle online vale lo schermo (quello che la cliente ha cliccato), quindi
+  **nessuna migrazione**. Il criterio per distinguerle è
+  `appointments.origin`.
+
+  **Prima di correggere**, in sola lettura sulla produzione:
+  1. controllare `CollaboratorSchedule`: se qualcuno ha già «compensato» gli
+     orari a mano, la correzione sposterebbe il portale nel verso opposto;
+  2. elencare le **prenotazioni online future**. Quelle clienti hanno
+     ricevuto un orario sbagliato e vanno avvisate:
+     ```sql
+     SELECT id, start_time AT TIME ZONE 'Europe/Rome' AS ora_schermo,
+            start_time AT TIME ZONE 'UTC'         AS ora_messaggio, status
+     FROM appointments WHERE origin = 'online' AND start_time > now()
+     ORDER BY start_time;
+     ```
+     Vanno segnalate a mano anche quelle che, in ora di Roma, cadono fuori
+     orario o dentro un permesso.
+
+  **Da chiudere prima di attivare WhatsApp in produzione.**
+
+  **Segnalati da un solo lettore, da verificare a parte:**
+  - filtri per data senza fuso (`CalendarPage.tsx:187`,
+    `AppointmentsPage.tsx:67`, `CashPage.tsx:45`), interpretati nel fuso del
+    processo: Europe/Rome sul Mac, UTC su Railway, quindi sviluppo e
+    produzione danno risultati diversi;
+  - dashboard «oggi/settimana» calcolata sul giorno UTC
+    (`dashboard.py:24-36`);
+  - `booking.py:429-432`: la proposta alternativa sovrascrive `start_time`
+    prima di calcolare la durata, quindi `end_time` resta il vecchio. Oggi
+    non è raggiungibile dall'interfaccia;
+  - il promemoria viene segnato come inviato anche quando falliscono
+    entrambi i canali (`reminders.py:69-72`);
+  - un appuntamento spostato non fa ripartire il promemoria
+    (`admin/appointments.py:169-193`).
 
 - [x] ~~**Codice pronto per i template Meta**~~ — fatto 2026-08-25, prima
   dell'approvazione, perché è la parte che non dipende da Meta.

@@ -4,6 +4,7 @@ import logging
 import httpx
 from app.config import settings
 from app.logging_config import maschera_telefono
+from app.utils.tempo import ora_salone
 
 log = logging.getLogger("nsh.whatsapp")
 
@@ -141,7 +142,10 @@ async def send_booking_confirmation(appointment, cfg) -> None:
 
     collab = appointment.collaborator
     collab_name = f"{collab.first_name} {collab.last_name}" if collab else "il collaboratore"
-    start = appointment.start_time
+    # L'orario del salone, non l'istante grezzo: `start_time` è in UTC, e
+    # scriverlo senza convertire manderebbe alla cliente un orario due ore
+    # prima di quello in agenda (una d'inverno).
+    start = ora_salone(appointment.start_time)
     message = _render(
         cfg.whatsapp_booking_message,
         DEFAULT_BOOKING_MESSAGE,
@@ -171,7 +175,10 @@ async def send_reminder_message(appointment, cfg) -> None:
 
     collab = appointment.collaborator
     collab_name = f"{collab.first_name} {collab.last_name}" if collab else "il collaboratore"
-    start = appointment.start_time
+    # L'orario del salone, non l'istante grezzo: `start_time` è in UTC, e
+    # scriverlo senza convertire manderebbe alla cliente un orario due ore
+    # prima di quello in agenda (una d'inverno).
+    start = ora_salone(appointment.start_time)
     message = _render(
         cfg.whatsapp_reminder_message,
         DEFAULT_REMINDER_MESSAGE,

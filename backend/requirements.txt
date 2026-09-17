@@ -68,3 +68,14 @@ pillow==12.3.0
 # Monitoring
 sentry-sdk[fastapi]==2.66.1
 slowapi==0.1.10
+
+# Il database dei fusi orari per `zoneinfo`, usato da `app/utils/tempo.py` per
+# convertire fra l'ora del salone e l'istante salvato.
+#
+# **Dichiarato anche se già presente**: oggi arriva come dipendenza di `kombu`
+# (quindi di Celery), e su un'immagine slim `zoneinfo` senza database dei fusi
+# non ripiega su niente — solleva `ZoneInfoNotFoundError` all'avvio. Dipendere
+# per una cosa del genere da quello che si porta dietro un'altra libreria
+# significa che il giorno che Celery cambia impacchettamento il servizio non
+# parte più, per un motivo che nessuno collegherebbe a Celery.
+tzdata==2026.1

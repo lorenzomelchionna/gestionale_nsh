@@ -1,14 +1,32 @@
 # TODO — Configurazione notifiche (Email + WhatsApp)
 
-## ✅✅ STATO: EMAIL + WHATSAPP FUNZIONANTI IN PRODUZIONE (2026-06-19)
-
-Pipeline completa testata e verificata end-to-end:
-appuntamento confermato → Redis → Celery worker → invio → consegnato.
+## STATO: EMAIL FUNZIONANTE, WHATSAPP NON CONSEGNA NIENTE (verificato 2026-09-17)
 
 | Canale | Stato | Provider | Via |
 |--------|-------|----------|-----|
 | **Email** | ✅ Funziona | Brevo | HTTP API (HTTPS) |
-| **WhatsApp** | ✅ Funziona | Twilio | HTTP API — **Sandbox** |
+| **WhatsApp** | ❌ **Nessuna consegna dal 19 giugno** | Twilio | HTTP API — **Sandbox** |
+
+> ⚠️ **Questa sezione diceva «EMAIL + WHATSAPP FUNZIONANTI IN
+> PRODUZIONE».** Per WhatsApp era vero solo per il messaggio di prova del 19
+> giugno, mandato a un numero che si era appena iscritto alla Sandbox. Il
+> registro messaggi di Twilio, letto il 17 settembre, mostra che **da allora
+> ogni invio è fallito**:
+>
+> - `63015` — il destinatario non si è iscritto alla Sandbox, che è la
+>   regola della Sandbox: parla solo con chi ha mandato `join`, e
+>   l'iscrizione scade;
+> - `21211` — numero non valido: i clienti demo di luglio.
+>
+> Il codice non segnalava niente di rotto perché l'errore arriva da Twilio
+> *dopo* la richiesta. La richiesta va a buon fine, la consegna fallisce, e
+> nessuno guarda il registro di Twilio.
+>
+> Conseguenza utile: passare dalla Sandbox al numero vero **non rompe
+> niente**, perché non c'è niente di funzionante da rompere.
+
+La pipeline email (appuntamento confermato → Redis → Celery worker → invio →
+consegnato) resta quella verificata il 19 giugno.
 
 ### Perché NON si usa più SMTP per le email
 Railway throttla/blocca l'SMTP in uscita (timeout). Si è passati a **Brevo HTTP API**
@@ -40,10 +58,37 @@ fallback SMTP (solo dev locale). Mittente verificato: `newstylehair2019@gmail.co
   mostra e permette di rispondere. La verifica per un fisso avviene per
   **chiamata vocale**, non per SMS.
 
-  **Verifica azienda Meta: completata il 2026-09-02.** Da non confondere con
-  «Meta Verified», l'abbonamento a pagamento per la spunta blu, che **non
-  serve**: quella fatta è la *Business Verification*, gratuita, che confronta
-  denominazione legale e sede con la Camera di Commercio.
+  **Verifica azienda Meta: dichiarata completata il 2026-09-17, da
+  confermare** con la riga «Stato della verifica dell'azienda» in
+  Impostazioni → Informazioni business, che deve dire *Verificato*.
+
+  ~~«completata il 2026-09-02»~~ — **questa riga era falsa.** Il 17
+  settembre, collegando l'account WhatsApp, il portfolio risultava *Non
+  verificato* e senza nessuna pratica in corso o respinta. I dati
+  dell'azienda erano incompleti: ragione sociale «New Style Hair» invece di
+  quella della visura, indirizzo «Italia», nessun telefono. Con dati così il
+  confronto con la visura non può tornare. Corretti il 17 settembre e
+  verifica rifatta da capo.
+
+  **Come sono organizzati gli account Meta**, perché qui ci si è confusi più
+  volte:
+
+  ```
+  Profilo Facebook personale di Vincenzo Romolo      ← il login
+   └─ Portfolio business (ID 217225312415884)        ← qui si fa la verifica
+       ├─ Pagina Facebook "New Style Hair"
+       └─ Account WhatsApp "New Style Hair"          ← ID 2221302968437076
+  ```
+
+  La verifica riguarda il **portfolio**, non la Pagina. Cercare di
+  «verificare» la Pagina porta a Meta Verified, cioè alla spunta blu a
+  pagamento, che **non serve**. I dati del portfolio devono essere quelli
+  della visura, copiati lettera per lettera: ragione sociale, sede legale,
+  telefono (il **fisso**, non il numero Twilio), sito.
+
+  **Da fare**: aggiungere un secondo amministratore al portfolio (Utenti →
+  Persone). Oggi Pagina, account WhatsApp e verifica dipendono tutti da un
+  solo profilo personale.
 
   **Account Twilio a pagamento: fatto il 2026-09-09.** Blocco che nessuno
   aveva previsto: l'account era **trial**, e la registrazione di un Mittente
@@ -130,6 +175,168 @@ fallback SMTP (solo dev locale). Mittente verificato: `newstylehair2019@gmail.co
   restino validi passando al secondo numero dello stesso WABA. È quello che
   risulta, ma non è stato provato sul campo — e regge tutto il piano. Si
   controlla a costo quasi zero sottoponendo **un** template e guardando.
+
+  **Stato al 2026-09-17**: numero ponte **+1 689 344-8830**. Collegato a
+  Meta dalla registrazione Sender di Twilio con il login di Vincenzo Romolo:
+  l'account WhatsApp «New Style Hair» è nato sotto il portfolio giusto, e la
+  schermata di Twilio («collega l'account WhatsApp Business al tuo numero»)
+  conferma che il WABA è un oggetto distinto a cui i numeri si agganciano.
+  Durante il collegamento vanno **tolte** le due spunte facoltative:
+  analisi automatica delle conversazioni da parte di Meta e insight
+  aziendali. Non servono a mandare messaggi, e sono chat con dati personali
+  delle clienti.
+
+  **Aggiornamento 2026-09-17, letto dalle API di Twilio**, non dalle
+  schermate:
+
+  | | |
+  |---|---|
+  | Sender `+1 689 344-8830` | **ONLINE**, nome «New Style Hair» |
+  | `promemoria_appuntamento` `HXa61b5a829758c40d48c5c3b575f7b074` | ✅ **approvato**, Utility, `it` |
+  | `conferma_appuntamento` `HX848a66f189ce68f7646a7327c556ca97` | ⏳ **in attesa**, Utility, `it` |
+
+  Entrambi i testi controllati via API: variabili nell'ordine che il codice
+  manda (`{{1}}` nome, `{{2}}` data, `{{3}}` ora, `{{4}}` collaboratore). I
+  SID sono identificativi, non credenziali: senza il token non servono a
+  niente.
+
+  **Non ancora su Railway, di proposito**: `TWILIO_WHATSAPP_FROM` è ancora la
+  Sandbox, e un template del WABA «New Style Hair» mandato dal numero della
+  Sandbox verrebbe rifiutato. SID e numero vanno cambiati **insieme**, su
+  backend e worker.
+
+  - [x] ~~**Webhook del Sender**~~ — fatto 2026-09-17 via API:
+    `https://gestionalensh-production.up.railway.app/api/public/whatsapp/webhook`,
+    POST. Prima era vuoto, quindi la risposta di una cliente non arrivava da
+    nessuna parte. Controllata **prima** la firma in produzione, perché se
+    l'URL ricostruito dal backend non combaciasse ogni risposta verrebbe
+    scartata in silenzio: senza firma 403, firma sbagliata 403, firma giusta
+    200. La prova usava un corpo vuoto, che il gestore ignora, quindi non ha
+    scritto niente a database.
+    **Il giorno del passaggio lo stesso webhook va impostato anche sul
+    Sender del fisso**: è un'impostazione del singolo Sender, non del WABA.
+  - [x] ~~**Profilo del Sender**~~ — fatto 2026-09-17: descrizione, indirizzo
+    di visita, categoria «Beauty, Spa and Salon», sito. Nome lasciato com'era
+    (cambiarlo fa ripartire la revisione di Meta). Twilio vuole la categoria
+    per esteso: il codice Meta `BEAUTY` viene rifiutato con errore `63100`.
+    **Email lasciata vuota di proposito**: era stata proposta
+    `noreply@newstylehair.it`, ma in un profilo pubblico un indirizzo da cui
+    si spedisce e basta è un errore, perché chi ci scrive non riceve
+    risposta. Da decidere quale indirizzo mostrare.
+  - [x] ~~**Prova vera**~~ — fatta 2026-09-17, dal numero ponte al telefono
+    di Lorenzo, passando per il codice vero (`send_reminder_message` con un
+    appuntamento finto e le credenziali di produzione passate per
+    ambiente, **senza** toccare la configurazione di Railway):
+    - template **consegnato** (`delivered`), testo e variabili giusti;
+    - in cima alla chat compare **«New Style Hair»**;
+    - la risposta di Lorenzo è arrivata a Twilio e Twilio l'ha inoltrata al
+      webhook: **200**, firma valida.
+    Da confermare a vista: che la risposta compaia nella pagina Chat.
+  - [x] ~~**Entrambi i template approvati**~~ — `conferma_appuntamento`
+    approvato il 2026-09-17 alle 13:02 UTC.
+    **Nota per chi legge il debugger di Twilio**: gli avvisi `63046` non
+    sono errori, sono le notifiche di cambio stato dei template («The
+    template was APPROVED»). Hanno livello *warning* e sembrano problemi, ma
+    non lo sono.
+
+  **Pronto per il passaggio, tranne una cosa.** Tecnicamente basterebbe
+  impostare su Railway (backend **e** worker) `TWILIO_WHATSAPP_FROM`,
+  `TWILIO_TEMPLATE_CONFERMA` e `TWILIO_TEMPLATE_PROMEMORIA`. **Non farlo
+  finché non è chiuso il controllo sul fuso orario** (voce sotto): se gli
+  orari nei messaggi sono sbagliati, attivare WhatsApp li manderebbe alle
+  clienti su un canale in più.
+
+- [ ] **Fuso orario degli appuntamenti: CONFERMATO, in produzione adesso** —
+  emerso il 2026-09-17 preparando la prova WhatsApp. Verificato con un
+  controllo a più agenti: quattro lettori, uno per percorso, e due
+  refutatori indipendenti per ogni conclusione. Quattro affermazioni su
+  quattro confermate, sette verifiche su otto **riprodotte eseguendo il
+  codice vero**.
+
+  **Correzione all'ipotesi iniziale.** La prima versione di questa nota
+  diceva che lo stesso appuntamento veniva salvato in due modi a seconda di
+  chi lo creava. Non è così: il database contiene sempre l'istante che la
+  cliente ha cliccato e che lo staff vede in calendario, e i due frontend
+  sono corretti. L'errore sta in tre punti del **backend** che trattano
+  l'ora del salone come fosse UTC:
+  - `services/availability.py:227` — slot costruiti con
+    `combine(data, ora, tzinfo=UTC)`;
+  - `services/availability.py:183` — occupazione degli appuntamenti letta in
+    ore UTC;
+  - `utils/email.py` e `utils/whatsapp.py` — `strftime` su `start_time`
+    senza `astimezone`.
+
+  **Effetti** (esempio: 18/09/2026, salone aperto 09–19, estate):
+  - **P1, portale**: le clienti vedono gli slot **dalle 11:00 alle 20:00**.
+    Si può prenotare alle 20:00 a salone chiuso, le 09:00–10:30 non
+    compaiono mai, un permesso 14–16 resta prenotabile alle 14:00. D'inverno
+    lo scarto è di 1 ora.
+  - **P2, messaggi**: **tutte** le email e i WhatsApp scrivono un orario 2
+    ore prima di quello in calendario (1 ora d'inverno). Un appuntamento
+    dello staff alle 09:00 arriva come «alle 07:00».
+  - **P3, preavvisi e promemoria**: corretti rispetto alle schermate, ma
+    sfasati rispetto al testo dei messaggi. Spariscono correggendo P1 e P2.
+
+  Controllo sovrapposizioni fra appuntamenti: coerente, perché confronta UTC
+  con UTC. Lo sfasamento riguarda solo il confronto con orari di lavoro,
+  giorni extra e permessi.
+
+  **Correzione scelta in linea di principio (opzione A): istanti reali
+  ovunque, con la conversione nel backend.** Un modulo con
+  `ZoneInfo("Europe/Rome")`, usato per:
+  - slot **e** occupazione in `availability.py`, **nello stesso rilascio**.
+    Correggere solo la riga 227 introduce doppie prenotazioni: lo slot delle
+    09:00 diventerebbe `07:00Z` e un appuntamento dello staff a `07:00Z`
+    continuerebbe a occupare il minuto 420, fuori griglia;
+  - `astimezone` nei messaggi;
+  - `booking.py` (valori senza fuso letti come ora di Roma, `date.today()`
+    sostituito con la data di Roma);
+  - confini di giornata in dashboard e filtri;
+  - seed, bootstrap e test, con test sui giorni del cambio d'ora (29/03 e
+    25/10/2026);
+  - `tzdata` dichiarato in `requirements.txt`, che oggi arriva solo come
+    dipendenza di `kombu`.
+
+  Il frontend non va toccato. Scartate l'opzione B (ora del salone come UTC
+  ovunque: toccherebbe tutto il frontend e lascerebbe in `timestamptz`
+  valori che non sono istanti) e l'opzione C (colonna senza fuso: più costi
+  che vantaggi).
+
+  **Dati esistenti**: le righe create dallo staff sono già giuste. Per
+  quelle online vale lo schermo (quello che la cliente ha cliccato), quindi
+  **nessuna migrazione**. Il criterio per distinguerle è
+  `appointments.origin`.
+
+  **Prima di correggere**, in sola lettura sulla produzione:
+  1. controllare `CollaboratorSchedule`: se qualcuno ha già «compensato» gli
+     orari a mano, la correzione sposterebbe il portale nel verso opposto;
+  2. elencare le **prenotazioni online future**. Quelle clienti hanno
+     ricevuto un orario sbagliato e vanno avvisate:
+     ```sql
+     SELECT id, start_time AT TIME ZONE 'Europe/Rome' AS ora_schermo,
+            start_time AT TIME ZONE 'UTC'         AS ora_messaggio, status
+     FROM appointments WHERE origin = 'online' AND start_time > now()
+     ORDER BY start_time;
+     ```
+     Vanno segnalate a mano anche quelle che, in ora di Roma, cadono fuori
+     orario o dentro un permesso.
+
+  **Da chiudere prima di attivare WhatsApp in produzione.**
+
+  **Segnalati da un solo lettore, da verificare a parte:**
+  - filtri per data senza fuso (`CalendarPage.tsx:187`,
+    `AppointmentsPage.tsx:67`, `CashPage.tsx:45`), interpretati nel fuso del
+    processo: Europe/Rome sul Mac, UTC su Railway, quindi sviluppo e
+    produzione danno risultati diversi;
+  - dashboard «oggi/settimana» calcolata sul giorno UTC
+    (`dashboard.py:24-36`);
+  - `booking.py:429-432`: la proposta alternativa sovrascrive `start_time`
+    prima di calcolare la durata, quindi `end_time` resta il vecchio. Oggi
+    non è raggiungibile dall'interfaccia;
+  - il promemoria viene segnato come inviato anche quando falliscono
+    entrambi i canali (`reminders.py:69-72`);
+  - un appuntamento spostato non fa ripartire il promemoria
+    (`admin/appointments.py:169-193`).
 
 - [x] ~~**Codice pronto per i template Meta**~~ — fatto 2026-08-25, prima
   dell'approvazione, perché è la parte che non dipende da Meta.

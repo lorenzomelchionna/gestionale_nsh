@@ -8,6 +8,7 @@ from email.mime.multipart import MIMEMultipart
 import httpx
 from app.config import settings
 from app.logging_config import maschera_email
+from app.utils.tempo import ora_salone
 
 log = logging.getLogger("nsh.email")
 
@@ -102,7 +103,10 @@ async def send_appointment_reminder(appointment) -> None:
     if not client or not client.email:
         return
     collab = appointment.collaborator
-    start = appointment.start_time.strftime("%d/%m/%Y alle %H:%M")
+    # `ora_salone` e non `strftime` diretto: `start_time` è un istante in UTC,
+    # e scriverlo senza convertire annuncerebbe alla cliente un orario due ore
+    # prima di quello che vede in agenda (una d'inverno).
+    start = ora_salone(appointment.start_time).strftime("%d/%m/%Y alle %H:%M")
     collab_name = f"{collab.first_name} {collab.last_name}" if collab else "il tuo collaboratore"
     subject = f"Promemoria appuntamento – {start}"
     body = f"""
@@ -167,7 +171,10 @@ async def send_booking_confirmation_email(appointment) -> None:
     if not client or not client.email:
         return
     collab = appointment.collaborator
-    start = appointment.start_time.strftime("%d/%m/%Y alle %H:%M")
+    # `ora_salone` e non `strftime` diretto: `start_time` è un istante in UTC,
+    # e scriverlo senza convertire annuncerebbe alla cliente un orario due ore
+    # prima di quello che vede in agenda (una d'inverno).
+    start = ora_salone(appointment.start_time).strftime("%d/%m/%Y alle %H:%M")
     collab_name = f"{collab.first_name} {collab.last_name}" if collab else "il collaboratore"
     subject = f"Prenotazione confermata – {start}"
     body = f"""
@@ -194,7 +201,10 @@ async def send_new_booking_staff_email(to_email: str, appointment) -> None:
     """
     client = appointment.client
     collab = appointment.collaborator
-    start = appointment.start_time.strftime("%d/%m/%Y alle %H:%M")
+    # `ora_salone` e non `strftime` diretto: `start_time` è un istante in UTC,
+    # e scriverlo senza convertire annuncerebbe alla cliente un orario due ore
+    # prima di quello che vede in agenda (una d'inverno).
+    start = ora_salone(appointment.start_time).strftime("%d/%m/%Y alle %H:%M")
 
     client_name = f"{client.first_name} {client.last_name}" if client else "Cliente sconosciuto"
     collab_name = f"{collab.first_name} {collab.last_name}" if collab else "—"

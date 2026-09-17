@@ -205,16 +205,27 @@ fallback SMTP (solo dev locale). Mittente verificato: `newstylehair2019@gmail.co
   Sandbox verrebbe rifiutato. SID e numero vanno cambiati **insieme**, su
   backend e worker.
 
-  **Due cose mancano sul Sender** prima di scrivere a chiunque:
-  - **webhook vuoto**: una risposta della cliente non arriva da nessuna
-    parte, e di certo non alla pagina Chat. Va puntato a
-    `https://gestionalensh-production.up.railway.app/api/public/whatsapp/webhook`
-    (POST);
-  - **profilo quasi vuoto**: c'è il nome, mancano sito, indirizzo e
-    categoria.
-
-  Poi una prova vera, un template al proprio telefono, prima di qualunque
-  cliente.
+  - [x] ~~**Webhook del Sender**~~ — fatto 2026-09-17 via API:
+    `https://gestionalensh-production.up.railway.app/api/public/whatsapp/webhook`,
+    POST. Prima era vuoto, quindi la risposta di una cliente non arrivava da
+    nessuna parte. Controllata **prima** la firma in produzione, perché se
+    l'URL ricostruito dal backend non combaciasse ogni risposta verrebbe
+    scartata in silenzio: senza firma 403, firma sbagliata 403, firma giusta
+    200. La prova usava un corpo vuoto, che il gestore ignora, quindi non ha
+    scritto niente a database.
+    **Il giorno del passaggio lo stesso webhook va impostato anche sul
+    Sender del fisso**: è un'impostazione del singolo Sender, non del WABA.
+  - [x] ~~**Profilo del Sender**~~ — fatto 2026-09-17: descrizione, indirizzo
+    di visita, categoria «Beauty, Spa and Salon», sito. Nome lasciato com'era
+    (cambiarlo fa ripartire la revisione di Meta). Twilio vuole la categoria
+    per esteso: il codice Meta `BEAUTY` viene rifiutato con errore `63100`.
+    **Email lasciata vuota di proposito**: era stata proposta
+    `noreply@newstylehair.it`, ma in un profilo pubblico un indirizzo da cui
+    si spedisce e basta è un errore, perché chi ci scrive non riceve
+    risposta. Da decidere quale indirizzo mostrare.
+  - [ ] **Prova vera**: il promemoria approvato mandato al telefono di
+    Lorenzo, poi una risposta per vedere se arriva nella pagina Chat. Prima
+    di qualunque cliente.
 
 - [x] ~~**Codice pronto per i template Meta**~~ — fatto 2026-08-25, prima
   dell'approvazione, perché è la parte che non dipende da Meta.

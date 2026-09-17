@@ -239,14 +239,70 @@ fallback SMTP (solo dev locale). Mittente verificato: `newstylehair2019@gmail.co
     template was APPROVED»). Hanno livello *warning* e sembrano problemi, ma
     non lo sono.
 
-  **Pronto per il passaggio, tranne una cosa.** Tecnicamente basterebbe
-  impostare su Railway (backend **e** worker) `TWILIO_WHATSAPP_FROM`,
-  `TWILIO_TEMPLATE_CONFERMA` e `TWILIO_TEMPLATE_PROMEMORIA`. **Non farlo
-  finché non è chiuso il controllo sul fuso orario** (voce sotto): se gli
-  orari nei messaggi sono sbagliati, attivare WhatsApp li manderebbe alle
-  clienti su un canale in più.
+  **Pronto per il passaggio.** Il fuso orario, che era il blocco, è stato
+  corretto il 2026-09-17 (voce sotto). Per attivare bastano tre variabili su
+  Railway, su backend **e** worker:
 
-- [ ] **Fuso orario degli appuntamenti: CONFERMATO, in produzione adesso** —
+  ```
+  TWILIO_WHATSAPP_FROM=whatsapp:+16893448830
+  TWILIO_TEMPLATE_CONFERMA=HX848a66f189ce68f7646a7327c556ca97
+  TWILIO_TEMPLATE_PROMEMORIA=HXa61b5a829758c40d48c5c3b575f7b074
+  ```
+
+  **Resta una decisione, non un impedimento**: usare già adesso il numero
+  ponte con le clienti vere, oppure aspettare il fisso. Un numero americano
+  che scrive a clienti italiane somiglia a spam: chi lo blocca o lo segnala
+  abbassa la reputazione dell'account WhatsApp prima ancora che arrivi il
+  numero vero, e le conversazioni si dividerebbero su due numeri. Da qui la
+  proposta di aspettare, ma tecnicamente è pronto.
+
+- [x] ~~**Fuso orario degli appuntamenti**~~ — **corretto il 2026-09-17**, in
+  due rilasci. Sotto resta il referto, perché il ragionamento serve a chi un
+  domani toccherà `availability.py`.
+
+  **Rilascio 1 — i messaggi.** `app/utils/tempo.py` è ora l'unico confine fra
+  ora di orologio e istante: `istante(giorno, ora)` e `ora_salone(dt)`, con
+  `Europe/Rome` da `ZoneInfo` e non dal `TZ` del processo. Email e WhatsApp
+  convertono prima di formattare. Tre test esistenti si aspettavano l'ora UTC
+  — erano loro a fissare il difetto — e ora verificano l'ora del salone.
+  `tzdata` dichiarato in `requirements.txt` invece che ereditato da `kombu`:
+  su immagine slim `zoneinfo` senza database dei fusi solleva all'avvio, e
+  nessuno collegherebbe quel guasto all'impacchettamento di Celery.
+
+  **Rilascio 2 — gli slot.** Tre conversioni, arrivate **insieme**: gli
+  appuntamenti entrano nella griglia dei minuti con `minuti_salone()` e non
+  con `.hour`, gli slot nascono da `istante()`, e la finestra del giorno è
+  quella del salone. In `booking.py` un `start_time` senza fuso è letto come
+  ora del salone, e la data di riferimento è quella del salone.
+
+  **La trappola, per chi tornerà qui:** correggere la sola riga degli slot
+  lasciando gli appuntamenti sulla vecchia scala apre **doppie
+  prenotazioni** — l'appuntamento occuperebbe un minuto che nessuno slot
+  guarda. `TestNonSiCorreggeAMeta` in `tests/test_slot_ora_salone.py` esiste
+  per quello, ed è stato verificato facendo davvero la correzione parziale:
+  tre test diventano rossi.
+
+  **Verifica**: 682 test passano; il difetto originale rimesso ne fa cadere
+  nove. Provato nel browser sul database di sviluppo, percorso intero: il
+  portale offre 09:00–18:00 per una giornata 09:00–19:00 con servizio da
+  un'ora, il database salva `07:00Z`, la conferma scrive «alle 09:00». Prima
+  quei tre punti dicevano tre cose diverse.
+
+  Le date nei test nuovi sono **calcolate**, non scritte: una data fissa
+  scivola nel passato e da lì `get_available_slots` risponde `[]` per il
+  preavviso minimo, cioè il test fallirebbe per un motivo che non c'entra.
+
+  **Resta aperto, minore**: i confini di giornata di dashboard
+  (`dashboard.py:24-36`), dei filtri per data (`CalendarPage.tsx:187`,
+  `AppointmentsPage.tsx:67`, `CashPage.tsx:45`) e della scadenza dei buoni
+  regalo usano ancora il giorno del processo. Sbagliano solo fra mezzanotte e
+  le due, a salone chiuso; il fastidio vero è che sviluppo e produzione danno
+  risultati diversi.
+
+<details>
+<summary>Referto originale (2026-09-17)</summary>
+
+- [x] **Fuso orario degli appuntamenti: CONFERMATO, in produzione adesso** —
   emerso il 2026-09-17 preparando la prova WhatsApp. Verificato con un
   controllo a più agenti: quattro lettori, uno per percorso, e due
   refutatori indipendenti per ogni conclusione. Quattro affermazioni su
@@ -337,6 +393,8 @@ fallback SMTP (solo dev locale). Mittente verificato: `newstylehair2019@gmail.co
     entrambi i canali (`reminders.py:69-72`);
   - un appuntamento spostato non fa ripartire il promemoria
     (`admin/appointments.py:169-193`).
+
+</details>
 
 - [x] ~~**Codice pronto per i template Meta**~~ — fatto 2026-08-25, prima
   dell'approvazione, perché è la parte che non dipende da Meta.

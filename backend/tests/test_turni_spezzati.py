@@ -20,6 +20,7 @@ import pytest_asyncio
 from app.models.collaborator import CollaboratorSchedule
 from app.models.extra_day import CollaboratorExtraDay
 from app.services.availability import get_available_slots
+from app.utils.tempo import ora_salone
 from tests.conftest import giorno_lavorativo
 
 pytestmark = pytest.mark.asyncio
@@ -40,7 +41,12 @@ GIORNO = giorno_lavorativo(date.today() + timedelta(days=10))
 
 
 def _orari(slot):
-    return [s.strftime("%H:%M") for s in slot]
+    """Gli orari come li legge la cliente, cioè sull'orologio del salone.
+
+    `get_available_slots` restituisce istanti: formattarli senza convertire
+    darebbe l'ora UTC, che d'estate è due ore prima — ed è esattamente il
+    difetto chiuso il 2026-09-17."""
+    return [ora_salone(s).strftime("%H:%M") for s in slot]
 
 
 async def _pulisci_orari(db, collaborator):

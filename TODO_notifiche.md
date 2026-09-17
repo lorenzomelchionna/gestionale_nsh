@@ -1,14 +1,32 @@
 # TODO — Configurazione notifiche (Email + WhatsApp)
 
-## ✅✅ STATO: EMAIL + WHATSAPP FUNZIONANTI IN PRODUZIONE (2026-06-19)
-
-Pipeline completa testata e verificata end-to-end:
-appuntamento confermato → Redis → Celery worker → invio → consegnato.
+## STATO: EMAIL FUNZIONANTE, WHATSAPP NON CONSEGNA NIENTE (verificato 2026-09-17)
 
 | Canale | Stato | Provider | Via |
 |--------|-------|----------|-----|
 | **Email** | ✅ Funziona | Brevo | HTTP API (HTTPS) |
-| **WhatsApp** | ✅ Funziona | Twilio | HTTP API — **Sandbox** |
+| **WhatsApp** | ❌ **Nessuna consegna dal 19 giugno** | Twilio | HTTP API — **Sandbox** |
+
+> ⚠️ **Questa sezione diceva «EMAIL + WHATSAPP FUNZIONANTI IN
+> PRODUZIONE».** Per WhatsApp era vero solo per il messaggio di prova del 19
+> giugno, mandato a un numero che si era appena iscritto alla Sandbox. Il
+> registro messaggi di Twilio, letto il 17 settembre, mostra che **da allora
+> ogni invio è fallito**:
+>
+> - `63015` — il destinatario non si è iscritto alla Sandbox, che è la
+>   regola della Sandbox: parla solo con chi ha mandato `join`, e
+>   l'iscrizione scade;
+> - `21211` — numero non valido: i clienti demo di luglio.
+>
+> Il codice non segnalava niente di rotto perché l'errore arriva da Twilio
+> *dopo* la richiesta. La richiesta va a buon fine, la consegna fallisce, e
+> nessuno guarda il registro di Twilio.
+>
+> Conseguenza utile: passare dalla Sandbox al numero vero **non rompe
+> niente**, perché non c'è niente di funzionante da rompere.
+
+La pipeline email (appuntamento confermato → Redis → Celery worker → invio →
+consegnato) resta quella verificata il 19 giugno.
 
 ### Perché NON si usa più SMTP per le email
 Railway throttla/blocca l'SMTP in uscita (timeout). Si è passati a **Brevo HTTP API**
@@ -168,9 +186,35 @@ fallback SMTP (solo dev locale). Mittente verificato: `newstylehair2019@gmail.co
   aziendali. Non servono a mandare messaggi, e sono chat con dati personali
   delle clienti.
 
-  Restano, in ordine: completare la verifica del numero (codice via SMS, che
-  Twilio intercetta da solo) → sottoporre i due template, categoria
-  **Utility**, lingua italiano → mettere i SID `HX…` su Railway.
+  **Aggiornamento 2026-09-17, letto dalle API di Twilio**, non dalle
+  schermate:
+
+  | | |
+  |---|---|
+  | Sender `+1 689 344-8830` | **ONLINE**, nome «New Style Hair» |
+  | `promemoria_appuntamento` `HXa61b5a829758c40d48c5c3b575f7b074` | ✅ **approvato**, Utility, `it` |
+  | `conferma_appuntamento` `HX848a66f189ce68f7646a7327c556ca97` | ⏳ **in attesa**, Utility, `it` |
+
+  Entrambi i testi controllati via API: variabili nell'ordine che il codice
+  manda (`{{1}}` nome, `{{2}}` data, `{{3}}` ora, `{{4}}` collaboratore). I
+  SID sono identificativi, non credenziali: senza il token non servono a
+  niente.
+
+  **Non ancora su Railway, di proposito**: `TWILIO_WHATSAPP_FROM` è ancora la
+  Sandbox, e un template del WABA «New Style Hair» mandato dal numero della
+  Sandbox verrebbe rifiutato. SID e numero vanno cambiati **insieme**, su
+  backend e worker.
+
+  **Due cose mancano sul Sender** prima di scrivere a chiunque:
+  - **webhook vuoto**: una risposta della cliente non arriva da nessuna
+    parte, e di certo non alla pagina Chat. Va puntato a
+    `https://gestionalensh-production.up.railway.app/api/public/whatsapp/webhook`
+    (POST);
+  - **profilo quasi vuoto**: c'è il nome, mancano sito, indirizzo e
+    categoria.
+
+  Poi una prova vera, un template al proprio telefono, prima di qualunque
+  cliente.
 
 - [x] ~~**Codice pronto per i template Meta**~~ — fatto 2026-08-25, prima
   dell'approvazione, perché è la parte che non dipende da Meta.

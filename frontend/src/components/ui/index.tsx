@@ -18,7 +18,13 @@ export function PageHeader({
 }) {
   return (
     <div className="flex flex-col gap-3 border-b border-rule pb-3.5 sm:flex-row sm:items-baseline sm:gap-4">
-      <h1 className="text-title-lg text-foreground truncate">{title}</h1>
+      {/* `pb-[0.09em]` non è una spaziatura estetica: è lo spazio che serve ai
+          tratti discendenti. `truncate` porta con sé `overflow: hidden`, e
+          l'interlinea del carattere da titolo (1.1) lascia il box più basso dei
+          glifi — misurato, 1.9px in meno a 36px. Risultato: le gambe di «g» e
+          «p» venivano tagliate di netto, come in «Messaggi WhatsApp».
+          In `em` e non in pixel perché il titolo è fluido: cresce col testo. */}
+      <h1 className="text-title-lg text-foreground truncate pb-[0.09em]">{title}</h1>
       {subtitle && <p className="note truncate">{subtitle}</p>}
       <div className="sm:flex-1" />
       {action && (

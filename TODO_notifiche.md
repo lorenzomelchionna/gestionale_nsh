@@ -239,9 +239,8 @@ fallback SMTP (solo dev locale). Mittente verificato: `newstylehair2019@gmail.co
     template was APPROVED»). Hanno livello *warning* e sembrano problemi, ma
     non lo sono.
 
-  **Pronto per il passaggio.** Il fuso orario, che era il blocco, è stato
-  corretto il 2026-09-17 (voce sotto). Per attivare bastano tre variabili su
-  Railway, su backend **e** worker:
+  **ACCESO il 2026-09-17 sul numero ponte.** Impostate su Railway, backend
+  **e** worker:
 
   ```
   TWILIO_WHATSAPP_FROM=whatsapp:+16893448830
@@ -249,12 +248,21 @@ fallback SMTP (solo dev locale). Mittente verificato: `newstylehair2019@gmail.co
   TWILIO_TEMPLATE_PROMEMORIA=HXa61b5a829758c40d48c5c3b575f7b074
   ```
 
-  **Resta una decisione, non un impedimento**: usare già adesso il numero
-  ponte con le clienti vere, oppure aspettare il fisso. Un numero americano
-  che scrive a clienti italiane somiglia a spam: chi lo blocca o lo segnala
-  abbassa la reputazione dell'account WhatsApp prima ancora che arrivi il
-  numero vero, e le conversazioni si dividerebbero su due numeri. Da qui la
-  proposta di aspettare, ma tecnicamente è pronto.
+  Provato in produzione nelle due direzioni: messaggio dal gestionale al
+  telefono e risposta dal telefono alla pagina Chat.
+
+  **Perché prima non partiva niente**: il gestionale spediva ancora dalla
+  Sandbox, e ogni invio moriva con `63015` — «il destinatario non si è
+  iscritto alla Sandbox». La ricezione invece funzionava già, perché non
+  dipende dal numero mittente. Sintomo istruttivo: **metà canale funzionante
+  sembra un canale rotto in modo misterioso**, e per capirlo è servito
+  leggere il registro di Twilio, non i log dell'applicazione.
+
+  **Il numero è ancora quello ponte, americano.** Va bene per provare, ma a
+  regime le clienti vedrebbero un prefisso +1: chi lo blocca o lo segnala
+  abbassa la reputazione dell'account WhatsApp, e le conversazioni si
+  dividerebbero su due numeri. Il passaggio al fisso resta da fare il giorno
+  del go-live, seguendo i passi qui sopra.
 
 - [x] ~~**Fuso orario degli appuntamenti**~~ — **corretto il 2026-09-17**, in
   due rilasci. Sotto resta il referto, perché il ragionamento serve a chi un

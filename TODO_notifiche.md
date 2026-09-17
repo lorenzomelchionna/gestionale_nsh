@@ -223,9 +223,41 @@ fallback SMTP (solo dev locale). Mittente verificato: `newstylehair2019@gmail.co
     `noreply@newstylehair.it`, ma in un profilo pubblico un indirizzo da cui
     si spedisce e basta è un errore, perché chi ci scrive non riceve
     risposta. Da decidere quale indirizzo mostrare.
-  - [ ] **Prova vera**: il promemoria approvato mandato al telefono di
-    Lorenzo, poi una risposta per vedere se arriva nella pagina Chat. Prima
-    di qualunque cliente.
+  - [x] ~~**Prova vera**~~ — fatta 2026-09-17, dal numero ponte al telefono
+    di Lorenzo, passando per il codice vero (`send_reminder_message` con un
+    appuntamento finto e le credenziali di produzione passate per
+    ambiente, **senza** toccare la configurazione di Railway):
+    - template **consegnato** (`delivered`), testo e variabili giusti;
+    - in cima alla chat compare **«New Style Hair»**;
+    - la risposta di Lorenzo è arrivata a Twilio e Twilio l'ha inoltrata al
+      webhook: **200**, firma valida.
+    Da confermare a vista: che la risposta compaia nella pagina Chat.
+  - [x] ~~**Entrambi i template approvati**~~ — `conferma_appuntamento`
+    approvato il 2026-09-17 alle 13:02 UTC.
+    **Nota per chi legge il debugger di Twilio**: gli avvisi `63046` non
+    sono errori, sono le notifiche di cambio stato dei template («The
+    template was APPROVED»). Hanno livello *warning* e sembrano problemi, ma
+    non lo sono.
+
+  **Pronto per il passaggio, tranne una cosa.** Tecnicamente basterebbe
+  impostare su Railway (backend **e** worker) `TWILIO_WHATSAPP_FROM`,
+  `TWILIO_TEMPLATE_CONFERMA` e `TWILIO_TEMPLATE_PROMEMORIA`. **Non farlo
+  finché non è chiuso il controllo sul fuso orario** (voce sotto): se gli
+  orari nei messaggi sono sbagliati, attivare WhatsApp li manderebbe alle
+  clienti su un canale in più.
+
+- [ ] **Fuso orario degli appuntamenti: sospetto di incoerenza** — emerso il
+  2026-09-17 preparando la prova WhatsApp, verifica in corso.
+  Il backend costruisce gli slot del portale come «ora del salone
+  etichettata UTC» (`datetime.combine(data, 09:00, tzinfo=UTC)` in
+  `services/availability.py`), mentre il calendario admin invia gli orari
+  con `Date.toISOString()`, che converte in UTC **vero**. Email e WhatsApp
+  scrivono l'ora con `strftime` senza conversione. Se il sospetto regge, lo
+  stesso appuntamento delle 9 in salone viene salvato in due modi diversi a
+  seconda di dove è stato creato, e per uno dei due la cliente legge
+  nell'email un orario sbagliato di una o due ore. Riguarda anche il
+  controllo delle sovrapposizioni e l'anticipo dei promemoria. **Da chiudere
+  prima di attivare WhatsApp in produzione.**
 
 - [x] ~~**Codice pronto per i template Meta**~~ — fatto 2026-08-25, prima
   dell'approvazione, perché è la parte che non dipende da Meta.

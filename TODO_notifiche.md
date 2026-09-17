@@ -40,10 +40,37 @@ fallback SMTP (solo dev locale). Mittente verificato: `newstylehair2019@gmail.co
   mostra e permette di rispondere. La verifica per un fisso avviene per
   **chiamata vocale**, non per SMS.
 
-  **Verifica azienda Meta: completata il 2026-09-02.** Da non confondere con
-  «Meta Verified», l'abbonamento a pagamento per la spunta blu, che **non
-  serve**: quella fatta è la *Business Verification*, gratuita, che confronta
-  denominazione legale e sede con la Camera di Commercio.
+  **Verifica azienda Meta: dichiarata completata il 2026-09-17, da
+  confermare** con la riga «Stato della verifica dell'azienda» in
+  Impostazioni → Informazioni business, che deve dire *Verificato*.
+
+  ~~«completata il 2026-09-02»~~ — **questa riga era falsa.** Il 17
+  settembre, collegando l'account WhatsApp, il portfolio risultava *Non
+  verificato* e senza nessuna pratica in corso o respinta. I dati
+  dell'azienda erano incompleti: ragione sociale «New Style Hair» invece di
+  quella della visura, indirizzo «Italia», nessun telefono. Con dati così il
+  confronto con la visura non può tornare. Corretti il 17 settembre e
+  verifica rifatta da capo.
+
+  **Come sono organizzati gli account Meta**, perché qui ci si è confusi più
+  volte:
+
+  ```
+  Profilo Facebook personale di Vincenzo Romolo      ← il login
+   └─ Portfolio business (ID 217225312415884)        ← qui si fa la verifica
+       ├─ Pagina Facebook "New Style Hair"
+       └─ Account WhatsApp "New Style Hair"          ← ID 2221302968437076
+  ```
+
+  La verifica riguarda il **portfolio**, non la Pagina. Cercare di
+  «verificare» la Pagina porta a Meta Verified, cioè alla spunta blu a
+  pagamento, che **non serve**. I dati del portfolio devono essere quelli
+  della visura, copiati lettera per lettera: ragione sociale, sede legale,
+  telefono (il **fisso**, non il numero Twilio), sito.
+
+  **Da fare**: aggiungere un secondo amministratore al portfolio (Utenti →
+  Persone). Oggi Pagina, account WhatsApp e verifica dipendono tutti da un
+  solo profilo personale.
 
   **Account Twilio a pagamento: fatto il 2026-09-09.** Blocco che nessuno
   aveva previsto: l'account era **trial**, e la registrazione di un Mittente
@@ -130,6 +157,20 @@ fallback SMTP (solo dev locale). Mittente verificato: `newstylehair2019@gmail.co
   restino validi passando al secondo numero dello stesso WABA. È quello che
   risulta, ma non è stato provato sul campo — e regge tutto il piano. Si
   controlla a costo quasi zero sottoponendo **un** template e guardando.
+
+  **Stato al 2026-09-17**: numero ponte **+1 689 344-8830**. Collegato a
+  Meta dalla registrazione Sender di Twilio con il login di Vincenzo Romolo:
+  l'account WhatsApp «New Style Hair» è nato sotto il portfolio giusto, e la
+  schermata di Twilio («collega l'account WhatsApp Business al tuo numero»)
+  conferma che il WABA è un oggetto distinto a cui i numeri si agganciano.
+  Durante il collegamento vanno **tolte** le due spunte facoltative:
+  analisi automatica delle conversazioni da parte di Meta e insight
+  aziendali. Non servono a mandare messaggi, e sono chat con dati personali
+  delle clienti.
+
+  Restano, in ordine: completare la verifica del numero (codice via SMS, che
+  Twilio intercetta da solo) → sottoporre i due template, categoria
+  **Utility**, lingua italiano → mettere i SID `HX…` su Railway.
 
 - [x] ~~**Codice pronto per i template Meta**~~ — fatto 2026-08-25, prima
   dell'approvazione, perché è la parte che non dipende da Meta.

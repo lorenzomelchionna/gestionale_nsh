@@ -29,6 +29,7 @@ import pytest
 
 from app.config import settings
 from app.utils import whatsapp
+from app.utils.tempo import ora_salone
 
 pytestmark = pytest.mark.asyncio
 
@@ -126,8 +127,9 @@ class TestIQuattroAutomatici:
         assert spia.ultimo["ContentSid"] == "HX-conferma"
         variabili = json.loads(spia.ultimo["ContentVariables"])
         assert variabili["1"] == scheda.first_name
-        assert variabili["2"] == quando.strftime("%d/%m/%Y")
-        assert variabili["3"] == quando.strftime("%H:%M")
+        atteso = ora_salone(quando)
+        assert variabili["2"] == atteso.strftime("%d/%m/%Y")
+        assert variabili["3"] == atteso.strftime("%H:%M")
         assert collaborator.first_name in variabili["4"]
 
     async def test_promemoria(self, spia, monkeypatch, db, booking_config, collaborator, client_account):
@@ -157,8 +159,9 @@ class TestIQuattroAutomatici:
         assert spia.ultimo["ContentSid"] == "HX-promemoria"
         variabili = json.loads(spia.ultimo["ContentVariables"])
         assert variabili["1"] == scheda.first_name
-        assert variabili["2"] == quando.strftime("%d/%m/%Y")
-        assert variabili["3"] == quando.strftime("%H:%M")
+        atteso = ora_salone(quando)
+        assert variabili["2"] == atteso.strftime("%d/%m/%Y")
+        assert variabili["3"] == atteso.strftime("%H:%M")
 
     async def test_conferma_e_promemoria_usano_template_diversi(
         self, spia, monkeypatch, db, booking_config, collaborator, client_account

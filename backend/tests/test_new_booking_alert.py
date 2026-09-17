@@ -17,6 +17,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
+from app.utils.tempo import ora_salone
 from tests.conftest import giorno_lavorativo
 import pytest_asyncio
 from sqlalchemy import select, text
@@ -269,7 +270,9 @@ class TestWhatTheMailSays:
         assert "Giulia Test" in subject
         assert "Giulia Test" in body
         assert "+393330000002" in body, "senza telefono il salone non può richiamare"
-        assert appt.start_time.strftime("%d/%m/%Y alle %H:%M") in body
+        # `ora_salone` e non l'istante grezzo: anche l'avviso allo staff deve
+        # riportare l'ora del calendario, non quella UTC.
+        assert ora_salone(appt.start_time).strftime("%d/%m/%Y alle %H:%M") in body
         assert "Sofia Test" in body
         # Both services, not just the first: a basket named halfway is how the
         # salon prepares for the wrong appointment.

@@ -8,13 +8,13 @@
 # permessi in `tests/test_permissions_matrix.py` smetteva di vederle. È stata
 # riscritta prima, e regge entrambe le versioni.
 fastapi==0.141.1
-uvicorn[standard]==0.52.1
+uvicorn[standard]==0.53.0
 
 # Database
 sqlalchemy[asyncio]==2.0.51
 asyncpg==0.31.0
-alembic==1.18.5
-psycopg2-binary==2.9.12
+alembic==1.20.0
+psycopg2-binary==2.9.13
 
 # Pydantic
 pydantic==2.13.4
@@ -66,7 +66,7 @@ pytz==2024.2
 pillow==12.3.0
 
 # Monitoring
-sentry-sdk[fastapi]==2.66.1
+sentry-sdk[fastapi]==2.69.1
 slowapi==0.1.10
 
 # Il database dei fusi orari per `zoneinfo`, usato da `app/utils/tempo.py` per
@@ -78,4 +78,4 @@ slowapi==0.1.10
 # per una cosa del genere da quello che si porta dietro un'altra libreria
 # significa che il giorno che Celery cambia impacchettamento il servizio non
 # parte più, per un motivo che nessuno collegherebbe a Celery.
-tzdata==2026.1
+tzdata==2026.4

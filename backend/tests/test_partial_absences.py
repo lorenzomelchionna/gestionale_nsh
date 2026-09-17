@@ -21,6 +21,7 @@ import pytest_asyncio
 
 from app.models.absence import Absence, AbsenceType
 from app.services.availability import get_available_slots
+from app.utils.tempo import istante, ora_salone
 from tests.conftest import auth
 
 
@@ -35,7 +36,8 @@ async def giorno_lavorativo(collaborator):
 
 async def _orari_liberi(db, collaborator, giorno, durata=1):
     slots = await get_available_slots(db, collaborator.id, giorno, durata)
-    return {s.strftime("%H:%M") for s in slots}
+    # Ora del salone, non UTC: gli slot sono istanti.
+    return {ora_salone(s).strftime("%H:%M") for s in slots}
 
 
 class TestPermessoAOre:
@@ -151,7 +153,11 @@ class TestPermessoAOre:
         ))
         await db.commit()
 
-        quando = datetime.combine(giorno_lavorativo, time(14, 0), tzinfo=timezone.utc)
+        # Le 14:00 **del salone**, che è l'ora in cui comincia il permesso.
+        # Scritte come `tzinfo=utc` sarebbero le 16:00 di Roma, cioè fuori dal
+        # permesso, e la prenotazione verrebbe giustamente accettata: il test
+        # passava per il motivo sbagliato.
+        quando = istante(giorno_lavorativo, time(14, 0))
         resp = await client.post(
             "/api/public/appointments",
             headers=auth(client_tokens),

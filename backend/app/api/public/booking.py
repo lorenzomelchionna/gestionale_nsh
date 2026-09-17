@@ -22,6 +22,7 @@ from app.schemas.appointment import AppointmentCreate, PortalAppointmentOut
 from app.schemas.waitlist import WaitlistCreate, WaitlistOut
 from app.schemas.common import MessageResponse
 from app.dependencies import get_current_client
+from app.utils.tempo import istante, oggi_salone
 from app.services.availability import busy_slot_offsets, get_available_slots
 
 router = APIRouter(prefix="", tags=["Public Booking"])
@@ -147,7 +148,7 @@ async def public_availability(
 
     # Validate max advance
     if cfg:
-        max_date = date.today() + timedelta(days=cfg.max_advance_days)
+        max_date = oggi_salone() + timedelta(days=cfg.max_advance_days)
         if target_date > max_date:
             raise HTTPException(status_code=400, detail="Data troppo lontana nel futuro")
 
@@ -201,7 +202,9 @@ async def public_availability_calendar(
 
     await _bookable_collaborator(db, collaborator_id, [service_id])
 
-    today = date.today()
+    # La data del salone: `date.today()` è quella del processo, che su
+    # Railway è UTC, quindi fra mezzanotte e le due risponderebbe «ieri».
+    today = oggi_salone()
     # Booking windows are enforced per-day here rather than by clipping the
     # range, so the calendar can still render those days as unavailable instead
     # of the month appearing to end early.
@@ -263,10 +266,17 @@ async def book_appointment(
     # `pending` request already holds its slot, that last one empties the whole
     # public calendar until the salon deletes the rows by hand.
     start = payload.start_time
-    start = start.replace(tzinfo=timezone.utc) if start.tzinfo is None else start.astimezone(timezone.utc)
+    # Un valore senza fuso è l'ora di orologio di chi l'ha scritto, e chi
+    # scrive qui è il salone: va letto come ora del salone, non come UTC.
+    # Leggerlo come UTC lo spostava una o due ore avanti, e il confronto con
+    # gli slot più sotto lo rifiutava senza dire perché.
+    start = (
+        istante(start.date(), start.time()) if start.tzinfo is None
+        else start.astimezone(timezone.utc)
+    )
 
     if cfg:
-        max_date = date.today() + timedelta(days=cfg.max_advance_days)
+        max_date = oggi_salone() + timedelta(days=cfg.max_advance_days)
         if start.date() > max_date:
             raise HTTPException(status_code=400, detail="Data troppo lontana nel futuro")
 

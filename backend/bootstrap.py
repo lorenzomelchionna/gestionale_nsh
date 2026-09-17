@@ -22,6 +22,7 @@ from app.models.appointment import Appointment, AppointmentService, AppointmentS
 from app.models.product import Product
 from app.models.payment import Payment, PaymentMethod, PaymentType
 from app.models.expense import Expense
+from app.utils.tempo import istante
 from app.utils.auth import hash_password_sync
 
 
@@ -178,7 +179,7 @@ async def seed_demo(db):
     ]
     appts = []
     for ci, colli, days_ago, hour, si in past:
-        start = (now - timedelta(days=days_ago)).replace(hour=hour, minute=0)
+        start = istante((now - timedelta(days=days_ago)).date(), time(hour, 0))
         svc = services[si]
         end = start + timedelta(minutes=svc.duration_slots * 30)
         a = Appointment(
@@ -211,7 +212,7 @@ async def seed_demo(db):
         (5, 1, 3, 16, 1, AppointmentStatus.pending,   AppointmentOrigin.online),
     ]
     for ci, colli, days_ahead, hour, si, st, origin in future:
-        start = (now + timedelta(days=days_ahead)).replace(hour=hour, minute=0)
+        start = istante((now + timedelta(days=days_ahead)).date(), time(hour, 0))
         svc = services[si]
         end = start + timedelta(minutes=svc.duration_slots * 30)
         a = Appointment(

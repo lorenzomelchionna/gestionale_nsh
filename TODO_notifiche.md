@@ -90,8 +90,15 @@ fallback SMTP (solo dev locale). Mittente verificato: `newstylehair2019@gmail.co
   invitata il 2026-09-18 con accesso completo su tutto. **Risulta ancora
   «Non attivo/a»**, cioè l'invito non è stato accettato: finché resta così
   Pagina, account WhatsApp e verifica dipendono ancora da un solo profilo
-  personale, e l'obiettivo non è raggiunto. Va aperta la mail di Meta e
-  accettata accedendo col proprio Facebook.
+  personale, e l'obiettivo non è raggiunto.
+
+  La mail arrivata a Flavia **è l'invito, non la conferma che sia stato
+  accettato**: riceverla non sposta lo stato. Lo stato cambia solo dopo che
+  lei apre il link, entra col **proprio profilo Facebook** e conferma. La
+  prova che conta non è la colonna nell'elenco ma questa: Flavia apre
+  `business.facebook.com` col suo Facebook e vede il portfolio New Style
+  Hair nel selettore in alto. Se non lo vede, l'invito è ancora aperto —
+  va rimandato, controllando lo spam di quella casella.
 
   Nell'elenco compare anche `@vincenzoromolo_`, che è l'account Instagram
   della stessa persona: non conta come seconda testa.

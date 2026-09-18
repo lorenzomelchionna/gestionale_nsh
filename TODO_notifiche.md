@@ -86,9 +86,15 @@ fallback SMTP (solo dev locale). Mittente verificato: `newstylehair2019@gmail.co
   della visura, copiati lettera per lettera: ragione sociale, sede legale,
   telefono (il **fisso**, non il numero Twilio), sito.
 
-  **Da fare**: aggiungere un secondo amministratore al portfolio (Utenti →
-  Persone). Oggi Pagina, account WhatsApp e verifica dipendono tutti da un
-  solo profilo personale.
+  **Secondo amministratore**: Flavia Romolo (`flaviaromolo400@gmail.com`)
+  invitata il 2026-09-18 con accesso completo su tutto. **Risulta ancora
+  «Non attivo/a»**, cioè l'invito non è stato accettato: finché resta così
+  Pagina, account WhatsApp e verifica dipendono ancora da un solo profilo
+  personale, e l'obiettivo non è raggiunto. Va aperta la mail di Meta e
+  accettata accedendo col proprio Facebook.
+
+  Nell'elenco compare anche `@vincenzoromolo_`, che è l'account Instagram
+  della stessa persona: non conta come seconda testa.
 
   **Account Twilio a pagamento: fatto il 2026-09-09.** Blocco che nessuno
   aveva previsto: l'account era **trial**, e la registrazione di un Mittente

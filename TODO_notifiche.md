@@ -410,11 +410,21 @@ in BookingConfig.
 </details>
 
 - [x] ~~**Difetti minori raccolti il 2026-09-22**~~ — **corretti lo stesso
-  giorno.** Ognuno era letto dal codice, non riprodotto; per ognuno si è
-  scritto prima il test che lo fa cadere, verificato che cadesse davvero
-  (anche con un finto-fix, per essere sicuri che il test misuri il difetto e
-  non qualcos'altro), e solo dopo applicata la correzione — 695 test
-  passano, 13 nuovi.
+  giorno, in produzione dalle 11:43 UTC.** Ognuno era letto dal codice, non
+  riprodotto; per ognuno si è scritto prima il test che lo fa cadere,
+  verificato che cadesse davvero (anche con un finto-fix, per essere sicuri
+  che il test misuri il difetto e non qualcos'altro), e solo dopo applicata
+  la correzione — 695 test passano, 13 nuovi.
+  [PR #113](https://github.com/lorenzomelchionna/gestionale_nsh/pull/113) →
+  `develop`, [PR #114](https://github.com/lorenzomelchionna/gestionale_nsh/pull/114)
+  → `main` (commit `85962e8`), entrambe con CI verde.
+
+  **Deploy confermato**, non solo mergiato: backend, frontend e worker tutti
+  `SUCCESS` sul commit del merge, avviati alle 11:42:43 UTC senza
+  migration nuove (nessun modello toccato). `/health` → 200,
+  `www.newstylehair.it` → 200, worker `celery@... ready` con beat e Redis
+  connessi, nessun errore vero nei log (solo il consueto avviso cosmetico
+  "root user" e le righe INFO di Alembic etichettate `error` da Railway).
   - [x] ~~**Confini di giornata col giorno del processo nella dashboard**~~
     (`api/admin/dashboard.py`). «Oggi/settimana/mese/anno» ora usano
     `oggi_salone()`; anche le spese, che confrontavano `Expense.date` (un

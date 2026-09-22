@@ -804,9 +804,23 @@ quella che si legge non è mai quella aggiornata — quindi ne resta una.
   ~~`received`, in attesa di revisione Meta come gli altri due (1-2
   giorni)~~ — **approvato il 2026-09-22, meno di un'ora dopo la
   sottomissione**: molto più veloce degli altri due, che avevano preso
-  fino a un giorno. Il testo vero non è ancora stato visto: l'API non lo
-  restituisce mai, va letto da un invio reale (stesso metodo già usato per
-  `conferma_appuntamento`/`promemoria_appuntamento`).
+  fino a un giorno.
+
+  **Prova vera fatta lo stesso giorno**, dal numero ponte al telefono di
+  Lorenzo, con codice finto `482913`. Testo letto dalla risposta di Twilio,
+  non stimato:
+
+  > *482913 è il tuo codice di verifica. Per garantire la tua sicurezza, ti
+  > consigliamo di non condividere questo codice.*
+
+  più bottone «Copia codice». La riga sulla scadenza (15 minuti) non
+  compare nel corpo — WhatsApp la mostra altrove, non nel testo.
+  Consegnato e letto (`status: read` via API). **«New Style Hair» in cima
+  alla chat**, confermato a vista sul telefono: è il nome del Sender, non
+  il corpo del template — quello Meta lo vieta esplicitamente di
+  personalizzare («custom authentication templates aren't allowed», niente
+  URL, emoji o testo libero), per lo stesso motivo per cui un OTP non deve
+  poter somigliare a un messaggio di phishing.
 
   **Resta da fare quando è approvato**: variabile `TWILIO_TEMPLATE_VERIFICA`
   su Railway (backend **e** worker), e il collegamento vero e proprio —

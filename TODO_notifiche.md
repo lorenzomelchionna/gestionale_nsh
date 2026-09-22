@@ -51,6 +51,30 @@ prima era la Sandbox `+14155238886`), `TWILIO_TEMPLATE_CONFERMA`,
 in BookingConfig.
 
 ### Restano (NON bloccanti)
+- [ ] **`min_cancel_hours` (24) supera `min_advance_hours` (2) in
+  produzione** — trovato il 2026-09-22 durante la prova di prenotazione sul
+  numero fisso: prenotazione riuscita, cancellazione rifiutata. Non un bug
+  di codice — il vincolo di 24h di preavviso per cancellare è applicato
+  correttamente — ma una prenotazione fatta con meno di 24h di anticipo
+  (permesso fino a 2h) risulta **incancellabile dal portale fin dal momento
+  in cui nasce**. Entrambi i valori sono già selezionabili da Impostazioni
+  → Prenotazione online (verificato: il salvataggio funziona ed è
+  immediato) — resta solo da **decidere il valore giusto** e cambiarlo lì,
+  non serve altro codice.
+  - [x] ~~**Il secondo problema trovato insieme: fallimento silenzioso**~~
+    — **corretto lo stesso giorno.** Qualunque fosse il valore, se la
+    cancellazione (o accettare/rifiutare un orario alternativo, o uscire
+    dalla lista d'attesa) veniva rifiutata dal server, il frontend non lo
+    mostrava: nessun messaggio, bottone che sembrava rotto. Le quattro
+    mutation in `BookingAccountPage.tsx` non avevano gestione d'errore.
+    Aggiunto un messaggio inline (il testo del salone,
+    `HTTPException.detail`, non un genericone) sotto il bottone di ognuna,
+    verificato dal vivo nel browser: prenotato un appuntamento a 3h da
+    adesso, cancellazione rifiutata con «Cancellazione non consentita con
+    meno di 24h di preavviso» mostrato sotto il bottone — prima spariva nel
+    nulla. Verificato anche il percorso senza errori (abbassato
+    temporaneamente `min_cancel_hours`): cancellazione riuscita, nessun
+    messaggio residuo.
 - [ ] **WhatsApp produzione sul fisso**: oggi il canale gira sul numero
   ponte con i template approvati (vedi «ACCESO il 2026-09-17» più sotto).
   Resta il passaggio al fisso del salone, e con lui le voci qui sotto.

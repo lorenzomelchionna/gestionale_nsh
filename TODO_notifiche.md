@@ -784,11 +784,30 @@ quella che si legge non è mai quella aggiornata — quindi ne resta una.
   tetto ai tentativi. Il modulo `app/services/email_verification.py` è già
   scritto in modo riutilizzabile: cambia solo il canale di invio.
   ~~**Prerequisito**: WhatsApp fuori dalla Sandbox Twilio~~ — soddisfatto
-  il 2026-09-17. Quello che serve adesso è un **template di categoria
-  Authentication**: un codice di verifica è un messaggio che il salone manda
-  per primo, quindi fuori dalla finestra di 24 ore, e Meta vuole i codici
-  usa-e-getta in quella categoria. I due template approvati sono Utility e
-  non vanno bene. In alternativa SMS Twilio, che si paga a messaggio.
+  il 2026-09-17. Serviva un **template di categoria Authentication**: un
+  codice di verifica è un messaggio che il salone manda per primo, quindi
+  fuori dalla finestra di 24 ore, e Meta vuole i codici usa-e-getta in
+  quella categoria — i due template approvati sono Utility e non vanno bene.
+  Confrontato con l'alternativa SMS Twilio (~$0.09 a messaggio in Italia,
+  contro ~$0.004–0.046 per un template Authentication — un ordine di
+  grandezza in meno) prima di scegliere: WhatsApp vince, stesso canale già
+  in uso e nessun flusso a parte da gestire, al prezzo di aspettare
+  l'approvazione Meta.
+
+  **Template creato e sottomesso il 2026-09-22**: `verifica_telefono`,
+  `HXf10735654fffde097632a871533e8d87`, lingua `it`. Il corpo è preimpostato
+  da WhatsApp — non personalizzabile, «custom authentication templates
+  aren't allowed» — e Twilio ci mette dietro solo `code_expiration_minutes`
+  (messo a **15**, lo stesso della verifica email:
+  `email_verification.CODE_TTL_MINUTES`, per non promettere alla cliente un
+  tempo diverso da quello vero) e un bottone «Copia codice». Stato in
+  `received`, in attesa di revisione Meta come gli altri due (1-2 giorni).
+
+  **Resta da fare quando è approvato**: variabile `TWILIO_TEMPLATE_VERIFICA`
+  su Railway (backend **e** worker), e il collegamento vero e proprio —
+  `app/services/email_verification.py` è già scritto per essere
+  riutilizzabile cambiando solo il canale, ma quel collegamento non è stato
+  scritto qui, solo il template Twilio.
 - [ ] **Pulizia dei profili cliente di prova** — chiesta il 2026-08-12, da
   fare prima di aprire alle clienti vere. Rimandata di proposito: non
   dipende da nient'altro e si può fare in qualunque momento. Prima di

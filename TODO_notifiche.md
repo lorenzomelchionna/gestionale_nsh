@@ -953,11 +953,14 @@ quella che si legge non è mai quella aggiornata — quindi ne resta una.
   `skip_deploys` per non far ripartire il deploy prima che il codice ci sia
   davvero): arriverà con il rilascio di questa PR.
 
-  **Resta da fare quando è approvato**: variabile `TWILIO_TEMPLATE_VERIFICA`
-  su Railway (backend **e** worker), e il collegamento vero e proprio —
-  `app/services/email_verification.py` è già scritto per essere
-  riutilizzabile cambiando solo il canale, ma quel collegamento non è stato
-  scritto qui, solo il template Twilio.
+  ~~«Resta da fare quando è approvato: la variabile su Railway e il
+  collegamento vero»~~ — **scritto quando esisteva solo il template, ed è
+  stato superato lo stesso giorno.** Entrambe le cose sono fatte e
+  descritte qui sopra: la variabile è su backend e worker, il collegamento
+  è `app/services/phone_verification.py` con i due passi in
+  `api/public/auth.py`. Lasciata la riga barrata invece di cancellarla
+  perché la contraddizione fra due paragrafi vicini è l'errore che questo
+  documento ha già fatto due volte in cima.
 - [ ] **Pulizia dei profili cliente di prova** — chiesta il 2026-08-12, da
   fare prima di aprire alle clienti vere. Rimandata di proposito: non
   dipende da nient'altro e si può fare in qualunque momento. Prima di

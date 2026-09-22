@@ -1,15 +1,14 @@
 # TODO — Configurazione notifiche (Email + WhatsApp)
 
-## STATO: EMAIL E WHATSAPP FUNZIONANTI — WHATSAPP SUL NUMERO PONTE (aggiornato 2026-09-22)
+## STATO: EMAIL E WHATSAPP FUNZIONANTI — WHATSAPP SUL FISSO DEL SALONE (aggiornato 2026-09-22)
 
 | Canale | Stato | Provider | Via |
 |--------|-------|----------|-----|
 | **Email** | ✅ Funziona | Brevo | HTTP API (HTTPS) |
-| **WhatsApp** | ✅ Funziona dal 2026-09-17, sul **numero ponte USA** `+1 689 344-8830` | Twilio | HTTP API — template Meta approvati |
+| **WhatsApp** | ✅ Funziona dal 2026-09-17 (numero ponte); passato al **fisso del salone** `+39 0825 1728148` il 2026-09-22 | Twilio | HTTP API — template Meta approvati |
 
-Resta il passaggio al **fisso del salone**, da fare il giorno del go-live:
-passi e motivi nella voce «WhatsApp produzione» qui sotto. Il numero ponte
-serve a provare, non a lavorare: le clienti vedrebbero un prefisso +1.
+Il passaggio al fisso è fatto: dettagli, cosa resta aperto (nome business,
+conferma ricezione) nella voce «WhatsApp produzione sul fisso» qui sotto.
 
 > ⚠️ **Questa intestazione è stata sbagliata due volte, in versi opposti.**
 >
@@ -45,10 +44,11 @@ fallback SMTP (solo dev locale). Mittente verificato: `newstylehair2019@gmail.co
 ### Variabili settate in produzione (backend + worker)
 `BREVO_API_KEY`, `EMAILS_FROM_EMAIL=newstylehair2019@gmail.com`,
 `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`,
-`TWILIO_WHATSAPP_FROM=whatsapp:+16893448830` (numero ponte dal 2026-09-17;
-prima era la Sandbox `+14155238886`), `TWILIO_TEMPLATE_CONFERMA`,
-`TWILIO_TEMPLATE_PROMEMORIA`, `SMTP_*` (fallback). `whatsapp_enabled=true`
-in BookingConfig.
+`TWILIO_WHATSAPP_FROM=whatsapp:+3908251728148` (fisso del salone dal
+2026-09-22; prima il numero ponte `+16893448830` dal 2026-09-17, prima
+ancora la Sandbox `+14155238886`), `TWILIO_TEMPLATE_CONFERMA`,
+`TWILIO_TEMPLATE_PROMEMORIA`, `TWILIO_TEMPLATE_VERIFICA`, `SMTP_*`
+(fallback). `whatsapp_enabled=true` in BookingConfig.
 
 ### Restano (NON bloccanti)
 - [ ] **`min_cancel_hours` (24) supera `min_advance_hours` (2) in
@@ -75,9 +75,17 @@ in BookingConfig.
     nulla. Verificato anche il percorso senza errori (abbassato
     temporaneamente `min_cancel_hours`): cancellazione riuscita, nessun
     messaggio residuo.
-- [ ] **WhatsApp produzione sul fisso**: oggi il canale gira sul numero
-  ponte con i template approvati (vedi «ACCESO il 2026-09-17» più sotto).
-  Resta il passaggio al fisso del salone, e con lui le voci qui sotto.
+
+    [PR #117](https://github.com/lorenzomelchionna/gestionale_nsh/pull/117)
+    → `develop`, [PR #118](https://github.com/lorenzomelchionna/gestionale_nsh/pull/118)
+    → `main` (commit `b1227c1`), CI verde su entrambe. **Deploy confermato**:
+    backend, frontend e worker tutti `SUCCESS` sul commit del merge,
+    riavviati alle 16:09 UTC. `/health` → 200, `www.newstylehair.it` → 200,
+    worker `celery@... ready`, nessun errore vero nei log.
+- [x] ~~**WhatsApp produzione sul fisso**~~ — fatto il 2026-09-22. Il
+  canale è passato dal numero ponte al **fisso del salone**
+  `+39 0825 1728148`, sullo stesso WABA. Restano due dettagli non
+  bloccanti — vedi «Il fisso è live» in fondo a questa voce.
 
   **Numero deciso (2026-08-25)**: il **fisso del vecchio gestionale**. Un
   numero sta su WhatsApp in un posto solo — app Business *oppure* API, mai
@@ -307,6 +315,60 @@ in BookingConfig.
   abbassa la reputazione dell'account WhatsApp, e le conversazioni si
   dividerebbero su due numeri. Il passaggio al fisso resta da fare il giorno
   del go-live, seguendo i passi qui sopra.
+
+  ### Il fisso è live (2026-09-22)
+
+  Il numero (`0825 1728148`, il vecchio gestionale) era ancora agganciato
+  all'app WhatsApp Business su un telefono in salone — primo tentativo di
+  registrazione respinto da Twilio: «numero già registrato in un account
+  WhatsApp». Liberato da lì (app → Impostazioni → Account → Elimina il mio
+  account) e registrato come secondo Sender sullo stesso WABA «New Style
+  Hair» (ID `2221302968437076`), seguendo l'ordine scritto sopra: nessuna
+  migrazione offerta da Twilio, quindi cancellazione dall'app e nuova
+  registrazione, non fusione. Verifica per **chiamata vocale**, come
+  previsto al punto 4 del piano.
+
+  **Il nome business è sbagliato**: la schermata di collegamento a Meta ha
+  ereditato «Vincenzo Romolo» (il profilo personale del login), non «New
+  Style Hair». Il campo è bloccato dopo la registrazione — Twilio lo dice
+  esplicito: «To update the business display name for this phone number
+  please submit a support ticket». Ticket aperto il 2026-09-22, in attesa
+  di risposta Twilio e poi review Meta (giorni, non ore). **Non blocca
+  l'invio**: è cosmetico, il nome sbagliato compare solo in cima alla chat.
+
+  **Conferma sul campo dell'assunzione del 2026-09-17** («i template
+  restano validi passando al secondo numero dello stesso WABA», scritta ma
+  mai provata): mandato un messaggio vero col template
+  `TWILIO_TEMPLATE_VERIFICA` dal nuovo Sender, prima ancora di toccare
+  Railway — consegnato, testo e variabile giusti, senza nessuna nuova
+  sottomissione a Meta. Tutto il piano del numero ponte poggiava su questo,
+  ed era corretto.
+
+  Sender **online**, quality rating «Unavailable» — normale per un numero
+  senza volume di messaggi ancora, si popola con l'uso.
+
+  **Railway aggiornato** (backend e worker): `TWILIO_WHATSAPP_FROM` da
+  `whatsapp:+16893448830` a `whatsapp:+3908251728148`. Deploy confermato
+  `SUCCESS` su entrambi i servizi. Prova vera dopo lo switch: messaggio
+  reale al telefono di Lorenzo, consegnato dal numero nuovo.
+
+  **Webhook non ereditato dal WABA** — è un'impostazione per singolo
+  Sender, esattamente come annotato sopra per il numero ponte, e sul nuovo
+  Sender risultava vuoto (controllato via API, `GET
+  /v2/Channels/Senders/{sid}`, campo `webhook.callback_url` stringa
+  vuota). Impostato via API allo stesso URL del numero ponte:
+  `https://gestionalensh-production.up.railway.app/api/public/whatsapp/webhook`,
+  POST.
+
+  **Resta aperto**:
+  - [ ] Ticket Twilio per correggere il nome business («New Style Hair»)
+  - [ ] Confermare a vista che una risposta vera della cliente sul fisso
+    arrivi alla pagina Chat — webhook appena impostato, non ancora provato
+    in ricezione (per il numero ponte questo controllo c'era stato, vedi
+    17 settembre più sopra)
+  - [ ] Decidere quando cancellare/disattivare il numero ponte
+    `+1 689 344-8830` — resta come secondo Sender dello stesso WABA finché
+    non si toglie
 
 - [x] ~~**Fuso orario degli appuntamenti**~~ — **corretto il 2026-09-17**, in
   due rilasci. Sotto resta il referto, perché il ragionamento serve a chi un
@@ -770,18 +832,114 @@ quella che si legge non è mai quella aggiornata — quindi ne resta una.
   schermata unica) rifiuta gli indirizzi non verificati. Un'iscrizione non
   verificata non blocca l'indirizzo: chi si registra dopo la sovrascrive, così
   nessuno può occupare l'email di un altro.
-- [ ] **Verifica del numero di telefono** — da fare. Oggi il telefono viene
-  normalizzato in E.164 ma **non verificato**: nulla impedisce di inserire il
-  numero di qualcun altro, che si ritroverebbe i messaggi WhatsApp del salone.
-  Serve lo stesso schema dell'email — codice via SMS o WhatsApp, con scadenza e
-  tetto ai tentativi. Il modulo `app/services/email_verification.py` è già
-  scritto in modo riutilizzabile: cambia solo il canale di invio.
+- [x] ~~**Verifica del numero di telefono**~~ — **implementata e verificata
+  il 2026-09-22**, in produzione dietro `TWILIO_TEMPLATE_VERIFICA`. Prima
+  nulla impediva di inserire il numero di qualcun altro, che si sarebbe
+  ritrovato i messaggi WhatsApp del salone.
   ~~**Prerequisito**: WhatsApp fuori dalla Sandbox Twilio~~ — soddisfatto
-  il 2026-09-17. Quello che serve adesso è un **template di categoria
-  Authentication**: un codice di verifica è un messaggio che il salone manda
-  per primo, quindi fuori dalla finestra di 24 ore, e Meta vuole i codici
-  usa-e-getta in quella categoria. I due template approvati sono Utility e
-  non vanno bene. In alternativa SMS Twilio, che si paga a messaggio.
+  il 2026-09-17. Serviva un **template di categoria Authentication**: un
+  codice di verifica è un messaggio che il salone manda per primo, quindi
+  fuori dalla finestra di 24 ore, e Meta vuole i codici usa-e-getta in
+  quella categoria — i due template approvati sono Utility e non vanno bene.
+  Confrontato con l'alternativa SMS Twilio (~$0.09 a messaggio in Italia,
+  contro ~$0.004–0.046 per un template Authentication — un ordine di
+  grandezza in meno) prima di scegliere: WhatsApp vince, stesso canale già
+  in uso e nessun flusso a parte da gestire, al prezzo di aspettare
+  l'approvazione Meta.
+
+  **Template creato e sottomesso il 2026-09-22**: `verifica_telefono`,
+  `HXf10735654fffde097632a871533e8d87`, lingua `it`. Il corpo è preimpostato
+  da WhatsApp — non personalizzabile, «custom authentication templates
+  aren't allowed» — e Twilio ci mette dietro solo `code_expiration_minutes`
+  (messo a **15**, lo stesso della verifica email:
+  `email_verification.CODE_TTL_MINUTES`, per non promettere alla cliente un
+  tempo diverso da quello vero) e un bottone «Copia codice». Stato in
+  ~~`received`, in attesa di revisione Meta come gli altri due (1-2
+  giorni)~~ — **approvato il 2026-09-22, meno di un'ora dopo la
+  sottomissione**: molto più veloce degli altri due, che avevano preso
+  fino a un giorno.
+
+  **Prova vera fatta lo stesso giorno**, dal numero ponte al telefono di
+  Lorenzo, con codice finto `482913`. Testo letto dalla risposta di Twilio,
+  non stimato:
+
+  > *482913 è il tuo codice di verifica. Per garantire la tua sicurezza, ti
+  > consigliamo di non condividere questo codice.*
+
+  più bottone «Copia codice». La riga sulla scadenza (15 minuti) non
+  compare nel corpo — WhatsApp la mostra altrove, non nel testo.
+  Consegnato e letto (`status: read` via API). **«New Style Hair» in cima
+  alla chat**, confermato a vista sul telefono: è il nome del Sender, non
+  il corpo del template — quello Meta lo vieta esplicitamente di
+  personalizzare («custom authentication templates aren't allowed», niente
+  URL, emoji o testo libero), per lo stesso motivo per cui un OTP non deve
+  poter somigliare a un messaggio di phishing.
+
+  ### Il collegamento vero, fatto lo stesso giorno
+
+  **Decisioni prese prima di scrivere codice** (chieste esplicitamente,
+  perché cambiavano la forma del lavoro): il passo è **obbligatorio**, come
+  l'email oggi — nessun modo di saltarlo — e riguarda **solo le nuove
+  registrazioni**. Chi si era già registrato prima che questo esistesse
+  resta com'è, nessuna richiesta retroattiva.
+
+  **Schema**: quattro colonne su `ClientAccount`
+  (`phone_verified`, `phone_verification_code_hash`,
+  `phone_verification_expires`, `phone_verification_attempts`), stesso
+  disegno delle quattro già lì per l'email. Migrazione
+  `f8a2e916c4d3`: grandfathering per righe esistenti
+  (`UPDATE ... SET phone_verified = true`), stesso schema già usato per
+  l'email in `d7a1c93f2b48` — verificato applicandola su un database con
+  una riga pre-esistente, non solo letto dal file.
+
+  **Perché sull'account e non sulla scheda cliente**, dove il numero vive
+  davvero: rispecchia `email_verified`, un controllo di una sola tabella al
+  login invece di un join, e i due nascono comunque insieme alla
+  registrazione.
+
+  **Il flusso cambia**: `verify-email` non dà più la sessione subito. Se il
+  telefono è già verificato (grandfathered, o già fatto) la sessione parte
+  come prima; altrimenti risponde `phone_verification_required` e manda il
+  codice WhatsApp — la sessione arriva solo da `verify-phone`, il passo
+  nuovo. Login (sia il portale sia la schermata unica staff+clienti)
+  rifiuta anche il telefono non verificato, stesso schema del controllo
+  sull'email che c'era già.
+
+  **Chi salta il passo, di proposito, con la stessa nota già scritta per
+  l'email** (`portal_account.py`): un accesso creato dal salone al banco,
+  con la cliente davanti che detta il numero — stessa fiducia già concessa
+  per l'indirizzo.
+
+  **Verificato, non solo scritto**:
+  - 726 test passano (20 nuovi: `tests/test_phone_verification.py` per
+    esteso, più gli aggiustamenti a `test_email_verification.py` e
+    `test_registration_takeover.py` che il nuovo secondo passo rompeva).
+  - 4 punti della logica nuova falsificati uno per uno (tolti a mano,
+    verificato che il test giusto torna rosso, rimessi): l'ordine
+    email-poi-telefono, il salto per chi è già verificato, e il rifiuto al
+    login su entrambe le rotte.
+  - Migrazione provata per davvero: applicata da vuoto, il backfill
+    controllato su una riga pre-esistente, e il downgrade.
+  - **Prova end-to-end nel browser, con un WhatsApp vero**: registrazione
+    compilata a mano, codice email letto dal database locale, codice
+    telefono arrivato per davvero sul numero di Lorenzo — letto da lui,
+    non simulato — e la sessione finale che apre il portale con la
+    schermata di benvenuto.
+
+  **`TWILIO_TEMPLATE_VERIFICA` — controllata su Railway prima di chiudere
+  questa voce, e non c'era**: a differenza degli altri due template, questo
+  non era mai stato impostato né su backend né su worker. Senza, il codice
+  di verifica sarebbe partito come testo libero — che WhatsApp rifiuta fuori
+  dalla finestra di 24 ore, cioè sempre, essendo il salone a scrivere per
+  primo. Impostata ora su entrambi i servizi (stesso SID approvato,
+  `skip_deploys` per non far ripartire il deploy prima che il codice ci sia
+  davvero): arriverà con il rilascio di questa PR.
+
+  **Resta da fare quando è approvato**: variabile `TWILIO_TEMPLATE_VERIFICA`
+  su Railway (backend **e** worker), e il collegamento vero e proprio —
+  `app/services/email_verification.py` è già scritto per essere
+  riutilizzabile cambiando solo il canale, ma quel collegamento non è stato
+  scritto qui, solo il template Twilio.
 - [ ] **Pulizia dei profili cliente di prova** — chiesta il 2026-08-12, da
   fare prima di aprire alle clienti vere. Rimandata di proposito: non
   dipende da nient'altro e si può fare in qualunque momento. Prima di

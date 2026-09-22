@@ -24,10 +24,12 @@ from sqlalchemy import select
 
 from app.models.client import Client, ClientAccount
 from app.services.email_verification import issue_code
+from app.services.phone_verification import issue_code as issue_phone_code
 from tests.conftest import auth
 
 REGISTER = "/api/public/auth/register"
 VERIFY = "/api/public/auth/verify-email"
+VERIFY_PHONE = "/api/public/auth/verify-phone"
 PASSWORD = "una-password-lunga-abbastanza"
 
 TELEFONO_VITTIMA = "+393334445566"
@@ -52,6 +54,26 @@ async def _codice(db, email: str) -> str:
     code = await issue_code(account)
     await db.commit()
     return code
+
+
+async def _codice_telefono(db, email: str) -> str:
+    """Come `_codice`, per il secondo passo."""
+    account = (await db.execute(
+        select(ClientAccount).where(ClientAccount.email == email)
+    )).scalar_one()
+    code = await issue_phone_code(account)
+    await db.commit()
+    return code
+
+
+async def _tokens_veri(client, db, email: str) -> dict:
+    """Completa entrambi i passi e ritorna una sessione che funziona davvero —
+    per i test a cui interessa cosa un token può leggere, non i due passi."""
+    code = await _codice(db, email)
+    await client.post(VERIFY, json={"email": email, "code": code})
+    phone_code = await _codice_telefono(db, email)
+    resp = await client.post(VERIFY_PHONE, json={"email": email, "code": phone_code})
+    return resp.json()
 
 
 @pytest_asyncio.fixture
@@ -114,10 +136,7 @@ class TestIlNumeroDiUnAltroNonBasta:
         await db.commit()
 
         await client.post(REGISTER, json=_registrazione("attaccante@example.com"))
-        code = await _codice(db, "attaccante@example.com")
-        tokens = (await client.post(
-            VERIFY, json={"email": "attaccante@example.com", "code": code}
-        )).json()
+        tokens = await _tokens_veri(client, db, "attaccante@example.com")
 
         resp = await client.get("/api/public/appointments", headers=auth(tokens))
         assert resp.status_code == 200

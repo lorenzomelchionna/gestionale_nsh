@@ -77,6 +77,7 @@ class Settings(BaseSettings):
     # Il perché sta in `notifications.py`, accanto alle due funzioni.
     TWILIO_TEMPLATE_CONFERMA: str = ""
     TWILIO_TEMPLATE_PROMEMORIA: str = ""
+    TWILIO_TEMPLATE_VERIFICA: str = ""
 
     @model_validator(mode="after")
     def _refuse_published_secrets_outside_development(self) -> "Settings":

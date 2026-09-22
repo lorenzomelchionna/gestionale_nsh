@@ -1,18 +1,15 @@
 """
-Proving that the address someone typed is one they can read.
+Proving that the WhatsApp number someone typed is one they hold.
 
-Without this, anyone could register under another person's email: they would
-receive the salon's appointment mail, and the real owner would find their
-address already taken. The code closes both.
+Sibling of `email_verification.py`, one step later in registration and one
+channel over — see that module for why the three properties (expiry, capped
+guesses, hashed storage) all matter together; the code and its constants are
+shared in `verification_codes.py`.
 
-Three properties do the work, and all three matter together:
-  - it expires, so a code read over a shoulder or left in an old inbox dies;
-  - guesses are counted, because six digits fall in a second otherwise;
-  - it is stored hashed, so the database alone does not hand out sessions.
-
-The code itself and its constants live in `verification_codes.py`, shared
-with `phone_verification.py` — the sibling module that proves the same thing
-about a WhatsApp number, one step later in registration.
+Without this, nothing stops someone from typing a stranger's number at
+sign-up: that person would start receiving the salon's WhatsApp messages —
+booking confirmations, reminders, someone else's appointment times — for a
+client they have never met.
 """
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -29,17 +26,17 @@ __all__ = [
 
 async def issue_code(account: ClientAccount) -> str:
     """
-    Attach a fresh code to `account` and return the plaintext to email.
+    Attach a fresh code to `account` and return the plaintext to send.
 
     The plaintext is returned rather than stored: this is the only moment it
     exists, and the caller has to send it before it goes out of scope.
     """
     code = generate_code()
-    account.verification_code_hash = await hash_password(code)
-    account.verification_expires = datetime.now(timezone.utc) + timedelta(
+    account.phone_verification_code_hash = await hash_password(code)
+    account.phone_verification_expires = datetime.now(timezone.utc) + timedelta(
         minutes=CODE_TTL_MINUTES
     )
-    account.verification_attempts = 0
+    account.phone_verification_attempts = 0
     return code
 
 
@@ -57,42 +54,40 @@ async def check_code(account: ClientAccount, code: str) -> None:
 
     On success the code is cleared, so it cannot be replayed.
     """
-    if account.email_verified:
-        raise VerificationError("Questo indirizzo è già stato verificato")
+    if account.phone_verified:
+        raise VerificationError("Questo numero è già stato verificato")
 
-    if not account.verification_code_hash or not account.verification_expires:
+    if not account.phone_verification_code_hash or not account.phone_verification_expires:
         raise VerificationError("Nessun codice da verificare. Richiedine uno nuovo.")
 
-    if _expired(account.verification_expires):
+    if _expired(account.phone_verification_expires):
         raise VerificationError("Il codice è scaduto. Richiedine uno nuovo.")
 
-    if account.verification_attempts >= MAX_ATTEMPTS:
+    if account.phone_verification_attempts >= MAX_ATTEMPTS:
         raise VerificationError("Troppi tentativi. Richiedi un nuovo codice.")
 
     # Counted before the comparison: a request that dies mid-way must still
     # cost an attempt, or the budget can be sidestepped by disconnecting.
-    account.verification_attempts += 1
+    account.phone_verification_attempts += 1
 
-    if not await verify_password(code, account.verification_code_hash):
-        left = MAX_ATTEMPTS - account.verification_attempts
+    if not await verify_password(code, account.phone_verification_code_hash):
+        left = MAX_ATTEMPTS - account.phone_verification_attempts
         if left <= 0:
             raise VerificationError("Codice errato. Richiedi un nuovo codice.")
         raise VerificationError(f"Codice errato. Tentativi rimasti: {left}.")
 
-    account.email_verified = True
-    account.verification_code_hash = None
-    account.verification_expires = None
-    account.verification_attempts = 0
+    account.phone_verified = True
+    account.phone_verification_code_hash = None
+    account.phone_verification_expires = None
+    account.phone_verification_attempts = 0
 
 
 def _expired(moment: datetime) -> bool:
-    # Rows written before timezone handling settled can come back naive; treat
-    # those as UTC rather than raising on the comparison.
     if moment.tzinfo is None:
         moment = moment.replace(tzinfo=timezone.utc)
     return moment < datetime.now(timezone.utc)
 
 
 def is_pending(account: Optional[ClientAccount]) -> bool:
-    """True when an account exists but has not proved its address yet."""
-    return account is not None and not account.email_verified
+    """True when the address is proven but the number is not yet."""
+    return account is not None and account.email_verified and not account.phone_verified

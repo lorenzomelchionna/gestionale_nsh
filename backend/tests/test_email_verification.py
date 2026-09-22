@@ -19,6 +19,7 @@ from tests.conftest import auth
 
 REGISTER = "/api/public/auth/register"
 VERIFY = "/api/public/auth/verify-email"
+VERIFY_PHONE = "/api/public/auth/verify-phone"
 RESEND = "/api/public/auth/resend-code"
 LOGIN = "/api/public/auth/login"
 
@@ -51,6 +52,36 @@ def sent_codes(monkeypatch):
 
     monkeypatch.setattr(auth_api, "send_verification_code_email", fake_send)
     return codes
+
+
+@pytest.fixture
+def sent_whatsapp_codes(monkeypatch):
+    """Capture the codes that would have been sent over WhatsApp."""
+    import app.api.public.auth as auth_api
+
+    codes: list[tuple[str, str]] = []
+
+    async def fake_send(to_phone, code):
+        codes.append((to_phone, code))
+
+    monkeypatch.setattr(auth_api, "send_verification_code_whatsapp", fake_send)
+    return codes
+
+
+async def _fully_onboard(client, sent_codes, sent_whatsapp_codes, **overrides) -> dict:
+    """Register, verify the address, verify the number — returns working tokens.
+
+    For tests whose point is elsewhere (a route works once someone is really
+    signed in) and that do not need to look at the phone step itself.
+    """
+    email = overrides.get("email", EMAIL)
+    email_code = await _register(client, sent_codes, **overrides)
+    step = (await client.post(VERIFY, json={"email": email, "code": email_code})).json()
+    assert step["phone_verification_required"] is True
+    phone_code = sent_whatsapp_codes[-1][1]
+    resp = await client.post(VERIFY_PHONE, json={"email": email, "code": phone_code})
+    assert resp.status_code == 200, resp.text
+    return resp.json()
 
 
 async def _register(client, sent_codes, **overrides) -> str:
@@ -158,21 +189,47 @@ class TestUnverifiedCannotAct:
 
 
 class TestVerifying:
-    async def test_the_right_code_returns_a_session(self, client, sent_codes):
+    """Da qui in poi la sessione arriva solo dopo *due* codici, non uno: vedi
+    tests/test_phone_verification.py per il secondo passo per esteso."""
+
+    async def test_the_right_code_asks_for_the_phone_next(self, client, sent_codes):
         code = await _register(client, sent_codes)
         resp = await client.post(VERIFY, json={"email": EMAIL, "code": code})
         assert resp.status_code == 200, resp.text
-        assert resp.json()["access_token"]
+        body = resp.json()
+        assert body["phone_verification_required"] is True
+        assert "access_token" not in body, "sessione emessa prima di verificare il telefono"
 
-    async def test_that_session_actually_works(self, client, sent_codes):
+    async def test_a_whatsapp_code_goes_out_once_the_address_is_proven(
+        self, client, sent_codes, sent_whatsapp_codes
+    ):
         code = await _register(client, sent_codes)
-        tokens = (await client.post(VERIFY, json={"email": EMAIL, "code": code})).json()
+        await client.post(VERIFY, json={"email": EMAIL, "code": code})
+        assert len(sent_whatsapp_codes) == 1
+        to, phone_code = sent_whatsapp_codes[0]
+        assert to == "+393347778899"
+        assert phone_code.isdigit() and len(phone_code) == 6
+
+    async def test_completing_both_steps_returns_a_session_that_works(
+        self, client, sent_codes, sent_whatsapp_codes
+    ):
+        tokens = await _fully_onboard(client, sent_codes, sent_whatsapp_codes)
         mine = await client.get("/api/public/appointments", headers=auth(tokens))
         assert mine.status_code == 200
 
-    async def test_login_works_afterwards(self, client, sent_codes):
+    async def test_login_is_still_refused_with_only_the_address_proven(
+        self, client, sent_codes
+    ):
         code = await _register(client, sent_codes)
         await client.post(VERIFY, json={"email": EMAIL, "code": code})
+        resp = await client.post(LOGIN, json={"email": EMAIL, "password": PASSWORD})
+        assert resp.status_code == 403
+        assert "telefono" in resp.json()["detail"].lower()
+
+    async def test_login_works_once_both_steps_are_done(
+        self, client, sent_codes, sent_whatsapp_codes
+    ):
+        await _fully_onboard(client, sent_codes, sent_whatsapp_codes)
         resp = await client.post(LOGIN, json={"email": EMAIL, "password": PASSWORD})
         assert resp.status_code == 200
 
@@ -275,7 +332,7 @@ class TestAddressCannotBeHeldHostage:
     """
 
     async def test_registering_again_over_a_pending_account_is_allowed(
-        self, client, db, sent_codes
+        self, client, db, sent_codes, sent_whatsapp_codes
     ):
         await client.post(REGISTER, json=registration(password="password-di-chi-squatta"))
 
@@ -284,6 +341,10 @@ class TestAddressCannotBeHeldHostage:
 
         code = sent_codes[-1][1]
         assert (await client.post(VERIFY, json={"email": EMAIL, "code": code})).status_code == 200
+        phone_code = sent_whatsapp_codes[-1][1]
+        assert (await client.post(
+            VERIFY_PHONE, json={"email": EMAIL, "code": phone_code}
+        )).status_code == 200
 
         # The address ends up with the password of whoever completed it.
         assert (await client.post(
@@ -295,9 +356,10 @@ class TestAddressCannotBeHeldHostage:
         )).scalars().all()
         assert len(accounts) == 1, "registrarsi di nuovo ha duplicato l'account"
 
-    async def test_a_verified_address_cannot_be_taken_over(self, client, sent_codes):
-        code = await _register(client, sent_codes)
-        await client.post(VERIFY, json={"email": EMAIL, "code": code})
+    async def test_a_verified_address_cannot_be_taken_over(
+        self, client, sent_codes, sent_whatsapp_codes
+    ):
+        await _fully_onboard(client, sent_codes, sent_whatsapp_codes)
 
         resp = await client.post(REGISTER, json=registration(password="tentativo-di-furto"))
         assert resp.status_code == 400

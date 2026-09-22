@@ -69,8 +69,25 @@ export const clientRegister = (data: {
 }) =>
   publicApi.post<VerificationRequired>('/auth/register', data).then(r => r.data)
 
+/** L'esito quando il numero non è ancora provato: nessun campo in comune
+    con `TokenResponse`, così il chiamante distingue le due guardando se
+    `access_token` c'è — vedi `PhoneVerificationRequired` nel backend. */
+export interface PhoneVerificationRequired {
+  phone_verification_required: true
+  whatsapp_sent: boolean
+}
+
+/** La sessione arriva solo dopo *entrambi* i codici: un account che aveva
+    già il telefono verificato (registrato prima di questo passo, o già
+    completato) la prende qui; altrimenti la risposta dice di passare a
+    `verifyPhone`. */
 export const verifyEmail = (email: string, code: string) =>
-  publicApi.post<TokenResponse>('/auth/verify-email', { email, code }).then(r => r.data)
+  publicApi
+    .post<TokenResponse | PhoneVerificationRequired>('/auth/verify-email', { email, code })
+    .then(r => r.data)
+
+export const verifyPhone = (email: string, code: string) =>
+  publicApi.post<TokenResponse>('/auth/verify-phone', { email, code }).then(r => r.data)
 
 export interface ResendResult {
   message: string
@@ -79,6 +96,14 @@ export interface ResendResult {
 
 export const resendVerificationCode = (email: string) =>
   publicApi.post<ResendResult>('/auth/resend-code', { email }).then(r => r.data)
+
+export interface PhoneResendResult {
+  message: string
+  whatsapp_sent: boolean
+}
+
+export const resendPhoneCode = (email: string) =>
+  publicApi.post<PhoneResendResult>('/auth/resend-phone-code', { email }).then(r => r.data)
 
 export const clientLogin = (email: string, password: string) =>
   publicApi.post<TokenResponse>('/auth/login', { email, password }).then(r => r.data)

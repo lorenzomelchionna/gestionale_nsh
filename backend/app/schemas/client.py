@@ -137,6 +137,24 @@ class EmailVerification(BaseModel):
     code: str
 
 
+class PhoneVerificationRequired(BaseModel):
+    """L'esito di `/verify-email` quando il numero non è ancora provato:
+    l'indirizzo è confermato, ma la sessione arriva solo dopo anche quello.
+
+    Nessun campo in comune con `TokenResponse` di proposito — è quello che
+    permette al frontend di distinguere le due risposte guardando se
+    `access_token` c'è, invece di leggere un campo booleano in più che si
+    potrebbe dimenticare di controllare.
+    """
+    phone_verification_required: bool = True
+    whatsapp_sent: bool = True
+
+
+class PhoneVerification(BaseModel):
+    email: EmailStr
+    code: str
+
+
 class ResendResult(BaseModel):
     """
     Deliberately the same message whatever the address, so the endpoint cannot
@@ -149,6 +167,12 @@ class ResendResult(BaseModel):
     """
     message: str
     email_sent: bool = True
+
+
+class PhoneResendResult(BaseModel):
+    """Stessa logica di `ResendResult`, un canale dopo."""
+    message: str
+    whatsapp_sent: bool = True
 
 
 class PasswordResetRequest(BaseModel):

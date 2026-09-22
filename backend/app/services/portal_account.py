@@ -129,6 +129,12 @@ async def crea(db: AsyncSession, client_id: int) -> AccountCreato:
         # potrebbe entrarci. Vale la pena rileggere l'email ad alta voce prima
         # di premere il pulsante — la schermata lo ricorda.
         email_verified=True,
+        # Stessa fiducia, stesso motivo, un canale dopo: il numero sulla
+        # scheda non è quello digitato da una sconosciuta in un form, è quello
+        # letto dalla cliente davanti al banco. Senza questo l'account
+        # resterebbe bloccato al primo accesso da un codice WhatsApp che
+        # nessuno ha chiesto di mandare.
+        phone_verified=True,
     )
     db.add(account)
     await db.flush()

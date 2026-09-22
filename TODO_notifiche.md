@@ -409,43 +409,57 @@ in BookingConfig.
 
 </details>
 
-- [ ] **Difetti minori ancora aperti** — raccolti il 2026-09-22. Ognuno è
-  **letto dal codice, non riprodotto**: prima di correggerlo va scritto il
-  test che lo fa cadere, e va visto cadere.
-  - [ ] **Confini di giornata col giorno del processo**, non del salone:
-    dashboard «oggi/settimana/mese» (`api/admin/dashboard.py:24-37`,
-    mezzanotte UTC), filtri per data che mandano ore senza fuso
-    (`CalendarPage.tsx:187`, `AppointmentsPage.tsx:67`, `CashPage.tsx:45`),
-    scadenza dei buoni regalo (`models/gift_card.py:139`,
-    `api/admin/gift_cards.py:186`, entrambi `date.today()`). Sbagliano fra
-    mezzanotte e le due, a salone chiuso; il fastidio vero è che sviluppo
-    (Europe/Rome) e produzione (UTC) danno risultati diversi.
-    `utils/tempo.oggi_salone()` c'è già.
-  - [ ] **Proposta alternativa accettata: la fine resta quella vecchia**
-    (`api/public/booking.py:439-442`). `start_time` viene sovrascritto
-    *prima* di calcolare la durata, quindi `durata = vecchia fine − nuovo
-    inizio` e `nuovo inizio + durata` torna esattamente alla vecchia fine.
-    Spostato in avanti l'appuntamento si accorcia, oltre la vecchia fine
-    diventa di durata negativa. Oggi non raggiungibile dall'interfaccia.
-  - [ ] **Promemoria segnato come inviato anche se non è partito**
-    (`tasks/reminders.py:69-70`). `notify_appointment_reminder` intercetta
-    gli errori di ogni canale e ritorna normalmente
-    (`utils/notifications.py:80-89`), quindi il flag diventa vero anche
-    quando falliscono sia email sia WhatsApp: niente nuovo tentativo, e
-    resta solo una riga di log.
-  - [ ] **Appuntamento spostato, promemoria perso**
-    (`api/admin/appointments.py:170-195`). La modifica dall'agenda cambia
-    `start_time` ma non rimette `reminder_sent` a falso: se il promemoria
-    era già partito per l'orario vecchio, per quello nuovo non ne parte un
-    altro.
-  - [ ] **Una scheda eliminata può ancora prenotare.** «Elimina» spegne
-    `Client.is_active` (`api/admin/clients.py:123`), ma login e token del
-    portale guardano solo `ClientAccount.is_active` (`api/public/auth.py:292`,
-    `dependencies.py:95`), e la prenotazione ritrova la scheda per
-    `account_id` senza guardare se è attiva (`api/public/booking.py:239`).
-    Quindi una cliente eliminata con un accesso al portale entra e prenota,
-    e la prenotazione finisce su una scheda che il salone non vede più
-    negli elenchi.
+- [x] ~~**Difetti minori raccolti il 2026-09-22**~~ — **corretti lo stesso
+  giorno.** Ognuno era letto dal codice, non riprodotto; per ognuno si è
+  scritto prima il test che lo fa cadere, verificato che cadesse davvero
+  (anche con un finto-fix, per essere sicuri che il test misuri il difetto e
+  non qualcos'altro), e solo dopo applicata la correzione — 695 test
+  passano, 13 nuovi.
+  - [x] ~~**Confini di giornata col giorno del processo nella dashboard**~~
+    (`api/admin/dashboard.py`). «Oggi/settimana/mese/anno» ora usano
+    `oggi_salone()`; anche le spese, che confrontavano `Expense.date` (un
+    giorno senza fuso) con `.date()` di un istante UTC — stesso difetto una
+    seconda volta nella stessa funzione. Test in
+    `tests/test_dashboard_ora_salone.py`, con l'orologio bloccato
+    (`tempo.adesso()` sostituito) su un istante fisso di prima mattina a
+    Roma: deterministico, non dipende da quando gira la suite.
+    **Restano aperti, stesso difetto, non ancora toccati**: i filtri data
+    del frontend (`CalendarPage.tsx:187`, `AppointmentsPage.tsx:67`,
+    `CashPage.tsx:45`) e la scadenza dei buoni regalo
+    (`models/gift_card.py:139`, `api/admin/gift_cards.py:186`). Anche
+    `revenue-chart` e `yearly-chart` in `dashboard.py` usano `func.date()`
+    su colonne UTC — non diagnosticati né corretti qui, stesso sospetto.
+  - [x] ~~**Proposta alternativa accettata: la fine restava quella
+    vecchia**~~ (`api/public/booking.py`). La durata si legge ora *prima*
+    di spostare `start_time`. Test in `tests/test_accept_alternative.py`,
+    compreso il caso limite che dava durata negativa.
+  - [x] ~~**Promemoria segnato come inviato anche se non era partito**~~
+    (`tasks/reminders.py`, `utils/notifications.py`).
+    `notify_appointment_reminder` ora ritorna se il promemoria è da
+    considerarsi gestito — consegnato su almeno un canale, o nessun canale
+    disponibile per quel cliente — e il task spunta il flag solo in quel
+    caso. Con entrambi i canali rotti l'appuntamento ricompare nella
+    finestra al giro successivo invece di perdere il tentativo per sempre.
+    Test in `tests/test_reminders.py`.
+  - [x] ~~**Appuntamento spostato, promemoria perso**~~
+    (`api/admin/appointments.py`). Cambiare `start_time` ora rimette
+    `reminder_sent`/`whatsapp_reminder_sent` a falso; una modifica che non
+    tocca l'orario (note, servizi) li lascia intatti. Test in
+    `tests/test_reminders.py`.
+  - [x] ~~**Una scheda eliminata poteva ancora prenotare**~~ — il più
+    grave dei cinque: non un dato sbagliato, un controllo accessi mancante.
+    «Elimina cliente» spegneva solo `Client.is_active`; login e token del
+    portale guardano `ClientAccount.is_active`, che restava intatto, e ogni
+    endpoint di `booking.py` ritrovava la scheda per `account_id` senza
+    controllare se fosse attiva — non solo la prenotazione: anche
+    cancellare, accettare un orario alternativo, iscriversi o uscire dalla
+    lista d'attesa. Erano **otto** punti nello stesso file con lo stesso
+    difetto, non uno: chiusi tutti insieme con un unico helper
+    (`_cliente_del_portale`), non uno alla volta, per lo stesso motivo per
+    cui altrove in questo file le correzioni parziali sono vietate — un
+    punto lasciato aperto sarebbe stata la stessa falla con un altro nome.
+    Test in `tests/test_auth_boundaries.py`, dentro `TestDeactivatedAccounts`
+    che già copriva l'altro interruttore.
 
 - [x] ~~**Codice pronto per i template Meta**~~ — fatto 2026-08-25, prima
   dell'approvazione, perché è la parte che non dipende da Meta.

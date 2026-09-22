@@ -71,22 +71,38 @@ async def notify_booking_confirmation(db: AsyncSession, appointment) -> None:
             _fallita("conferma_prenotazione", "whatsapp", id_appuntamento=appointment.id)
 
 
-async def notify_appointment_reminder(db: AsyncSession, appointment) -> None:
-    """Sent X hours before the appointment (cfg.whatsapp_reminder_hours)."""
+async def notify_appointment_reminder(db: AsyncSession, appointment) -> bool:
+    """Sent X hours before the appointment (cfg.whatsapp_reminder_hours).
+
+    Ritorna se il promemoria è da considerarsi gestito: consegnato su almeno
+    un canale, oppure nessun canale disponibile per quel cliente — in
+    quel caso non c'è niente da ritentare. Ritorna `False` solo quando un
+    canale è stato tentato ed è fallito: è il segnale a chi chiama di **non**
+    segnare il promemoria come inviato, perché al giro dopo vale la pena
+    riprovare.
+    """
     cfg = await _get_config(db)
     client = appointment.client
     if not client:
-        return
+        return True
+
+    tentato = consegnato = False
     if client.email:
+        tentato = True
         try:
             await email_util.send_appointment_reminder(appointment)
+            consegnato = True
         except Exception:
             _fallita("promemoria", "email", id_appuntamento=appointment.id)
     if _wa_enabled(cfg) and client.phone:
+        tentato = True
         try:
             await wa_util.send_reminder_message(appointment, cfg)
+            consegnato = True
         except Exception:
             _fallita("promemoria", "whatsapp", id_appuntamento=appointment.id)
+
+    return consegnato or not tentato
 
 
 async def notify_staff_new_booking(db: AsyncSession, appointment) -> list[str]:

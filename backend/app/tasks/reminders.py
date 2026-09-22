@@ -65,9 +65,17 @@ async def _async_send_reminders():
             )
             for appt in result.scalars().all():
                 try:
-                    await notify_appointment_reminder(db, appt)
-                    appt.reminder_sent = True
-                    appt.whatsapp_reminder_sent = True
+                    # Il flag va acceso solo se `notify_appointment_reminder`
+                    # dice che qualcosa è davvero arrivato (o che non c'era
+                    # niente da tentare). `False` vuol dire che almeno un
+                    # canale è stato tentato ed è fallito: lasciarlo `False`
+                    # fa sì che questo appuntamento ricompaia nella finestra
+                    # al prossimo giro, invece di perdere il promemoria per
+                    # sempre con solo una riga di log a saperlo.
+                    gestito = await notify_appointment_reminder(db, appt)
+                    if gestito:
+                        appt.reminder_sent = True
+                        appt.whatsapp_reminder_sent = True
                 except Exception:
                     log.exception(
                         "promemoria non inviato",

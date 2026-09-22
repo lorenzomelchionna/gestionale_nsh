@@ -325,9 +325,11 @@ async def client_account(db) -> ClientAccount:
         email="cliente@nsh-test.it",
         password_hash=await hash_password(CLIENT_PASSWORD),
         is_active=True,
-        # An established client: they proved the address when they signed up.
-        # Verification itself is exercised in tests/test_email_verification.py.
+        # An established client: they proved both the address and the number
+        # when they signed up. Verification itself is exercised in
+        # tests/test_email_verification.py and tests/test_phone_verification.py.
         email_verified=True,
+        phone_verified=True,
     )
     db.add(account)
     await db.flush()

@@ -140,6 +140,10 @@ EXPECTED_GUARDS = {
     # proves the address is theirs. The control is the emailed code.
     ("POST", "/api/public/auth/verify-email"): "public",
     ("POST", "/api/public/auth/resend-code"): "public",
+    # Stessa necessità, un canale dopo: chi non ha ancora una sessione non può
+    # portare un token, quindi il controllo è il codice WhatsApp, non un guard.
+    ("POST", "/api/public/auth/verify-phone"): "public",
+    ("POST", "/api/public/auth/resend-phone-code"): "public",
     ("POST", "/api/public/auth/reset-password"): "public",
     ("GET", "/api/public/availability"): "public",
     ("GET", "/api/public/availability/calendar"): "public",

@@ -5,25 +5,30 @@ import secrets
 from fastapi import Request, APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func, select
+from typing import Union
 from app.audit import (
     EMAIL_VERIFICATA, LOGIN_BLOCCATO, REGISTRAZIONE, RESET_CHIESTO,
-    RESET_ESEGUITO, VERIFICA_FALLITA, evento, login_fallito, login_riuscito,
+    RESET_ESEGUITO, TELEFONO_VERIFICATO, VERIFICA_FALLITA,
+    evento, login_fallito, login_riuscito,
 )
 from app.database import get_db
-from app.logging_config import maschera_email
+from app.logging_config import maschera_email, maschera_telefono
 from app.rate_limit import limiter
 from app.models.client import Client, ClientAccount
 from app.models.user import User
 from app.schemas.client import (
     ClientRegister, ClientLoginRequest, PasswordResetRequest, PasswordReset,
-    EmailVerification, ResendResult, VerificationRequired,
+    EmailVerification, PhoneVerification, PhoneVerificationRequired,
+    PhoneResendResult, ResendResult, VerificationRequired,
 )
 from app.schemas.common import TokenResponse, MessageResponse
 from app.services.email_verification import (
     CODE_TTL_MINUTES, VerificationError, check_code, issue_code,
 )
+from app.services import phone_verification
 from app.utils.auth import hash_password, verify_password, create_access_token, create_refresh_token
 from app.utils.email import send_verification_code_email
+from app.utils.whatsapp import send_verification_code_whatsapp
 
 router = APIRouter(prefix="/auth", tags=["Client Auth"])
 
@@ -52,6 +57,34 @@ async def _send_code(db: AsyncSession, account: ClientAccount, first_name: str) 
         # partita», che non dice cosa fare.
         log.exception(
             "invio del codice di verifica fallito",
+            extra={"id_account": account.id},
+        )
+        return False
+
+
+async def _send_phone_code(db: AsyncSession, account: ClientAccount) -> bool:
+    """Stessa cosa di `_send_code`, un canale dopo: emette un codice fresco e
+    lo manda su WhatsApp al numero che risulta sulla scheda cliente collegata.
+
+    `client=None` (nessuna scheda ancora collegata) non dovrebbe succedere per
+    la via normale — la registrazione ne crea una insieme all'account — ma
+    resta possibile su una riga più vecchia della funzionalità stessa, quindi
+    si risponde `False` invece di sollevare.
+    """
+    client = (await db.execute(
+        select(Client).where(Client.account_id == account.id)
+    )).scalar_one_or_none()
+    if not client or not client.phone:
+        return False
+
+    code = await phone_verification.issue_code(account)
+    await db.flush()
+    try:
+        await send_verification_code_whatsapp(client.phone, code)
+        return True
+    except Exception:
+        log.exception(
+            "invio del codice di verifica telefono fallito",
             extra={"id_account": account.id},
         )
         return False
@@ -205,12 +238,19 @@ async def _adopt_salon_record(db: AsyncSession, account: ClientAccount) -> None:
         await db.delete(stub)
 
 
-@router.post("/verify-email", response_model=TokenResponse)
+@router.post("/verify-email", response_model=Union[TokenResponse, PhoneVerificationRequired])
 @limiter.limit("10/minute")
 async def verify_email(
     request: Request, payload: EmailVerification, db: Annotated[AsyncSession, Depends(get_db)]
 ):
-    """Exchange the emailed code for a session. This is where the account starts."""
+    """Exchange the emailed code for the next step.
+
+    Non è più «per la sessione»: da quando il numero va provato pure lui, la
+    sessione parte solo dopo *entrambi* i codici. Un account che aveva già
+    `phone_verified=True` — grandfathered da chi si è registrato prima che
+    questo passo esistesse, o chi lo ha già completato — la prende comunque
+    qui, senza aspettare un secondo codice che non serve.
+    """
     account = (await db.execute(
         select(ClientAccount).where(ClientAccount.email == payload.email)
     )).scalar_one_or_none()
@@ -246,6 +286,59 @@ async def verify_email(
         EMAIL_VERIFICATA, id_account=account.id,
         email=maschera_email(account.email),
     )
+
+    if account.phone_verified:
+        access = create_access_token(account.id, {"type": "client"})
+        refresh = create_refresh_token(account.id, {"type": "client"})
+        return TokenResponse(access_token=access, refresh_token=refresh)
+
+    sent = await _send_phone_code(db, account)
+    return PhoneVerificationRequired(whatsapp_sent=sent)
+
+
+@router.post("/verify-phone", response_model=TokenResponse)
+@limiter.limit("10/minute")
+async def verify_phone(
+    request: Request, payload: PhoneVerification, db: Annotated[AsyncSession, Depends(get_db)]
+):
+    """Exchange the WhatsApp code for a session. This is where the account starts.
+
+    Trovato per email e non per numero: a questo punto il numero non è ancora
+    dimostrato, quindi non è un identificativo affidabile — è esattamente il
+    problema che questa funzionalità chiude, e usarlo per cercare l'account
+    lo riaprirebbe.
+    """
+    account = (await db.execute(
+        select(ClientAccount).where(ClientAccount.email == payload.email)
+    )).scalar_one_or_none()
+    if not account:
+        evento(
+            VERIFICA_FALLITA, logging.WARNING,
+            email=maschera_email(payload.email), motivo="indirizzo_sconosciuto",
+        )
+        raise HTTPException(status_code=400, detail="Codice o indirizzo non validi")
+
+    if not account.email_verified:
+        # Il telefono non si verifica prima dell'indirizzo: l'ordine dei due
+        # passi non è arbitrario, vedi il modo in cui il frontend li mostra.
+        raise HTTPException(status_code=400, detail="Verifica prima il tuo indirizzo email")
+
+    try:
+        await phone_verification.check_code(account, payload.code)
+    except phone_verification.VerificationError as e:
+        await db.commit()
+        evento(
+            VERIFICA_FALLITA, logging.WARNING,
+            id_account=account.id, email=maschera_email(account.email),
+            motivo="codice_telefono_non_valido",
+        )
+        raise HTTPException(status_code=400, detail=e.detail)
+
+    await db.flush()
+    evento(
+        TELEFONO_VERIFICATO, id_account=account.id,
+        email=maschera_email(account.email),
+    )
     access = create_access_token(account.id, {"type": "client"})
     refresh = create_refresh_token(account.id, {"type": "client"})
     return TokenResponse(access_token=access, refresh_token=refresh)
@@ -273,6 +366,26 @@ async def resend_code(
     return ResendResult(
         message="Se l'indirizzo è in attesa di verifica, riceverai un nuovo codice",
         email_sent=sent,
+    )
+
+
+@router.post("/resend-phone-code", response_model=PhoneResendResult)
+@limiter.limit("3/hour")
+async def resend_phone_code(
+    request: Request, payload: PasswordResetRequest, db: Annotated[AsyncSession, Depends(get_db)]
+):
+    """Stessa cosa di `resend-code`, un canale dopo."""
+    account = (await db.execute(
+        select(ClientAccount).where(ClientAccount.email == payload.email)
+    )).scalar_one_or_none()
+
+    sent = True
+    if account and account.email_verified and not account.phone_verified:
+        sent = await _send_phone_code(db, account)
+
+    return PhoneResendResult(
+        message="Se il numero è in attesa di verifica, riceverai un nuovo codice",
+        whatsapp_sent=sent,
     )
 
 
@@ -306,6 +419,17 @@ async def login(
         raise HTTPException(
             status_code=403,
             detail="Indirizzo email non ancora verificato. Inserisci il codice che ti abbiamo inviato.",
+        )
+    if not account.phone_verified:
+        # Stessa logica del controllo sopra, un canale dopo: la password è
+        # giusta, manca solo l'ultimo passo dell'onboarding.
+        evento(
+            LOGIN_BLOCCATO, logging.INFO, tipo="client", id_account=account.id,
+            email=maschera_email(account.email), motivo="telefono_non_verificato",
+        )
+        raise HTTPException(
+            status_code=403,
+            detail="Numero di telefono non ancora verificato. Inserisci il codice che ti abbiamo inviato su WhatsApp.",
         )
 
     login_riuscito(tipo="client", id_account=account.id, email=account.email)

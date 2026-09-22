@@ -480,6 +480,13 @@ in BookingConfig.
     aggiornato per confrontare contro `oggi_salone()` invece di
     `date.today()` — altrimenti sarebbe diventato lui stesso intermittente
     nella stessa finestra oraria).
+
+    [PR #115](https://github.com/lorenzomelchionna/gestionale_nsh/pull/115)
+    → `develop`, [PR #116](https://github.com/lorenzomelchionna/gestionale_nsh/pull/116)
+    → `main` (commit `388a276`), CI verde su entrambe. **Deploy confermato**:
+    backend, frontend e worker tutti `SUCCESS` sul commit del merge,
+    riavviati alle 12:18 UTC. `/health` → 200, `www.newstylehair.it` → 200,
+    worker `celery@... ready`, nessun errore vero nei log.
   - [x] ~~**Proposta alternativa accettata: la fine restava quella
     vecchia**~~ (`api/public/booking.py`). La durata si legge ora *prima*
     di spostare `start_time`. Test in `tests/test_accept_alternative.py`,

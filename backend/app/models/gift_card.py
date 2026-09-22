@@ -22,6 +22,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.utils.tempo import oggi_salone
 
 # Niente 0/O né 1/I/L: il codice viene letto ad alta voce al telefono e
 # ricopiato a mano da un'email, e quelle coppie si sbagliano sempre.
@@ -131,12 +132,17 @@ class GiftCard(Base):
         se ha saldo e non è scaduta. La scadenza viene prima dell'esaurimento
         perché a saldo zero le due sarebbero entrambe vere, e «esaurita» è
         quella che descrive cosa è successo davvero.
+
+        Il default è `oggi_salone()` e non `date.today()`: quest'ultima è la
+        data del *processo*, UTC su Railway, e nella finestra fra mezzanotte
+        e l'alba a Roma risponde ancora «ieri» — una card che scade proprio
+        oggi resterebbe spendibile per un'ora o due oltre la mezzanotte vera.
         """
         if self.cancelled_at is not None:
             return GiftCardStatus.cancelled
         if float(self.balance) <= 0:
             return GiftCardStatus.exhausted
-        if self.expires_at < (today or date.today()):
+        if self.expires_at < (today or oggi_salone()):
             return GiftCardStatus.expired
         return GiftCardStatus.active
 

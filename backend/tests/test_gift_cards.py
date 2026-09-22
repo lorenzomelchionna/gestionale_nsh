@@ -11,7 +11,7 @@ vale, non si spende scaduta o stornata, e quello che entra in cassa ci entra
 una volta sola.
 """
 import asyncio
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 import pytest
 import pytest_asyncio
@@ -19,6 +19,7 @@ from sqlalchemy import func, select
 
 from app.models.gift_card import GiftCard, GiftCardRedemption, GiftCardStatus, generate_code
 from app.models.payment import Payment, PaymentType
+from app.utils.tempo import oggi_salone
 from tests.conftest import auth
 
 pytestmark = pytest.mark.asyncio
@@ -64,7 +65,11 @@ class TestVendita:
         assert buono["code"].startswith("NSH-")
 
     async def test_scade_a_un_anno(self, buono):
-        assert buono["expires_at"] == (date.today() + timedelta(days=365)).isoformat()
+        # `oggi_salone()` e non `date.today()`: la scadenza si calcola dal
+        # giorno del salone, e un test che confrontasse col giorno del
+        # processo diventerebbe intermittente esattamente nella finestra
+        # che il codice ora corregge.
+        assert buono["expires_at"] == (oggi_salone() + timedelta(days=365)).isoformat()
 
     async def test_incassa_in_cassa_alla_vendita(self, db, buono):
         """I soldi entrano oggi, perché oggi sono davvero nel cassetto."""
@@ -264,6 +269,63 @@ class TestQuandoNonSiPuoSpendere:
         card.expires_at = date.today() - timedelta(days=1)
         await db.commit()
         assert card.compute_status() == GiftCardStatus.exhausted
+
+
+class TestScadenzaUsaIlGiornoDelSalone:
+    """`compute_status()` e la vendita usavano `date.today()`, la data del
+    *processo* — UTC su Railway. Fra mezzanotte e l'alba a Roma un buono che
+    scade oggi restava spendibile ancora per un'ora o due, e uno venduto in
+    quella finestra scadeva un giorno più tardi del promesso.
+
+    Non serve aspettare la notte vera: si blocca `tempo.adesso()` su un
+    istante fisso che è ancora «15 giugno» in UTC ma già «16 giugno» a Roma
+    (23:00 UTC + 2h CEST supera la mezzanotte) — deterministico, ed è
+    esattamente il caso che il vecchio calcolo sbagliava."""
+
+    ADESSO_FINTO = datetime(2026, 6, 15, 23, 0, tzinfo=timezone.utc)  # 16/06 01:00 CEST a Roma
+    OGGI_SALONE = date(2026, 6, 16)
+
+    @pytest.fixture(autouse=True)
+    def orologio_fisso(self, monkeypatch):
+        import app.utils.tempo as tempo
+        monkeypatch.setattr(tempo, "adesso", lambda: self.ADESSO_FINTO)
+
+    async def test_venduto_nella_notte_scade_dal_giorno_del_salone(
+        self, client, admin_tokens
+    ):
+        """Il caso che il vecchio calcolo sbagliava per davvero: una vendita
+        durante la notte (01:00 a Roma, ma ancora il 15 in UTC) deve contare
+        i `validity_days` da oggi-a-Roma (16 giugno), non da ieri-in-UTC (15
+        giugno) — un giorno di differenza sulla scadenza."""
+        resp = await client.post(
+            "/api/admin/gift-cards", headers=auth(admin_tokens),
+            json=_vendita(validity_days=30),
+        )
+        assert resp.status_code == 201, resp.text
+        atteso = self.OGGI_SALONE + timedelta(days=30)
+        assert resp.json()["expires_at"] == atteso.isoformat(), (
+            "la scadenza deve contare dal giorno del salone (16 giugno), non "
+            f"da quello UTC (15 giugno) — attesa {atteso.isoformat()}"
+        )
+
+    async def test_compute_status_usa_oggi_salone_non_lo_orologio_reale(self, monkeypatch):
+        """Isola il meccanismo invece di affidarsi a date del 2026 che, per
+        quando questo test gira davvero, sono comunque passate: manda
+        `oggi_salone()` lontano nel futuro e osserva una scadenza fissata a
+        *domani rispetto al vero orologio*. Risulta scaduta solo se
+        `compute_status()` consulta davvero `oggi_salone()` — se tornasse a
+        `date.today()`, che il mock non tocca, «domani» non sarebbe ancora
+        scaduto per nessun `date.today()` reale."""
+        import app.utils.tempo as tempo
+        monkeypatch.setattr(tempo, "adesso", lambda: datetime(2099, 1, 1, tzinfo=timezone.utc))
+
+        domani_reale = date.today() + timedelta(days=1)
+        card = GiftCard(
+            code="NSH-TEST0001", initial_amount=50, balance=50,
+            recipient_name="Test", recipient_email="t@example.it",
+            expires_at=domani_reale,
+        )
+        assert card.compute_status() == GiftCardStatus.expired
 
 
 class TestRicercaPerCodice:

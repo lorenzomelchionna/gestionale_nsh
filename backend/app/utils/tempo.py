@@ -77,3 +77,38 @@ def oggi_salone() -> date:
     fra mezzanotte e le due di notte risponderebbe «ieri».
     """
     return ora_salone(adesso()).date()
+
+
+def istante_da_ingresso(valore: datetime) -> datetime:
+    """Un istante che arriva da fuori — un filtro di data scritto da un
+    browser, un campo di un form — non da database.
+
+    Qui la convenzione è l'opposto di `ora_salone()`: un valore senza fuso
+    non è UTC, sono cifre di orologio del salone, perché chi le ha scritte
+    lavora in un browser nel fuso di Roma. `AppointmentsPage.tsx`,
+    `CalendarPage.tsx` e `CashPage.tsx` mandano `"2026-06-22T00:00:00"`
+    intendendo mezzanotte a Roma; letto come UTC senza questa conversione
+    diventa mezzanotte a Roma **meno l'offset**, e un filtro per «22 giugno»
+    include ore della notte del 21 e perde le prime ore del 22.
+
+    Con un fuso esplicito nel valore, si converte semplicemente in UTC — è
+    lo stesso confine che `booking.py` attraversa già per `start_time`.
+    """
+    if valore.tzinfo is None:
+        return istante(valore.date(), valore.time())
+    return valore.astimezone(timezone.utc)
+
+
+def colonna_ora_salone(colonna):
+    """Una colonna `timestamptz` letta nel fuso del salone lato database,
+    da usare dentro `func.date()` o `extract()` per raggruppare per giorno,
+    mese o anno del salone — non per confrontare: quello resta un istante,
+    va confrontato con un altro istante, non con questa espressione.
+
+    `func.date(Payment.date)` e `extract('month', Payment.date)` truncano
+    e affettano usando il `TimeZone` di **sessione** del database, che su
+    Railway è UTC: un incasso delle 01:00 a Roma finiva raggruppato nel
+    giorno prima. `AT TIME ZONE` converte l'istante in un orario locale
+    esplicito prima del taglio, indipendente da quella variabile.
+    """
+    return colonna.op("AT TIME ZONE")(SALONE.key)

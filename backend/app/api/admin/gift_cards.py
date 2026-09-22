@@ -1,4 +1,4 @@
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Annotated, Optional
 
@@ -17,6 +17,7 @@ from app.models.gift_card import (
 from app.models.payment import Payment, PaymentMethod, PaymentType
 from app.models.user import User
 from app.schemas.common import PaginatedResponse
+from app.utils.tempo import oggi_salone
 from app.schemas.gift_card import (
     GiftCardCancel, GiftCardCreate, GiftCardOut, GiftCardRedeem, GiftCardResend,
 )
@@ -183,7 +184,11 @@ async def create_gift_card(
         message=payload.message,
         purchaser_client_id=payload.purchaser_client_id,
         purchaser_name=payload.purchaser_name,
-        expires_at=date.today() + timedelta(days=payload.validity_days),
+        # `oggi_salone()` e non `date.today()`: quest'ultima è la data del
+        # processo (UTC su Railway), e una card venduta fra mezzanotte e
+        # l'alba a Roma scadrebbe un giorno più tardi di quanto promesso —
+        # `validity_days` conta dal giorno del salone, non da quello UTC.
+        expires_at=oggi_salone() + timedelta(days=payload.validity_days),
         payment_id=pagamento.id,
         created_by_id=current_user.id,
     )

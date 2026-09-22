@@ -75,6 +75,13 @@ in BookingConfig.
     nulla. Verificato anche il percorso senza errori (abbassato
     temporaneamente `min_cancel_hours`): cancellazione riuscita, nessun
     messaggio residuo.
+
+    [PR #117](https://github.com/lorenzomelchionna/gestionale_nsh/pull/117)
+    → `develop`, [PR #118](https://github.com/lorenzomelchionna/gestionale_nsh/pull/118)
+    → `main` (commit `b1227c1`), CI verde su entrambe. **Deploy confermato**:
+    backend, frontend e worker tutti `SUCCESS` sul commit del merge,
+    riavviati alle 16:09 UTC. `/health` → 200, `www.newstylehair.it` → 200,
+    worker `celery@... ready`, nessun errore vero nei log.
 - [ ] **WhatsApp produzione sul fisso**: oggi il canale gira sul numero
   ponte con i template approvati (vedi «ACCESO il 2026-09-17» più sotto).
   Resta il passaggio al fisso del salone, e con lui le voci qui sotto.

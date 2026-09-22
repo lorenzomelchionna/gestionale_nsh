@@ -801,7 +801,12 @@ quella che si legge non è mai quella aggiornata — quindi ne resta una.
   (messo a **15**, lo stesso della verifica email:
   `email_verification.CODE_TTL_MINUTES`, per non promettere alla cliente un
   tempo diverso da quello vero) e un bottone «Copia codice». Stato in
-  `received`, in attesa di revisione Meta come gli altri due (1-2 giorni).
+  ~~`received`, in attesa di revisione Meta come gli altri due (1-2
+  giorni)~~ — **approvato il 2026-09-22, meno di un'ora dopo la
+  sottomissione**: molto più veloce degli altri due, che avevano preso
+  fino a un giorno. Il testo vero non è ancora stato visto: l'API non lo
+  restituisce mai, va letto da un invio reale (stesso metodo già usato per
+  `conferma_appuntamento`/`promemoria_appuntamento`).
 
   **Resta da fare quando è approvato**: variabile `TWILIO_TEMPLATE_VERIFICA`
   su Railway (backend **e** worker), e il collegamento vero e proprio —

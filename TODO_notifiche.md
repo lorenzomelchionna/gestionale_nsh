@@ -433,12 +433,53 @@ in BookingConfig.
     `tests/test_dashboard_ora_salone.py`, con l'orologio bloccato
     (`tempo.adesso()` sostituito) su un istante fisso di prima mattina a
     Roma: deterministico, non dipende da quando gira la suite.
-    **Restano aperti, stesso difetto, non ancora toccati**: i filtri data
-    del frontend (`CalendarPage.tsx:187`, `AppointmentsPage.tsx:67`,
-    `CashPage.tsx:45`) e la scadenza dei buoni regalo
-    (`models/gift_card.py:139`, `api/admin/gift_cards.py:186`). Anche
-    `revenue-chart` e `yearly-chart` in `dashboard.py` usano `func.date()`
-    su colonne UTC — non diagnosticati né corretti qui, stesso sospetto.
+    ~~**Restano aperti, stesso difetto, non ancora toccati**~~ — **verificati
+    e corretti il 2026-09-22**, la sera stessa in cui erano stati segnalati
+    come sospetti. Tre meccanismi diversi, stessa famiglia:
+
+    - **Filtri data di agenda e incassi** (`CalendarPage.tsx:187`,
+      `AppointmentsPage.tsx:67`, `CashPage.tsx:45` → `date_from`/`date_to`
+      in `api/admin/appointments.py` e `api/admin/payments.py`). Il
+      frontend era già giusto — manda mezzanotte a Roma senza fuso, come
+      deve. Il difetto era nel backend: un `datetime` senza fuso confrontato
+      con una colonna `timestamptz` viene interpretato dal driver secondo il
+      fuso **del processo Python**, non quello di sessione del database né
+      UTC per definizione — misurato forzando `TZ=UTC` e `TZ=Europe/Rome`
+      sullo stesso codice e vedendo il confine spostarsi. Su Railway il
+      processo non ha `TZ`, quindi gira in UTC: un filtro per "22 giugno"
+      diventava una finestra UTC. Nuova funzione `istante_da_ingresso()` in
+      `tempo.py`, usata ai due endpoint. Test in
+      `tests/test_query_filters_ora_salone.py`, con l'attenzione che la
+      *stessa cosa* capita al test se non fissa `TZ=UTC` sul proprio
+      processo: sul Mac di chi sviluppa (Europe/Rome) il difetto sarebbe
+      rimasto nascosto per puro caso.
+    - **Scadenza dei buoni regalo** (`models/gift_card.py:139`,
+      `api/admin/gift_cards.py:186`). `date.today()` è la data del
+      *processo* (stesso meccanismo di sopra, UTC su Railway): una vendita
+      fra mezzanotte e l'alba a Roma faceva scadere la card un giorno più
+      tardi del promesso, e un buono in scadenza restava spendibile un paio
+      d'ore oltre la mezzanotte vera. Sostituito con `oggi_salone()` in
+      entrambi i punti. Test in `tests/test_gift_cards.py`
+      (`TestScadenzaUsaIlGiornoDelSalone`).
+    - **`revenue-chart` e `yearly-chart`** in `dashboard.py`. Confermato:
+      `func.date()`/`extract()` su una colonna `timestamptz` tagliano
+      usando il `TimeZone` di **sessione** del database — UTC su Railway,
+      verificato con una query diretta — non il fuso del salone. Un
+      incasso di notte finiva raggruppato nel giorno (o, a Capodanno, anche
+      nell'anno) sbagliato. Anche l'anno di default di `yearly-chart` usava
+      `now.year` (UTC). Nuova funzione `colonna_ora_salone()` in `tempo.py`
+      (`AT TIME ZONE 'Europe/Rome'` prima del taglio). Test in
+      `tests/test_dashboard_ora_salone.py`, il secondo apposta a Capodanno:
+      è l'unico giorno in cui la differenza fra i due fusi sposta anche
+      l'anno, non solo il giorno.
+
+    Ognuno dei tre falsificato prima di essere considerato chiuso: fix
+    applicata, test verificato che passa; fix rimossa a mano, stesso test
+    verificato che torna a fallire; fix riapplicata. 7 nuovi test, nessuno
+    dei vecchi toccato nel comportamento (uno solo, `test_scade_a_un_anno`,
+    aggiornato per confrontare contro `oggi_salone()` invece di
+    `date.today()` — altrimenti sarebbe diventato lui stesso intermittente
+    nella stessa finestra oraria).
   - [x] ~~**Proposta alternativa accettata: la fine restava quella
     vecchia**~~ (`api/public/booking.py`). La durata si legge ora *prima*
     di spostare `start_time`. Test in `tests/test_accept_alternative.py`,

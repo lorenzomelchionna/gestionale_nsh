@@ -9,6 +9,7 @@ from app.models.user import User
 from app.schemas.payment import PaymentCreate, PaymentOut
 from app.schemas.common import PaginatedResponse
 from app.dependencies import require_admin
+from app.utils.tempo import istante_da_ingresso
 
 router = APIRouter(prefix="/payments", tags=["Payments"])
 
@@ -23,10 +24,14 @@ async def list_payments(
     date_to: Optional[datetime] = Query(None),
 ):
     q = select(Payment)
+    # Stesso confine di `admin/appointments.py`: `date_from`/`date_to`
+    # arrivano da `CashPage.tsx` come mezzanotte a Roma senza fuso, e letti
+    # com'sono contro `Payment.date` (un istante) finivano interpretati nel
+    # fuso del processo — UTC su Railway.
     if date_from:
-        q = q.where(Payment.date >= date_from)
+        q = q.where(Payment.date >= istante_da_ingresso(date_from))
     if date_to:
-        q = q.where(Payment.date <= date_to)
+        q = q.where(Payment.date <= istante_da_ingresso(date_to))
     total = (await db.execute(select(func.count()).select_from(q.subquery()))).scalar_one()
     result = await db.execute(q.order_by(Payment.date.desc()).offset((page - 1) * page_size).limit(page_size))
     return PaginatedResponse(

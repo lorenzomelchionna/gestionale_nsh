@@ -17,7 +17,7 @@ la suite.
 
 Riferimento: `TODO_notifiche.md`, «Difetti minori» del 2026-09-22.
 """
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from sqlalchemy import select
@@ -25,7 +25,7 @@ from sqlalchemy import select
 from app.models.client import Client
 from app.models.expense import Expense
 from app.models.payment import Payment, PaymentMethod
-from app.utils.tempo import SALONE
+from app.utils.tempo import SALONE, ora_salone
 
 pytestmark = pytest.mark.asyncio
 
@@ -137,4 +137,95 @@ class TestRiepilogoOggiUsaIlGiornoDelSalone:
         assert resp.json()["total_expenses"] == pytest.approx(42.0), (
             "una spesa datata col giorno del salone deve contare in 'oggi', "
             "anche se quel giorno non è ancora iniziato in UTC"
+        )
+
+
+class TestGraficoIncassiGiornalieroUsaIlGiornoDelSalone:
+    """`revenue-chart` raggruppava con `func.date(Payment.date)`, che taglia
+    usando il `TimeZone` di *sessione* del database (UTC su Railway), non il
+    fuso del salone: un incasso delle 01:30 a Roma finiva nel giorno prima.
+
+    A differenza di `get_stats`, qui la finestra («ultimi N giorni da
+    adesso») è corretta com'è — usa il vero orologio, non un giorno di
+    calendario da indovinare — quindi il test non blocca `adesso()`: usa
+    un istante relativo al vero «adesso», costruito perché sia sempre dopo
+    mezzanotte a Roma pur restando «ieri» in UTC, qualunque sia il momento
+    reale in cui la suite gira."""
+
+    async def test_incasso_di_notte_va_nel_giorno_del_salone(
+        self, client, db, admin_tokens, client_account
+    ):
+        cliente = (await db.execute(
+            select(Client).where(Client.account_id == client_account.id)
+        )).scalar_one()
+
+        istante = datetime.now(timezone.utc).replace(
+            hour=23, minute=30, second=0, microsecond=0
+        ) - timedelta(days=1)
+        db.add(Payment(
+            client_id=cliente.id, amount=88.0,
+            method=PaymentMethod.cash, date=istante,
+        ))
+        await db.commit()
+
+        resp = await client.get(
+            "/api/admin/dashboard/revenue-chart?days=7",
+            headers={"Authorization": f"Bearer {admin_tokens['access_token']}"},
+        )
+        assert resp.status_code == 200
+        righe = {r["date"]: r["total"] for r in resp.json()}
+
+        giorno_salone = str(ora_salone(istante).date())
+        giorno_utc = str(istante.date())
+        assert righe.get(giorno_salone) == pytest.approx(88.0), (
+            f"atteso l'incasso sotto il giorno del salone ({giorno_salone}), righe: {righe}"
+        )
+        assert giorno_utc not in righe, (
+            f"non deve comparire sotto il giorno UTC ({giorno_utc}), che per il "
+            "salone è già ieri"
+        )
+
+
+class TestGraficoAnnualeUsaIlGiornoDelSalone:
+    """Stesso difetto, due punti in più: `extract('month'/'year', ...)` su
+    colonne `timestamptz` e l'anno di default (`now.year`, UTC) invece
+    dell'anno del salone. Testato a Capodanno apposta: è l'unico giorno
+    dell'anno in cui la differenza fra i due fusi sposta anche l'**anno**,
+    non solo il giorno — se uno dei due punti fosse rimasto rotto, questo
+    test lo becca."""
+
+    ANNO_NUOVO_FINTO = datetime(2026, 12, 31, 23, 30, tzinfo=timezone.utc)  # 1° gennaio 00:30 CET a Roma
+
+    @pytest.fixture(autouse=True)
+    def orologio_di_capodanno(self, monkeypatch):
+        import app.utils.tempo as tempo
+        import app.api.admin.dashboard as dashboard
+        monkeypatch.setattr(tempo, "adesso", lambda: self.ANNO_NUOVO_FINTO)
+        monkeypatch.setattr(dashboard, "adesso", lambda: self.ANNO_NUOVO_FINTO)
+
+    async def test_incasso_di_capodanno_conta_nell_anno_e_mese_del_salone(
+        self, client, db, admin_tokens, client_account
+    ):
+        cliente = (await db.execute(
+            select(Client).where(Client.account_id == client_account.id)
+        )).scalar_one()
+
+        db.add(Payment(
+            client_id=cliente.id, amount=60.0,
+            method=PaymentMethod.cash, date=self.ANNO_NUOVO_FINTO,
+        ))
+        await db.commit()
+
+        # `year` non passato: deve risolvere sul 2027 (anno del salone),
+        # non 2026 (anno UTC all'istante bloccato).
+        resp = await client.get(
+            "/api/admin/dashboard/yearly-chart",
+            headers={"Authorization": f"Bearer {admin_tokens['access_token']}"},
+        )
+        assert resp.status_code == 200
+        righe = resp.json()
+        gennaio = next(r for r in righe if r["month_num"] == 1)
+        assert gennaio["revenue"] == pytest.approx(60.0), (
+            "l'incasso di Capodanno a Roma deve comparire a gennaio dell'anno "
+            f"del salone (2027); righe: {righe}"
         )

@@ -18,6 +18,7 @@ from app.schemas.appointment import (
 )
 from app.schemas.common import PaginatedResponse
 from app.dependencies import get_current_user
+from app.utils.tempo import istante_da_ingresso
 
 router = APIRouter(prefix="/appointments", tags=["Appointments"])
 
@@ -69,10 +70,16 @@ async def list_appointments(
     aspettava già prima che questo parametro esistesse.
     """
     q = select(Appointment).options(*appointment_detail_loads())
+    # `istante_da_ingresso` e non il valore grezzo: `date_from`/`date_to`
+    # arrivano dal browser come cifre di orologio senza fuso — mezzanotte a
+    # Roma — e letti così com'sono contro `start_time` (un istante) venivano
+    # interpretati nel fuso del *processo*. Su Railway, dove il processo non
+    # ha `TZ` e gira quindi in UTC, un filtro per una giornata finiva
+    # spostato di un'ora o due rispetto a quella che l'utente intendeva.
     if date_from:
-        q = q.where(Appointment.start_time >= date_from)
+        q = q.where(Appointment.start_time >= istante_da_ingresso(date_from))
     if date_to:
-        q = q.where(Appointment.start_time <= date_to)
+        q = q.where(Appointment.start_time <= istante_da_ingresso(date_to))
     if collaborator_id:
         q = q.where(Appointment.collaborator_id == collaborator_id)
     if client_id:

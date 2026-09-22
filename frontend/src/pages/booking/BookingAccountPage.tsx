@@ -19,6 +19,16 @@ const STATUS_LABELS: Record<string, string> = {
   cancelled: 'Annullato',
 }
 
+/** Il messaggio del salone (`HTTPException.detail`), non un genericone: un
+    rifiuto per preavviso insufficiente deve dire "24h di anticipo", non
+    "errore" — è l'unica cosa che dice alla cliente cosa fare diversamente. */
+function errorText(err: unknown): string {
+  const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail
+  if (typeof detail === 'string') return detail
+  if (Array.isArray(detail)) return 'Dati non validi: controlla i campi.'
+  return 'Operazione non riuscita. Riprova.'
+}
+
 export default function BookingAccountPage() {
   // Signed-in state is guaranteed by RequireClient on the route; the old
   // in-render redirect also broke the rules-of-hooks order below it.
@@ -86,6 +96,15 @@ export default function BookingAccountPage() {
               <X className="w-3.5 h-3.5" /> Rifiuta
             </button>
           </div>
+          {/* `.variables` e non solo `.isError`: la mutation è una sola,
+              condivisa da ogni riga — senza questo confronto l'errore di
+              una proposta comparirebbe sotto tutte le altre. */}
+          {((acceptMut.isError && acceptMut.variables === a.id) ||
+            (rejectMut.isError && rejectMut.variables === a.id)) && (
+            <p role="alert" className="text-[13px] text-danger border-l-2 border-danger bg-danger/[0.08] px-3 py-2.5">
+              {errorText(acceptMut.variables === a.id ? acceptMut.error : rejectMut.error)}
+            </p>
+          )}
         </div>
       ))}
 
@@ -102,6 +121,11 @@ export default function BookingAccountPage() {
                 key={a.id}
                 appointment={a}
                 onCancel={() => cancelMut.mutate(a.id)}
+                cancelError={
+                  cancelMut.isError && cancelMut.variables === a.id
+                    ? errorText(cancelMut.error)
+                    : undefined
+                }
               />
             ))}
           </div>
@@ -117,6 +141,11 @@ export default function BookingAccountPage() {
                 key={w.id}
                 entry={w}
                 onLeave={() => leaveMut.mutate(w.id)}
+                leaveError={
+                  leaveMut.isError && leaveMut.variables === w.id
+                    ? errorText(leaveMut.error)
+                    : undefined
+                }
               />
             ))}
           </div>
@@ -155,42 +184,57 @@ export default function BookingAccountPage() {
   )
 }
 
-function WaitlistCard({ entry: w, onLeave }: { entry: WaitlistEntry; onLeave: () => void }) {
+function WaitlistCard({ entry: w, onLeave, leaveError }: {
+  entry: WaitlistEntry
+  onLeave: () => void
+  leaveError?: string
+}) {
   const notified = w.status === 'notified'
   return (
     <div
       className={clsx(
-        'panel px-5 py-4 flex items-center justify-between gap-4',
+        'panel px-5 py-4 flex flex-col gap-2.5',
         notified && 'border-primary bg-primary/10'
       )}
     >
-      <div className="min-w-0 flex flex-col gap-1">
-        {notified && (
-          <span className="kicker text-primary-dark">Si è liberato un posto</span>
-        )}
-        <span className="font-heading text-[17px] tracking-[0.03em] text-foreground">
-          {w.preferred_date
-            ? <span className="tabular-nums">
-                {format(parseISO(w.preferred_date), 'd MMMM yyyy', { locale: it })}
-              </span>
-            : 'Prima disponibilità'}
-        </span>
-        {w.notes && <span className="note">{w.notes}</span>}
-        <span className="text-xs text-ink-3 tabular-nums">
-          iscritto il {format(parseISO(w.created_at), 'd MMM yyyy', { locale: it })}
-        </span>
+      <div className="flex items-center justify-between gap-4">
+        <div className="min-w-0 flex flex-col gap-1">
+          {notified && (
+            <span className="kicker text-primary-dark">Si è liberato un posto</span>
+          )}
+          <span className="font-heading text-[17px] tracking-[0.03em] text-foreground">
+            {w.preferred_date
+              ? <span className="tabular-nums">
+                  {format(parseISO(w.preferred_date), 'd MMMM yyyy', { locale: it })}
+                </span>
+              : 'Prima disponibilità'}
+          </span>
+          {w.notes && <span className="note">{w.notes}</span>}
+          <span className="text-xs text-ink-3 tabular-nums">
+            iscritto il {format(parseISO(w.created_at), 'd MMM yyyy', { locale: it })}
+          </span>
+        </div>
+        <button
+          onClick={onLeave}
+          className="text-[13px] text-danger hover:underline shrink-0"
+        >
+          Rimuovi
+        </button>
       </div>
-      <button
-        onClick={onLeave}
-        className="text-[13px] text-danger hover:underline shrink-0"
-      >
-        Rimuovi
-      </button>
+      {leaveError && (
+        <p role="alert" className="text-[13px] text-danger border-l-2 border-danger bg-danger/[0.08] px-3 py-2.5">
+          {leaveError}
+        </p>
+      )}
     </div>
   )
 }
 
-function AppointmentCard({ appointment: a, onCancel }: { appointment: Appointment; onCancel?: () => void }) {
+function AppointmentCard({ appointment: a, onCancel, cancelError }: {
+  appointment: Appointment
+  onCancel?: () => void
+  cancelError?: string
+}) {
   const canCancel = onCancel && a.status === 'confirmed'
   const services = a.service_names?.length ? a.service_names.join(' + ') : ''
   return (
@@ -225,6 +269,11 @@ function AppointmentCard({ appointment: a, onCancel }: { appointment: Appointmen
         <button onClick={onCancel} className="btn-danger-outline btn-sm w-full mt-2.5">
           Annulla appuntamento
         </button>
+      )}
+      {cancelError && (
+        <p role="alert" className="text-[13px] text-danger border-l-2 border-danger bg-danger/[0.08] px-3 py-2.5 mt-1">
+          {cancelError}
+        </p>
       )}
     </div>
   )

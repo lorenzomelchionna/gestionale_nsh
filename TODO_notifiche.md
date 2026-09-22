@@ -370,6 +370,19 @@ ancora la Sandbox `+14155238886`), `TWILIO_TEMPLATE_CONFERMA`,
     `+1 689 344-8830` — resta come secondo Sender dello stesso WABA finché
     non si toglie
 
+  **Deploy confermato**: [PR #119](https://github.com/lorenzomelchionna/gestionale_nsh/pull/119)
+  (verifica telefono, questa voce) → `develop`,
+  [PR #120](https://github.com/lorenzomelchionna/gestionale_nsh/pull/120)
+  → `main` (merge commit `00402f2`), CI verde su entrambe (8/8 check su
+  #120). Backend, frontend e worker tutti `SUCCESS` sul commit del merge.
+  Log di startup del backend confermano la migrazione applicata,
+  `Running upgrade b6e21c8f0a53 -> f8a2e916c4d3, add phone verification to
+  client_accounts`, e il bootstrap completato senza errori; worker
+  `celery@... ready.`, nessun errore vero (solo l'avviso normale su
+  superuser). `/health` → 200, `www.newstylehair.it` → 200. Il numero fisso
+  come `TWILIO_WHATSAPP_FROM` era già attivo da prima di questo rilascio
+  (switchato a mano su Railway, non fa parte del codice deployato).
+
 - [x] ~~**Fuso orario degli appuntamenti**~~ — **corretto il 2026-09-17**, in
   due rilasci. Sotto resta il referto, perché il ragionamento serve a chi un
   domani toccherà `availability.py`.

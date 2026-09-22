@@ -1012,9 +1012,15 @@ quella che si legge non è mai quella aggiornata — quindi ne resta una.
   - **Una transazione sola.** A metà strada il database sarebbe rimasto in
     uno stato che nessuno ha scelto — appuntamenti orfani senza cliente.
 
-  **Lasciate indietro di proposito**: 1 conversazione WhatsApp e i suoi 5
-  messaggi. Non erano nella richiesta, e sono indicizzati per numero di
-  telefono, non per cliente: sopravvivono con `client_id` a `NULL`.
+  **La conversazione WhatsApp**, lasciata indietro al primo giro perché non
+  era nella richiesta, è stata tolta subito dopo su conferma: 1
+  conversazione e i suoi 5 messaggi (`CASCADE`). Vale la pena sapere che le
+  conversazioni sono indicizzate per **numero di telefono**, non per
+  cliente — svuotare l'anagrafica non le porta via, restano con `client_id`
+  a `NULL`. Chi rifà questa pulizia deve cancellarle a parte.
+
+  Stato finale del database: anagrafica, account, appuntamenti e chat a
+  zero; servizi, prodotti e collaboratori intatti.
 - [x] ~~Stessa gara di commit sul lato admin~~ — fatto 2026-08-02, trovata
   mentre si sistemava `notify_new_booking`. In `api/admin/appointments.py`
   `_trigger_booking_confirmation` partiva dopo `flush()` ma prima che `get_db`

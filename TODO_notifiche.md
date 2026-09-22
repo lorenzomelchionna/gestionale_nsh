@@ -961,10 +961,13 @@ quella che si legge non è mai quella aggiornata — quindi ne resta una.
   `api/public/auth.py`. Lasciata la riga barrata invece di cancellarla
   perché la contraddizione fra due paragrafi vicini è l'errore che questo
   documento ha già fatto due volte in cima.
-- [ ] **Pulizia dei profili cliente di prova** — chiesta il 2026-08-12, da
-  fare prima di aprire alle clienti vere. Rimandata di proposito: non
-  dipende da nient'altro e si può fare in qualunque momento. Prima di
-  toccare qualcosa:
+- [x] ~~**Pulizia dei profili cliente di prova**~~ — **fatta il
+  2026-09-23**, e non come «pulizia»: svuotate del tutto anagrafica,
+  account del portale e appuntamenti. Il come, e i quattro punti qui
+  sotto che l'hanno guidata, restano scritti perché servono la prossima
+  volta. Resoconto in fondo alla voce.
+
+  Prima di toccare qualcosa:
   1. **Decidere il criterio** di «di prova» (nome, email, data di
      creazione, nessun appuntamento…) ed estrarre l'elenco in **sola
      lettura** dalla produzione. Nessuna cancellazione senza l'elenco
@@ -987,6 +990,31 @@ quella che si legge non è mai quella aggiornata — quindi ne resta una.
      restano ma perdono il cliente (`SET NULL`); la lista d'attesa se ne va
      con lui (`CASCADE`). Per i doppioni c'è già **Unione schede**, che va
      preferita alla cancellazione.
+
+  **Com'è andata (2026-09-23).** L'estrazione del punto 1 ha trovato **sei**
+  schede, e il criterio «di prova» **non si poteva applicare**: nomi veri,
+  Gmail veri, cellulari italiani veri, tutte con account verificato. Niente
+  che da fuori distinguesse una prova da una cliente — una aveva perfino un
+  appuntamento *confermato*. Messo l'elenco davanti, la decisione è stata
+  di svuotare tutto: il salone non ha ancora clienti veri a sistema, quindi
+  l'anagrafica intera era il banco di prova.
+
+  Cancellati: **4 appuntamenti** (più i 4 `appointment_services`, portati
+  via in `CASCADE`), **6 clienti**, **6 account del portale**. Restano
+  intatti **19 servizi**, **13 prodotti**, **3 collaboratori** — verificato
+  confrontando i conteggi prima e dopo, non fidandosi dell'intenzione.
+  `/health` 200 e frontend 200 dopo l'operazione, nessun errore nei log.
+
+  Due precauzioni che vale la pena ripetere:
+  - **Copia di sicurezza prima**, JSON di tutte le tabelle coinvolte. È ciò
+    che ha reso reversibile una cosa che di suo non lo è. Contiene dati
+    personali: sta fuori dal repository e va cancellata quando non serve.
+  - **Una transazione sola.** A metà strada il database sarebbe rimasto in
+    uno stato che nessuno ha scelto — appuntamenti orfani senza cliente.
+
+  **Lasciate indietro di proposito**: 1 conversazione WhatsApp e i suoi 5
+  messaggi. Non erano nella richiesta, e sono indicizzati per numero di
+  telefono, non per cliente: sopravvivono con `client_id` a `NULL`.
 - [x] ~~Stessa gara di commit sul lato admin~~ — fatto 2026-08-02, trovata
   mentre si sistemava `notify_new_booking`. In `api/admin/appointments.py`
   `_trigger_booking_confirmation` partiva dopo `flush()` ma prima che `get_db`

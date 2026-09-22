@@ -972,9 +972,16 @@ quella che si legge non è mai quella aggiornata — quindi ne resta una.
   2. **«Elimina» dal gestionale non cancella**: mette solo
      `Client.is_active = False` (`api/admin/clients.py:123`). La scheda
      sparisce dagli elenchi ma resta a database.
-  3. **E non chiude il portale**: vedi «Una scheda eliminata può ancora
-     prenotare» fra i difetti aperti. Per un profilo di prova con accesso
-     al portale va disattivato anche l'account.
+  3. **Chiude il portale, ma non il login.** ~~«E non chiude il portale:
+     vedi fra i difetti aperti»~~ — quel difetto è stato corretto, la voce
+     è più su in questo file. Oggi `_cliente_del_portale`
+     (`api/public/booking.py:47`) filtra su `Client.is_active`, quindi una
+     scheda eliminata non prenota, non cancella e non entra in lista
+     d'attesa. Resta però valido il **login**: `ClientAccount.is_active` è
+     un interruttore separato, e chi accede si trova «Profilo cliente non
+     trovato». Per un profilo di prova conviene disattivare anche
+     l'account — non più per sicurezza, solo per non lasciare un accesso
+     che porta a una schermata rotta.
   4. Una cancellazione vera è bloccata dagli appuntamenti
      (`ondelete="RESTRICT"`); pagamenti, chat, comunicazioni e buoni regalo
      restano ma perdono il cliente (`SET NULL`); la lista d'attesa se ne va

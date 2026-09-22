@@ -96,6 +96,18 @@ async def login(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Indirizzo email non ancora verificato. Inserisci il codice che ti abbiamo inviato.",
             )
+        if not account.phone_verified:
+            # Stessa logica, un canale dopo — vedi la nota sull'indirizzo qui
+            # sopra: la schermata unica deve rifiutare quello che rifiuta il
+            # portale, o diventa la scorciatoia per aggirarlo.
+            evento(
+                LOGIN_BLOCCATO, tipo="client", id_account=account.id,
+                email=maschera_email(account.email), motivo="telefono_non_verificato",
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Numero di telefono non ancora verificato. Inserisci il codice che ti abbiamo inviato su WhatsApp.",
+            )
         login_riuscito(tipo="client", id_account=account.id, email=account.email)
         return SignInResponse(
             # `type` is what keeps this token off the staff routes.

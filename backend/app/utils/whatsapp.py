@@ -134,6 +134,28 @@ async def send_whatsapp_template(
     })
 
 
+async def send_verification_code_whatsapp(to_phone: str, code: str) -> None:
+    """Il codice di conferma numero, sul template Authentication.
+
+    A differenza degli altri due template, questo non prende `{{2}}`/`{{3}}`
+    ecc.: per un template Authentication Meta preimposta l'intero corpo, e
+    l'unica variabile ammessa è il codice stesso — la scadenza (15 minuti,
+    la stessa di `verification_codes.CODE_TTL_MINUTES`) è già scritta nel
+    template approvato (`code_expiration_minutes`), non va ripetuta qui.
+
+    Il ripiego a testo libero non dovrebbe mai partire in produzione — il
+    template è approvato — ma resta un errore parlante se qualcuno
+    dimentica di impostare `TWILIO_TEMPLATE_VERIFICA` dopo un deploy,
+    invece di un mancato invio silenzioso.
+    """
+    await send_whatsapp_template(
+        to_phone,
+        settings.TWILIO_TEMPLATE_VERIFICA,
+        {"1": code},
+        ripiego=f"Il tuo codice di verifica New Style Hair è {code}",
+    )
+
+
 async def send_booking_confirmation(appointment, cfg) -> None:
     """Send booking confirmation WhatsApp message."""
     client = appointment.client

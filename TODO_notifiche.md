@@ -777,12 +777,10 @@ quella che si legge non è mai quella aggiornata — quindi ne resta una.
   schermata unica) rifiuta gli indirizzi non verificati. Un'iscrizione non
   verificata non blocca l'indirizzo: chi si registra dopo la sovrascrive, così
   nessuno può occupare l'email di un altro.
-- [ ] **Verifica del numero di telefono** — da fare. Oggi il telefono viene
-  normalizzato in E.164 ma **non verificato**: nulla impedisce di inserire il
-  numero di qualcun altro, che si ritroverebbe i messaggi WhatsApp del salone.
-  Serve lo stesso schema dell'email — codice via SMS o WhatsApp, con scadenza e
-  tetto ai tentativi. Il modulo `app/services/email_verification.py` è già
-  scritto in modo riutilizzabile: cambia solo il canale di invio.
+- [x] ~~**Verifica del numero di telefono**~~ — **implementata e verificata
+  il 2026-09-22**, in produzione dietro `TWILIO_TEMPLATE_VERIFICA`. Prima
+  nulla impediva di inserire il numero di qualcun altro, che si sarebbe
+  ritrovato i messaggi WhatsApp del salone.
   ~~**Prerequisito**: WhatsApp fuori dalla Sandbox Twilio~~ — soddisfatto
   il 2026-09-17. Serviva un **template di categoria Authentication**: un
   codice di verifica è un messaggio che il salone manda per primo, quindi
@@ -821,6 +819,66 @@ quella che si legge non è mai quella aggiornata — quindi ne resta una.
   personalizzare («custom authentication templates aren't allowed», niente
   URL, emoji o testo libero), per lo stesso motivo per cui un OTP non deve
   poter somigliare a un messaggio di phishing.
+
+  ### Il collegamento vero, fatto lo stesso giorno
+
+  **Decisioni prese prima di scrivere codice** (chieste esplicitamente,
+  perché cambiavano la forma del lavoro): il passo è **obbligatorio**, come
+  l'email oggi — nessun modo di saltarlo — e riguarda **solo le nuove
+  registrazioni**. Chi si era già registrato prima che questo esistesse
+  resta com'è, nessuna richiesta retroattiva.
+
+  **Schema**: quattro colonne su `ClientAccount`
+  (`phone_verified`, `phone_verification_code_hash`,
+  `phone_verification_expires`, `phone_verification_attempts`), stesso
+  disegno delle quattro già lì per l'email. Migrazione
+  `f8a2e916c4d3`: grandfathering per righe esistenti
+  (`UPDATE ... SET phone_verified = true`), stesso schema già usato per
+  l'email in `d7a1c93f2b48` — verificato applicandola su un database con
+  una riga pre-esistente, non solo letto dal file.
+
+  **Perché sull'account e non sulla scheda cliente**, dove il numero vive
+  davvero: rispecchia `email_verified`, un controllo di una sola tabella al
+  login invece di un join, e i due nascono comunque insieme alla
+  registrazione.
+
+  **Il flusso cambia**: `verify-email` non dà più la sessione subito. Se il
+  telefono è già verificato (grandfathered, o già fatto) la sessione parte
+  come prima; altrimenti risponde `phone_verification_required` e manda il
+  codice WhatsApp — la sessione arriva solo da `verify-phone`, il passo
+  nuovo. Login (sia il portale sia la schermata unica staff+clienti)
+  rifiuta anche il telefono non verificato, stesso schema del controllo
+  sull'email che c'era già.
+
+  **Chi salta il passo, di proposito, con la stessa nota già scritta per
+  l'email** (`portal_account.py`): un accesso creato dal salone al banco,
+  con la cliente davanti che detta il numero — stessa fiducia già concessa
+  per l'indirizzo.
+
+  **Verificato, non solo scritto**:
+  - 726 test passano (20 nuovi: `tests/test_phone_verification.py` per
+    esteso, più gli aggiustamenti a `test_email_verification.py` e
+    `test_registration_takeover.py` che il nuovo secondo passo rompeva).
+  - 4 punti della logica nuova falsificati uno per uno (tolti a mano,
+    verificato che il test giusto torna rosso, rimessi): l'ordine
+    email-poi-telefono, il salto per chi è già verificato, e il rifiuto al
+    login su entrambe le rotte.
+  - Migrazione provata per davvero: applicata da vuoto, il backfill
+    controllato su una riga pre-esistente, e il downgrade.
+  - **Prova end-to-end nel browser, con un WhatsApp vero**: registrazione
+    compilata a mano, codice email letto dal database locale, codice
+    telefono arrivato per davvero sul numero di Lorenzo — letto da lui,
+    non simulato — e la sessione finale che apre il portale con la
+    schermata di benvenuto.
+
+  **`TWILIO_TEMPLATE_VERIFICA` — controllata su Railway prima di chiudere
+  questa voce, e non c'era**: a differenza degli altri due template, questo
+  non era mai stato impostato né su backend né su worker. Senza, il codice
+  di verifica sarebbe partito come testo libero — che WhatsApp rifiuta fuori
+  dalla finestra di 24 ore, cioè sempre, essendo il salone a scrivere per
+  primo. Impostata ora su entrambi i servizi (stesso SID approvato,
+  `skip_deploys` per non far ripartire il deploy prima che il codice ci sia
+  davvero): arriverà con il rilascio di questa PR.
 
   **Resta da fare quando è approvato**: variabile `TWILIO_TEMPLATE_VERIFICA`
   su Railway (backend **e** worker), e il collegamento vero e proprio —

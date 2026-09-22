@@ -9,6 +9,7 @@ import Logo from '@/components/ui/Logo'
 import { INDIRIZZO, TELEFONO } from '@/config/business'
 import {
   signIn, clientRegister, verifyEmail, resendVerificationCode,
+  verifyPhone, resendPhoneCode,
 } from '@/services/publicApi'
 
 /** Deve corrispondere a `MIN_CLIENT_PASSWORD` in `schemas/client.py`. Il
@@ -36,7 +37,7 @@ function destinazioneInterna(valore: string | null): string | null {
   return valore
 }
 
-type Mode = 'signin' | 'register' | 'verify'
+type Mode = 'signin' | 'register' | 'verify' | 'verify-phone'
 
 // Caps the date picker so a future birthday cannot be chosen at all, rather
 // than being rejected only once the form is submitted.
@@ -46,6 +47,9 @@ const TITLES: Record<Mode, { title: string; sub: string }> = {
   signin: { title: 'Accesso riservato', sub: 'Inserisci le tue credenziali.' },
   register: { title: 'Crea il tuo account', sub: 'Bastano nome, telefono ed email.' },
   verify: { title: 'Conferma il tuo indirizzo', sub: 'Abbiamo mandato sei cifre alla tua email.' },
+  // Secondo passo, dopo l'indirizzo: stesso schermo di prima (VerifyForm),
+  // testo diverso e un altro paio di funzioni dietro i bottoni.
+  'verify-phone': { title: 'Conferma il tuo numero', sub: 'Abbiamo mandato sei cifre su WhatsApp.' },
 }
 
 /**
@@ -100,9 +104,16 @@ export default function LoginPage() {
     } catch (err) {
       const res = (err as { response?: { status?: number; data?: { detail?: string } } })?.response
       const detail = res?.data?.detail ?? ''
-      // The password was right but the address was never confirmed. Sending
-      // them to the code screen is the only useful thing to do with that.
-      if (res?.status === 403 && detail.toLowerCase().includes('verificat')) {
+      const bassa = detail.toLowerCase()
+      // La password era giusta, manca uno dei due passi. "telefono" prima
+      // di "verificat" perché entrambi i messaggi del backend contengono
+      // "verificat[o]" — un controllo solo su quello manderebbe sempre alla
+      // schermata dell'email, anche quando è il telefono a mancare.
+      if (res?.status === 403 && bassa.includes('telefono')) {
+        setMode('verify-phone')
+        setNotice('Ti abbiamo mandato un codice su WhatsApp.')
+        resendPhoneCode(email).catch(() => {})
+      } else if (res?.status === 403 && bassa.includes('verificat')) {
         setMode('verify')
         setNotice('Ti abbiamo inviato un codice. Controlla la tua email.')
         resendVerificationCode(email).catch(() => {})
@@ -161,12 +172,27 @@ export default function LoginPage() {
     setError('')
     setLoading(true)
     try {
-      const tokens = await verifyEmail(email, code.trim())
-      clientLogin(tokens.access_token, email)
-      // Registration is only finished here — the account existed before the
-      // code, but this is the first moment it belongs to anyone. The greeting
-      // rides along in navigation state so it shows once and not on a reload.
-      navigate(next || '/booking', { state: { justRegistered: true } })
+      const result = await verifyEmail(email, code.trim())
+      if ('access_token' in result) {
+        // Un account che aveva già il telefono verificato — registrato prima
+        // che questo passo esistesse, o già completato — entra subito, come
+        // succedeva sempre prima di questa funzionalità.
+        finishSignIn(result.access_token)
+        return
+      }
+      // L'indirizzo è confermato, ma la sessione arriva solo dopo anche il
+      // telefono: il codice per quel passo è già partito su WhatsApp.
+      setMode('verify-phone')
+      setCode('')
+      if (result.whatsapp_sent) {
+        setNotice('Ti abbiamo mandato un codice su WhatsApp.')
+      } else {
+        setNotice('')
+        setError(
+          'Il tuo indirizzo è confermato, ma non siamo riusciti a mandare il codice su ' +
+          'WhatsApp. Riprova fra poco con "Invia un nuovo codice", oppure contatta il salone.'
+        )
+      }
     } catch (err) {
       const detail = (err as { response?: { data?: { detail?: string } } })
         ?.response?.data?.detail
@@ -192,6 +218,50 @@ export default function LoginPage() {
       }
     } catch {
       setError('Non siamo riusciti a inviare il codice. Riprova fra poco.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Aggiorna sessione e destinazione — l'unico punto in cui la registrazione
+  // è davvero finita, che sia dopo uno o due codici a seconda dell'account.
+  const finishSignIn = (accessToken: string) => {
+    clientLogin(accessToken, email)
+    navigate(next || '/booking', { state: { justRegistered: true } })
+  }
+
+  const handleVerifyPhone = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+    setLoading(true)
+    try {
+      const tokens = await verifyPhone(email, code.trim())
+      finishSignIn(tokens.access_token)
+    } catch (err) {
+      const detail = (err as { response?: { data?: { detail?: string } } })
+        ?.response?.data?.detail
+      setError(detail ?? 'Codice non valido')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleResendPhone = async () => {
+    setError('')
+    setLoading(true)
+    try {
+      const result = await resendPhoneCode(email)
+      setCode('')
+      if (result.whatsapp_sent) {
+        setNotice('Ti abbiamo mandato un nuovo codice su WhatsApp.')
+      } else {
+        setNotice('')
+        setError(
+          'Non siamo riusciti a mandare il codice su WhatsApp. Riprova fra poco o contatta il salone.'
+        )
+      }
+    } catch {
+      setError('Non siamo riusciti a mandare il codice su WhatsApp. Riprova fra poco.')
     } finally {
       setLoading(false)
     }
@@ -239,15 +309,15 @@ export default function LoginPage() {
             <p className="note">{TITLES[mode].sub}</p>
           </div>
 
-          {mode === 'verify' ? (
+          {mode === 'verify' || mode === 'verify-phone' ? (
             <VerifyForm
               code={code}
               setCode={setCode}
               notice={notice}
               error={error}
               loading={loading}
-              onSubmit={handleVerify}
-              onResend={handleResend}
+              onSubmit={mode === 'verify' ? handleVerify : handleVerifyPhone}
+              onResend={mode === 'verify' ? handleResend : handleResendPhone}
               onBack={() => switchMode('signin')}
             />
           ) : (

@@ -25,6 +25,15 @@ class ClientAccount(Base):
     # Guessing budget for the current code; a 6-digit code is only safe with one.
     verification_attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
+    # Phone ownership — same shape as the four fields above, one channel later.
+    # Lives here and not on `Client` (where the number itself is stored)
+    # because it mirrors `email_verified` exactly: a login-time check on the
+    # account row, no join needed, same table the address check already reads.
+    phone_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    phone_verification_code_hash: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    phone_verification_expires: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    phone_verification_attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     # One ClientAccount -> one Client

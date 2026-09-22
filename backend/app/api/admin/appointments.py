@@ -175,7 +175,15 @@ async def update_appointment(
     current_user: Annotated[User, Depends(get_current_user)],
 ):
     a = await _load_appointment(db, appointment_id)
-    for field, value in payload.model_dump(exclude_unset=True, exclude={"service_ids"}).items():
+    dati = payload.model_dump(exclude_unset=True, exclude={"service_ids"})
+    # Se l'orario cambia, il promemoria già mandato era per l'orario vecchio:
+    # senza questo, `reminder_sent` restava `True` e per il nuovo orario non
+    # ne sarebbe partito uno nuovo — silenzioso, perché la modifica va comunque
+    # a buon fine.
+    if "start_time" in dati and dati["start_time"] != a.start_time:
+        a.reminder_sent = False
+        a.whatsapp_reminder_sent = False
+    for field, value in dati.items():
         setattr(a, field, value)
 
     if payload.service_ids is not None:

@@ -1,15 +1,14 @@
 # TODO — Configurazione notifiche (Email + WhatsApp)
 
-## STATO: EMAIL E WHATSAPP FUNZIONANTI — WHATSAPP SUL NUMERO PONTE (aggiornato 2026-09-22)
+## STATO: EMAIL E WHATSAPP FUNZIONANTI — WHATSAPP SUL FISSO DEL SALONE (aggiornato 2026-09-22)
 
 | Canale | Stato | Provider | Via |
 |--------|-------|----------|-----|
 | **Email** | ✅ Funziona | Brevo | HTTP API (HTTPS) |
-| **WhatsApp** | ✅ Funziona dal 2026-09-17, sul **numero ponte USA** `+1 689 344-8830` | Twilio | HTTP API — template Meta approvati |
+| **WhatsApp** | ✅ Funziona dal 2026-09-17 (numero ponte); passato al **fisso del salone** `+39 0825 1728148` il 2026-09-22 | Twilio | HTTP API — template Meta approvati |
 
-Resta il passaggio al **fisso del salone**, da fare il giorno del go-live:
-passi e motivi nella voce «WhatsApp produzione» qui sotto. Il numero ponte
-serve a provare, non a lavorare: le clienti vedrebbero un prefisso +1.
+Il passaggio al fisso è fatto: dettagli, cosa resta aperto (nome business,
+conferma ricezione) nella voce «WhatsApp produzione sul fisso» qui sotto.
 
 > ⚠️ **Questa intestazione è stata sbagliata due volte, in versi opposti.**
 >
@@ -45,10 +44,11 @@ fallback SMTP (solo dev locale). Mittente verificato: `newstylehair2019@gmail.co
 ### Variabili settate in produzione (backend + worker)
 `BREVO_API_KEY`, `EMAILS_FROM_EMAIL=newstylehair2019@gmail.com`,
 `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`,
-`TWILIO_WHATSAPP_FROM=whatsapp:+16893448830` (numero ponte dal 2026-09-17;
-prima era la Sandbox `+14155238886`), `TWILIO_TEMPLATE_CONFERMA`,
-`TWILIO_TEMPLATE_PROMEMORIA`, `SMTP_*` (fallback). `whatsapp_enabled=true`
-in BookingConfig.
+`TWILIO_WHATSAPP_FROM=whatsapp:+3908251728148` (fisso del salone dal
+2026-09-22; prima il numero ponte `+16893448830` dal 2026-09-17, prima
+ancora la Sandbox `+14155238886`), `TWILIO_TEMPLATE_CONFERMA`,
+`TWILIO_TEMPLATE_PROMEMORIA`, `TWILIO_TEMPLATE_VERIFICA`, `SMTP_*`
+(fallback). `whatsapp_enabled=true` in BookingConfig.
 
 ### Restano (NON bloccanti)
 - [ ] **`min_cancel_hours` (24) supera `min_advance_hours` (2) in
@@ -82,9 +82,10 @@ in BookingConfig.
     backend, frontend e worker tutti `SUCCESS` sul commit del merge,
     riavviati alle 16:09 UTC. `/health` → 200, `www.newstylehair.it` → 200,
     worker `celery@... ready`, nessun errore vero nei log.
-- [ ] **WhatsApp produzione sul fisso**: oggi il canale gira sul numero
-  ponte con i template approvati (vedi «ACCESO il 2026-09-17» più sotto).
-  Resta il passaggio al fisso del salone, e con lui le voci qui sotto.
+- [x] ~~**WhatsApp produzione sul fisso**~~ — fatto il 2026-09-22. Il
+  canale è passato dal numero ponte al **fisso del salone**
+  `+39 0825 1728148`, sullo stesso WABA. Restano due dettagli non
+  bloccanti — vedi «Il fisso è live» in fondo a questa voce.
 
   **Numero deciso (2026-08-25)**: il **fisso del vecchio gestionale**. Un
   numero sta su WhatsApp in un posto solo — app Business *oppure* API, mai
@@ -314,6 +315,60 @@ in BookingConfig.
   abbassa la reputazione dell'account WhatsApp, e le conversazioni si
   dividerebbero su due numeri. Il passaggio al fisso resta da fare il giorno
   del go-live, seguendo i passi qui sopra.
+
+  ### Il fisso è live (2026-09-22)
+
+  Il numero (`0825 1728148`, il vecchio gestionale) era ancora agganciato
+  all'app WhatsApp Business su un telefono in salone — primo tentativo di
+  registrazione respinto da Twilio: «numero già registrato in un account
+  WhatsApp». Liberato da lì (app → Impostazioni → Account → Elimina il mio
+  account) e registrato come secondo Sender sullo stesso WABA «New Style
+  Hair» (ID `2221302968437076`), seguendo l'ordine scritto sopra: nessuna
+  migrazione offerta da Twilio, quindi cancellazione dall'app e nuova
+  registrazione, non fusione. Verifica per **chiamata vocale**, come
+  previsto al punto 4 del piano.
+
+  **Il nome business è sbagliato**: la schermata di collegamento a Meta ha
+  ereditato «Vincenzo Romolo» (il profilo personale del login), non «New
+  Style Hair». Il campo è bloccato dopo la registrazione — Twilio lo dice
+  esplicito: «To update the business display name for this phone number
+  please submit a support ticket». Ticket aperto il 2026-09-22, in attesa
+  di risposta Twilio e poi review Meta (giorni, non ore). **Non blocca
+  l'invio**: è cosmetico, il nome sbagliato compare solo in cima alla chat.
+
+  **Conferma sul campo dell'assunzione del 2026-09-17** («i template
+  restano validi passando al secondo numero dello stesso WABA», scritta ma
+  mai provata): mandato un messaggio vero col template
+  `TWILIO_TEMPLATE_VERIFICA` dal nuovo Sender, prima ancora di toccare
+  Railway — consegnato, testo e variabile giusti, senza nessuna nuova
+  sottomissione a Meta. Tutto il piano del numero ponte poggiava su questo,
+  ed era corretto.
+
+  Sender **online**, quality rating «Unavailable» — normale per un numero
+  senza volume di messaggi ancora, si popola con l'uso.
+
+  **Railway aggiornato** (backend e worker): `TWILIO_WHATSAPP_FROM` da
+  `whatsapp:+16893448830` a `whatsapp:+3908251728148`. Deploy confermato
+  `SUCCESS` su entrambi i servizi. Prova vera dopo lo switch: messaggio
+  reale al telefono di Lorenzo, consegnato dal numero nuovo.
+
+  **Webhook non ereditato dal WABA** — è un'impostazione per singolo
+  Sender, esattamente come annotato sopra per il numero ponte, e sul nuovo
+  Sender risultava vuoto (controllato via API, `GET
+  /v2/Channels/Senders/{sid}`, campo `webhook.callback_url` stringa
+  vuota). Impostato via API allo stesso URL del numero ponte:
+  `https://gestionalensh-production.up.railway.app/api/public/whatsapp/webhook`,
+  POST.
+
+  **Resta aperto**:
+  - [ ] Ticket Twilio per correggere il nome business («New Style Hair»)
+  - [ ] Confermare a vista che una risposta vera della cliente sul fisso
+    arrivi alla pagina Chat — webhook appena impostato, non ancora provato
+    in ricezione (per il numero ponte questo controllo c'era stato, vedi
+    17 settembre più sopra)
+  - [ ] Decidere quando cancellare/disattivare il numero ponte
+    `+1 689 344-8830` — resta come secondo Sender dello stesso WABA finché
+    non si toglie
 
 - [x] ~~**Fuso orario degli appuntamenti**~~ — **corretto il 2026-09-17**, in
   due rilasci. Sotto resta il referto, perché il ragionamento serve a chi un

@@ -1,29 +1,31 @@
 # TODO — Configurazione notifiche (Email + WhatsApp)
 
-## STATO: EMAIL FUNZIONANTE, WHATSAPP NON CONSEGNA NIENTE (verificato 2026-09-17)
+## STATO: EMAIL E WHATSAPP FUNZIONANTI — WHATSAPP SUL NUMERO PONTE (aggiornato 2026-09-22)
 
 | Canale | Stato | Provider | Via |
 |--------|-------|----------|-----|
 | **Email** | ✅ Funziona | Brevo | HTTP API (HTTPS) |
-| **WhatsApp** | ❌ **Nessuna consegna dal 19 giugno** | Twilio | HTTP API — **Sandbox** |
+| **WhatsApp** | ✅ Funziona dal 2026-09-17, sul **numero ponte USA** `+1 689 344-8830` | Twilio | HTTP API — template Meta approvati |
 
-> ⚠️ **Questa sezione diceva «EMAIL + WHATSAPP FUNZIONANTI IN
-> PRODUZIONE».** Per WhatsApp era vero solo per il messaggio di prova del 19
-> giugno, mandato a un numero che si era appena iscritto alla Sandbox. Il
-> registro messaggi di Twilio, letto il 17 settembre, mostra che **da allora
-> ogni invio è fallito**:
+Resta il passaggio al **fisso del salone**, da fare il giorno del go-live:
+passi e motivi nella voce «WhatsApp produzione» qui sotto. Il numero ponte
+serve a provare, non a lavorare: le clienti vedrebbero un prefisso +1.
+
+> ⚠️ **Questa intestazione è stata sbagliata due volte, in versi opposti.**
 >
-> - `63015` — il destinatario non si è iscritto alla Sandbox, che è la
->   regola della Sandbox: parla solo con chi ha mandato `join`, e
->   l'iscrizione scade;
-> - `21211` — numero non valido: i clienti demo di luglio.
+> - Fino al 17 settembre diceva «EMAIL + WHATSAPP FUNZIONANTI IN
+>   PRODUZIONE». Per WhatsApp era vero solo per il messaggio di prova del 19
+>   giugno: da allora ogni invio è fallito sulla Sandbox — `63015`,
+>   destinatario non iscritto alla Sandbox; `21211`, numero non valido (i
+>   clienti demo di luglio). Il codice non se ne accorgeva perché l'errore
+>   arriva da Twilio *dopo* la richiesta: la richiesta va a buon fine, la
+>   consegna fallisce, e il registro di Twilio non lo guardava nessuno.
+> - Dal 17 al 22 settembre diceva «WHATSAPP NON CONSEGNA NIENTE — Sandbox»,
+>   mentre il canale era già acceso e provato nelle due direzioni.
 >
-> Il codice non segnalava niente di rotto perché l'errore arriva da Twilio
-> *dopo* la richiesta. La richiesta va a buon fine, la consegna fallisce, e
-> nessuno guarda il registro di Twilio.
->
-> Conseguenza utile: passare dalla Sandbox al numero vero **non rompe
-> niente**, perché non c'è niente di funzionante da rompere.
+> Regola che ne esce: questa tabella è la prima cosa che si legge, quindi
+> quando lo stato di un canale cambia si aggiorna **prima lei**, poi il
+> resto.
 
 La pipeline email (appuntamento confermato → Redis → Celery worker → invio →
 consegnato) resta quella verificata il 19 giugno.
@@ -42,12 +44,16 @@ fallback SMTP (solo dev locale). Mittente verificato: `newstylehair2019@gmail.co
 
 ### Variabili settate in produzione (backend + worker)
 `BREVO_API_KEY`, `EMAILS_FROM_EMAIL=newstylehair2019@gmail.com`,
-`TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM=whatsapp:+14155238886`,
-`SMTP_*` (fallback). `whatsapp_enabled=true` in BookingConfig.
+`TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`,
+`TWILIO_WHATSAPP_FROM=whatsapp:+16893448830` (numero ponte dal 2026-09-17;
+prima era la Sandbox `+14155238886`), `TWILIO_TEMPLATE_CONFERMA`,
+`TWILIO_TEMPLATE_PROMEMORIA`, `SMTP_*` (fallback). `whatsapp_enabled=true`
+in BookingConfig.
 
 ### Restano (NON bloccanti)
-- [ ] **WhatsApp produzione**: ora è Sandbox (solo numeri che fanno `join`, scade 72h).
-  Per clienti reali serve numero WhatsApp Business + template Meta approvati.
+- [ ] **WhatsApp produzione sul fisso**: oggi il canale gira sul numero
+  ponte con i template approvati (vedi «ACCESO il 2026-09-17» più sotto).
+  Resta il passaggio al fisso del salone, e con lui le voci qui sotto.
 
   **Numero deciso (2026-08-25)**: il **fisso del vecchio gestionale**. Un
   numero sta su WhatsApp in un posto solo — app Business *oppure* API, mai
@@ -86,9 +92,22 @@ fallback SMTP (solo dev locale). Mittente verificato: `newstylehair2019@gmail.co
   della visura, copiati lettera per lettera: ragione sociale, sede legale,
   telefono (il **fisso**, non il numero Twilio), sito.
 
-  **Da fare**: aggiungere un secondo amministratore al portfolio (Utenti →
-  Persone). Oggi Pagina, account WhatsApp e verifica dipendono tutti da un
-  solo profilo personale.
+  **Secondo amministratore**: Flavia Romolo (`flaviaromolo400@gmail.com`)
+  invitata il 2026-09-18 con accesso completo su tutto. **Risulta ancora
+  «Non attivo/a»**, cioè l'invito non è stato accettato: finché resta così
+  Pagina, account WhatsApp e verifica dipendono ancora da un solo profilo
+  personale, e l'obiettivo non è raggiunto.
+
+  La mail arrivata a Flavia **è l'invito, non la conferma che sia stato
+  accettato**: riceverla non sposta lo stato. Lo stato cambia solo dopo che
+  lei apre il link, entra col **proprio profilo Facebook** e conferma. La
+  prova che conta non è la colonna nell'elenco ma questa: Flavia apre
+  `business.facebook.com` col suo Facebook e vede il portfolio New Style
+  Hair nel selettore in alto. Se non lo vede, l'invito è ancora aperto —
+  va rimandato, controllando lo spam di quella casella.
+
+  Nell'elenco compare anche `@vincenzoromolo_`, che è l'account Instagram
+  della stessa persona: non conta come seconda testa.
 
   **Account Twilio a pagamento: fatto il 2026-09-09.** Blocco che nessuno
   aveva previsto: l'account era **trial**, e la registrazione di un Mittente
@@ -200,6 +219,7 @@ fallback SMTP (solo dev locale). Mittente verificato: `newstylehair2019@gmail.co
   SID sono identificativi, non credenziali: senza il token non servono a
   niente.
 
+  *(Stato di metà giornata, superato poco sotto: acceso lo stesso 17.)*
   **Non ancora su Railway, di proposito**: `TWILIO_WHATSAPP_FROM` è ancora la
   Sandbox, e un template del WABA «New Style Hair» mandato dal numero della
   Sandbox verrebbe rifiutato. SID e numero vanno cambiati **insieme**, su
@@ -239,9 +259,8 @@ fallback SMTP (solo dev locale). Mittente verificato: `newstylehair2019@gmail.co
     template was APPROVED»). Hanno livello *warning* e sembrano problemi, ma
     non lo sono.
 
-  **Pronto per il passaggio.** Il fuso orario, che era il blocco, è stato
-  corretto il 2026-09-17 (voce sotto). Per attivare bastano tre variabili su
-  Railway, su backend **e** worker:
+  **ACCESO il 2026-09-17 sul numero ponte.** Impostate su Railway, backend
+  **e** worker:
 
   ```
   TWILIO_WHATSAPP_FROM=whatsapp:+16893448830
@@ -249,12 +268,21 @@ fallback SMTP (solo dev locale). Mittente verificato: `newstylehair2019@gmail.co
   TWILIO_TEMPLATE_PROMEMORIA=HXa61b5a829758c40d48c5c3b575f7b074
   ```
 
-  **Resta una decisione, non un impedimento**: usare già adesso il numero
-  ponte con le clienti vere, oppure aspettare il fisso. Un numero americano
-  che scrive a clienti italiane somiglia a spam: chi lo blocca o lo segnala
-  abbassa la reputazione dell'account WhatsApp prima ancora che arrivi il
-  numero vero, e le conversazioni si dividerebbero su due numeri. Da qui la
-  proposta di aspettare, ma tecnicamente è pronto.
+  Provato in produzione nelle due direzioni: messaggio dal gestionale al
+  telefono e risposta dal telefono alla pagina Chat.
+
+  **Perché prima non partiva niente**: il gestionale spediva ancora dalla
+  Sandbox, e ogni invio moriva con `63015` — «il destinatario non si è
+  iscritto alla Sandbox». La ricezione invece funzionava già, perché non
+  dipende dal numero mittente. Sintomo istruttivo: **metà canale funzionante
+  sembra un canale rotto in modo misterioso**, e per capirlo è servito
+  leggere il registro di Twilio, non i log dell'applicazione.
+
+  **Il numero è ancora quello ponte, americano.** Va bene per provare, ma a
+  regime le clienti vedrebbero un prefisso +1: chi lo blocca o lo segnala
+  abbassa la reputazione dell'account WhatsApp, e le conversazioni si
+  dividerebbero su due numeri. Il passaggio al fisso resta da fare il giorno
+  del go-live, seguendo i passi qui sopra.
 
 - [x] ~~**Fuso orario degli appuntamenti**~~ — **corretto il 2026-09-17**, in
   due rilasci. Sotto resta il referto, perché il ragionamento serve a chi un
@@ -292,12 +320,8 @@ fallback SMTP (solo dev locale). Mittente verificato: `newstylehair2019@gmail.co
   scivola nel passato e da lì `get_available_slots` risponde `[]` per il
   preavviso minimo, cioè il test fallirebbe per un motivo che non c'entra.
 
-  **Resta aperto, minore**: i confini di giornata di dashboard
-  (`dashboard.py:24-36`), dei filtri per data (`CalendarPage.tsx:187`,
-  `AppointmentsPage.tsx:67`, `CashPage.tsx:45`) e della scadenza dei buoni
-  regalo usano ancora il giorno del processo. Sbagliano solo fra mezzanotte e
-  le due, a salone chiuso; il fastidio vero è che sviluppo e produzione danno
-  risultati diversi.
+  **Resta aperto, minore**: i confini di giornata — sono nella voce
+  «Difetti minori ancora aperti» subito sotto il referto.
 
 <details>
 <summary>Referto originale (2026-09-17)</summary>
@@ -379,22 +403,63 @@ fallback SMTP (solo dev locale). Mittente verificato: `newstylehair2019@gmail.co
 
   **Da chiudere prima di attivare WhatsApp in produzione.**
 
-  **Segnalati da un solo lettore, da verificare a parte:**
-  - filtri per data senza fuso (`CalendarPage.tsx:187`,
-    `AppointmentsPage.tsx:67`, `CashPage.tsx:45`), interpretati nel fuso del
-    processo: Europe/Rome sul Mac, UTC su Railway, quindi sviluppo e
-    produzione danno risultati diversi;
-  - dashboard «oggi/settimana» calcolata sul giorno UTC
-    (`dashboard.py:24-36`);
-  - `booking.py:429-432`: la proposta alternativa sovrascrive `start_time`
-    prima di calcolare la durata, quindi `end_time` resta il vecchio. Oggi
-    non è raggiungibile dall'interfaccia;
-  - il promemoria viene segnato come inviato anche quando falliscono
-    entrambi i canali (`reminders.py:69-72`);
-  - un appuntamento spostato non fa ripartire il promemoria
-    (`admin/appointments.py:169-193`).
+  **Segnalati da un solo lettore**: spostati fuori da questo blocco, nella
+  voce «Difetti minori ancora aperti» qui sotto. Stavano qui dentro chiusi,
+  dove non li vedeva nessuno.
 
 </details>
+
+- [x] ~~**Difetti minori raccolti il 2026-09-22**~~ — **corretti lo stesso
+  giorno.** Ognuno era letto dal codice, non riprodotto; per ognuno si è
+  scritto prima il test che lo fa cadere, verificato che cadesse davvero
+  (anche con un finto-fix, per essere sicuri che il test misuri il difetto e
+  non qualcos'altro), e solo dopo applicata la correzione — 695 test
+  passano, 13 nuovi.
+  - [x] ~~**Confini di giornata col giorno del processo nella dashboard**~~
+    (`api/admin/dashboard.py`). «Oggi/settimana/mese/anno» ora usano
+    `oggi_salone()`; anche le spese, che confrontavano `Expense.date` (un
+    giorno senza fuso) con `.date()` di un istante UTC — stesso difetto una
+    seconda volta nella stessa funzione. Test in
+    `tests/test_dashboard_ora_salone.py`, con l'orologio bloccato
+    (`tempo.adesso()` sostituito) su un istante fisso di prima mattina a
+    Roma: deterministico, non dipende da quando gira la suite.
+    **Restano aperti, stesso difetto, non ancora toccati**: i filtri data
+    del frontend (`CalendarPage.tsx:187`, `AppointmentsPage.tsx:67`,
+    `CashPage.tsx:45`) e la scadenza dei buoni regalo
+    (`models/gift_card.py:139`, `api/admin/gift_cards.py:186`). Anche
+    `revenue-chart` e `yearly-chart` in `dashboard.py` usano `func.date()`
+    su colonne UTC — non diagnosticati né corretti qui, stesso sospetto.
+  - [x] ~~**Proposta alternativa accettata: la fine restava quella
+    vecchia**~~ (`api/public/booking.py`). La durata si legge ora *prima*
+    di spostare `start_time`. Test in `tests/test_accept_alternative.py`,
+    compreso il caso limite che dava durata negativa.
+  - [x] ~~**Promemoria segnato come inviato anche se non era partito**~~
+    (`tasks/reminders.py`, `utils/notifications.py`).
+    `notify_appointment_reminder` ora ritorna se il promemoria è da
+    considerarsi gestito — consegnato su almeno un canale, o nessun canale
+    disponibile per quel cliente — e il task spunta il flag solo in quel
+    caso. Con entrambi i canali rotti l'appuntamento ricompare nella
+    finestra al giro successivo invece di perdere il tentativo per sempre.
+    Test in `tests/test_reminders.py`.
+  - [x] ~~**Appuntamento spostato, promemoria perso**~~
+    (`api/admin/appointments.py`). Cambiare `start_time` ora rimette
+    `reminder_sent`/`whatsapp_reminder_sent` a falso; una modifica che non
+    tocca l'orario (note, servizi) li lascia intatti. Test in
+    `tests/test_reminders.py`.
+  - [x] ~~**Una scheda eliminata poteva ancora prenotare**~~ — il più
+    grave dei cinque: non un dato sbagliato, un controllo accessi mancante.
+    «Elimina cliente» spegneva solo `Client.is_active`; login e token del
+    portale guardano `ClientAccount.is_active`, che restava intatto, e ogni
+    endpoint di `booking.py` ritrovava la scheda per `account_id` senza
+    controllare se fosse attiva — non solo la prenotazione: anche
+    cancellare, accettare un orario alternativo, iscriversi o uscire dalla
+    lista d'attesa. Erano **otto** punti nello stesso file con lo stesso
+    difetto, non uno: chiusi tutti insieme con un unico helper
+    (`_cliente_del_portale`), non uno alla volta, per lo stesso motivo per
+    cui altrove in questo file le correzioni parziali sono vietate — un
+    punto lasciato aperto sarebbe stata la stessa falla con un altro nome.
+    Test in `tests/test_auth_boundaries.py`, dentro `TestDeactivatedAccounts`
+    che già copriva l'altro interruttore.
 
 - [x] ~~**Codice pronto per i template Meta**~~ — fatto 2026-08-25, prima
   dell'approvazione, perché è la parte che non dipende da Meta.
@@ -552,6 +617,9 @@ fallback SMTP (solo dev locale). Mittente verificato: `newstylehair2019@gmail.co
   confermare è un permesso `staff`, non solo admin). Niente WhatsApp allo
   staff: passerebbe dalla stessa Sandbox Twilio che parla solo con chi ha
   mandato `join`, quindi sarebbe un canale che perde i messaggi in silenzio.
+  *Il motivo è superato dal 2026-09-17* (niente più Sandbox). Resta vero che
+  servirebbe un template approvato apposta, perché è il salone a scrivere
+  per primo. La scelta non è stata riaperta.
 
 ---
 
@@ -626,9 +694,31 @@ quella che si legge non è mai quella aggiornata — quindi ne resta una.
   Serve lo stesso schema dell'email — codice via SMS o WhatsApp, con scadenza e
   tetto ai tentativi. Il modulo `app/services/email_verification.py` è già
   scritto in modo riutilizzabile: cambia solo il canale di invio.
-  **Prerequisito**: WhatsApp fuori dalla Sandbox Twilio, altrimenti il codice
-  arriva solo a chi ha già fatto il `join` (vedi sezione WhatsApp produzione).
-  In alternativa SMS Twilio, che si paga a messaggio.
+  ~~**Prerequisito**: WhatsApp fuori dalla Sandbox Twilio~~ — soddisfatto
+  il 2026-09-17. Quello che serve adesso è un **template di categoria
+  Authentication**: un codice di verifica è un messaggio che il salone manda
+  per primo, quindi fuori dalla finestra di 24 ore, e Meta vuole i codici
+  usa-e-getta in quella categoria. I due template approvati sono Utility e
+  non vanno bene. In alternativa SMS Twilio, che si paga a messaggio.
+- [ ] **Pulizia dei profili cliente di prova** — chiesta il 2026-08-12, da
+  fare prima di aprire alle clienti vere. Rimandata di proposito: non
+  dipende da nient'altro e si può fare in qualunque momento. Prima di
+  toccare qualcosa:
+  1. **Decidere il criterio** di «di prova» (nome, email, data di
+     creazione, nessun appuntamento…) ed estrarre l'elenco in **sola
+     lettura** dalla produzione. Nessuna cancellazione senza l'elenco
+     approvato scheda per scheda.
+  2. **«Elimina» dal gestionale non cancella**: mette solo
+     `Client.is_active = False` (`api/admin/clients.py:123`). La scheda
+     sparisce dagli elenchi ma resta a database.
+  3. **E non chiude il portale**: vedi «Una scheda eliminata può ancora
+     prenotare» fra i difetti aperti. Per un profilo di prova con accesso
+     al portale va disattivato anche l'account.
+  4. Una cancellazione vera è bloccata dagli appuntamenti
+     (`ondelete="RESTRICT"`); pagamenti, chat, comunicazioni e buoni regalo
+     restano ma perdono il cliente (`SET NULL`); la lista d'attesa se ne va
+     con lui (`CASCADE`). Per i doppioni c'è già **Unione schede**, che va
+     preferita alla cancellazione.
 - [x] ~~Stessa gara di commit sul lato admin~~ — fatto 2026-08-02, trovata
   mentre si sistemava `notify_new_booking`. In `api/admin/appointments.py`
   `_trigger_booking_confirmation` partiva dopo `flush()` ma prima che `get_db`

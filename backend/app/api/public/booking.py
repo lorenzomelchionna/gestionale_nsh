@@ -44,6 +44,29 @@ class DayAvailability(BaseModel):
     slots: int
 
 
+async def _cliente_del_portale(db: AsyncSession, account: ClientAccount) -> Client | None:
+    """La scheda cliente dietro un account del portale già autenticato.
+
+    `Client.is_active == True` non è ridondante col controllo che
+    `get_current_client` fa già su `ClientAccount.is_active`: sono due
+    interruttori diversi. «Elimina cliente» dal pannello admin spegne solo
+    questo — l'account resta attivo, il login resta valido — perché è così
+    che il salone segnala «questa persona non è più cliente» senza toccare
+    l'accesso, pensato per gli altri motivi per cui un account si disattiva.
+    Senza questo controllo, ogni endpoint del portale che passa da qui
+    tratterebbe una scheda disattivata come se non lo fosse: prenotare,
+    cancellare, iscriversi alla lista d'attesa, tutto ancora aperto a chi il
+    salone ha già tolto di mezzo.
+    """
+    result = await db.execute(
+        select(Client).where(
+            Client.account_id == account.id,
+            Client.is_active == True,  # noqa: E712 — confronto SQL, non booleano Python
+        )
+    )
+    return result.scalar_one_or_none()
+
+
 def _trigger_new_booking_alert(appointment_id: int):
     """Fire-and-forget staff alert for a booking made from the portal.
 
@@ -234,11 +257,7 @@ async def book_appointment(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_account: Annotated[ClientAccount, Depends(get_current_client)],
 ):
-    # Find the client linked to this account
-    client_result = await db.execute(
-        select(Client).where(Client.account_id == current_account.id)
-    )
-    client = client_result.scalar_one_or_none()
+    client = await _cliente_del_portale(db, current_account)
     if not client:
         raise HTTPException(status_code=400, detail="Profilo cliente non trovato")
 
@@ -362,10 +381,7 @@ async def my_appointments(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_account: Annotated[ClientAccount, Depends(get_current_client)],
 ):
-    client_result = await db.execute(
-        select(Client).where(Client.account_id == current_account.id)
-    )
-    client = client_result.scalar_one_or_none()
+    client = await _cliente_del_portale(db, current_account)
     if not client:
         return []
 
@@ -385,10 +401,7 @@ async def cancel_my_appointment(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_account: Annotated[ClientAccount, Depends(get_current_client)],
 ):
-    client_result = await db.execute(
-        select(Client).where(Client.account_id == current_account.id)
-    )
-    client = client_result.scalar_one_or_none()
+    client = await _cliente_del_portale(db, current_account)
 
     result = await db.execute(
         select(Appointment).where(
@@ -424,8 +437,7 @@ async def accept_alternative(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_account: Annotated[ClientAccount, Depends(get_current_client)],
 ):
-    client_result = await db.execute(select(Client).where(Client.account_id == current_account.id))
-    client = client_result.scalar_one_or_none()
+    client = await _cliente_del_portale(db, current_account)
     result = await db.execute(
         select(Appointment).where(
             Appointment.id == appointment_id,
@@ -436,9 +448,12 @@ async def accept_alternative(
     if not appt or appt.status != AppointmentStatus.rescheduled:
         raise HTTPException(status_code=400, detail="Nessuna proposta alternativa attiva")
 
-    appt.start_time = appt.alternative_time
-    # Recalculate end_time (keep duration)
+    # La durata va letta *prima* di spostare `start_time`: calcolarla dopo
+    # (fine vecchia − inizio nuovo) riportava sempre alla vecchia fine,
+    # qualunque fosse il nuovo inizio — un'ora alle 12 spostata alle 15
+    # finiva comunque alle 13, cioè con durata negativa.
     duration = appt.end_time - appt.start_time
+    appt.start_time = appt.alternative_time
     appt.end_time = appt.alternative_time + duration
     appt.alternative_time = None
     appt.status = AppointmentStatus.confirmed
@@ -452,8 +467,7 @@ async def join_waitlist(
     current_account: Annotated[ClientAccount, Depends(get_current_client)],
 ):
     """Cliente autenticato si iscrive alla lista d'attesa."""
-    client_result = await db.execute(select(Client).where(Client.account_id == current_account.id))
-    client = client_result.scalar_one_or_none()
+    client = await _cliente_del_portale(db, current_account)
     if not client:
         raise HTTPException(status_code=400, detail="Profilo cliente non trovato")
 
@@ -497,8 +511,7 @@ async def my_waitlist(
     current_account: Annotated[ClientAccount, Depends(get_current_client)],
 ):
     """Cliente vede le proprie iscrizioni alla lista d'attesa."""
-    client_result = await db.execute(select(Client).where(Client.account_id == current_account.id))
-    client = client_result.scalar_one_or_none()
+    client = await _cliente_del_portale(db, current_account)
     if not client:
         return []
 
@@ -517,8 +530,7 @@ async def leave_waitlist(
     current_account: Annotated[ClientAccount, Depends(get_current_client)],
 ):
     """Cliente rimuove la propria iscrizione dalla lista d'attesa."""
-    client_result = await db.execute(select(Client).where(Client.account_id == current_account.id))
-    client = client_result.scalar_one_or_none()
+    client = await _cliente_del_portale(db, current_account)
 
     result = await db.execute(
         select(WaitlistEntry).where(
@@ -542,8 +554,7 @@ async def reject_alternative(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_account: Annotated[ClientAccount, Depends(get_current_client)],
 ):
-    client_result = await db.execute(select(Client).where(Client.account_id == current_account.id))
-    client = client_result.scalar_one_or_none()
+    client = await _cliente_del_portale(db, current_account)
     result = await db.execute(
         select(Appointment).where(
             Appointment.id == appointment_id,

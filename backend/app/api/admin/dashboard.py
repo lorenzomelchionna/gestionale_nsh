@@ -1,5 +1,5 @@
 from typing import Annotated
-from datetime import datetime, date, timedelta, timezone
+from datetime import datetime, date, time, timedelta, timezone
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, extract
@@ -9,6 +9,7 @@ from app.models.payment import Payment, PaymentMethod, PaymentType
 from app.models.expense import Expense
 from app.models.user import User
 from app.dependencies import require_admin
+from app.utils.tempo import adesso, istante, ora_salone
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 
@@ -21,23 +22,31 @@ async def get_stats(
     # Pydantic v2 e FastAPI lo rimuoverà. Il vincolo non cambia.
     period: str = Query("today", pattern="^(today|week|month|year)$"),
 ):
-    now = datetime.now(timezone.utc)
+    # `oggi_salone()` e non `date.today()`/`datetime.now(timezone.utc).date()`:
+    # il giorno di calendario del salone, non quello del processo. Sbagliavano
+    # entrambi fra mezzanotte e l'alba, quando a Roma è già domani (o ancora
+    # oggi) ma in UTC no — un incasso delle 01:00 spariva dal riepilogo
+    # "oggi" e ricompariva in quello di ieri, che nessuno riapre più.
+    now = adesso()
+    oggi = ora_salone(now).date()
     if period == "today":
-        start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        end = now.replace(hour=23, minute=59, second=59)
+        giorno_da = giorno_a = oggi
     elif period == "week":
-        start = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0)
-        end = now
+        giorno_da, giorno_a = oggi - timedelta(days=oggi.weekday()), oggi
     elif period == "month":
-        start = now.replace(day=1, hour=0, minute=0, second=0)
-        end = now
+        giorno_da, giorno_a = oggi.replace(day=1), oggi
     else:  # year
-        start = now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
-        end = now
+        giorno_da, giorno_a = oggi.replace(month=1, day=1), oggi
+
+    start = istante(giorno_da, time.min)
+    # "Oggi" copre l'intera giornata del salone, comprese le ore future — è il
+    # comportamento di sempre. Le altre finestre restano "da inizio periodo a
+    # adesso", non "a fine giornata": un dato di domani non è ancora successo.
+    end = istante(giorno_a + timedelta(days=1), time.min) if period == "today" else now
 
     # Payments in period
     pay_result = await db.execute(
-        select(Payment).where(and_(Payment.date >= start, Payment.date <= end))
+        select(Payment).where(and_(Payment.date >= start, Payment.date < end))
     )
     payments = pay_result.scalars().all()
 
@@ -47,10 +56,13 @@ async def get_stats(
     service_revenue = sum(float(p.amount) for p in payments if p.type == PaymentType.service)
     product_revenue = sum(float(p.amount) for p in payments if p.type == PaymentType.product)
 
-    # Expenses in period
+    # Expenses in period. `Expense.date` è una colonna `Date` senza fuso — il
+    # giorno del salone in cui la spesa è stata registrata — quindi si
+    # confronta con le date del salone direttamente, non con `.date()` di un
+    # istante UTC: quella derivazione è lo stesso difetto un'altra volta.
     exp_result = await db.execute(
         select(func.sum(Expense.amount)).where(
-            and_(Expense.date >= start.date(), Expense.date <= end.date())
+            and_(Expense.date >= giorno_da, Expense.date <= giorno_a)
         )
     )
     total_expenses = float(exp_result.scalar_one() or 0)
@@ -60,7 +72,7 @@ async def get_stats(
         select(func.count()).select_from(Appointment).where(
             and_(
                 Appointment.start_time >= start,
-                Appointment.start_time <= end,
+                Appointment.start_time < end,
                 Appointment.status.in_([AppointmentStatus.confirmed, AppointmentStatus.completed])
             )
         )

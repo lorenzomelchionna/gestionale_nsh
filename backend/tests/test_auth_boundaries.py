@@ -9,8 +9,12 @@ data both ids were 1, so any portal client acted as the admin.
 
 If any test here fails, treat it as a security regression, not a flaky test.
 """
-import pytest
+from datetime import date
 
+import pytest
+from sqlalchemy import select
+
+from app.models.client import Client
 from app.utils.auth import create_access_token
 from tests.conftest import ADMIN_PASSWORD, CLIENT_PASSWORD, auth
 
@@ -168,6 +172,62 @@ class TestDeactivatedAccounts:
         await db.commit()
         resp = await client.get("/api/public/appointments", headers=auth(client_tokens))
         assert resp.status_code == 401
+
+    async def test_client_deleted_by_admin_cannot_book_or_manage_appointments(
+        self, client, db, admin_tokens, client_tokens, client_account, collaborator, service, booking_config,
+    ):
+        """`DELETE /api/admin/clients/{id}` ("elimina cliente") is a
+        different switch from `ClientAccount.is_active`: it only clears
+        `Client.is_active`, and login/token checks never look at it, so the
+        portal session issued before the deletion keeps working. Before the
+        fix, every endpoint in `booking.py` that looked the client up by
+        `account_id` ignored this flag, so a client the salon considers gone
+        could still book, cancel, or manage a waitlist entry — and the new
+        booking would land on a record the admin client list no longer shows.
+        """
+        from datetime import timedelta
+
+        from app.models.appointment import Appointment
+        from app.services.availability import get_available_slots
+        from tests.conftest import giorno_lavorativo
+
+        cliente = (await db.execute(
+            select(Client).where(Client.account_id == client_account.id)
+        )).scalar_one()
+
+        resp = await client.delete(
+            f"/api/admin/clients/{cliente.id}", headers=auth(admin_tokens)
+        )
+        assert resp.status_code == 204
+        await db.refresh(cliente)
+        assert cliente.is_active is False
+
+        # The portal account itself is untouched — same distinction the
+        # test above this one exercises for the opposite flag.
+        await db.refresh(client_account)
+        assert client_account.is_active is True
+
+        giorno = giorno_lavorativo(date.today() + timedelta(days=3))
+        slots = await get_available_slots(db, collaborator.id, giorno, service.duration_slots)
+        assert slots, "serve almeno uno slot libero per il test"
+
+        resp = await client.post(
+            "/api/public/appointments",
+            headers=auth(client_tokens),
+            json={
+                "client_id": cliente.id,  # ignorato dal server, richiesto solo dallo schema
+                "collaborator_id": collaborator.id,
+                "service_ids": [service.id],
+                "start_time": slots[0].isoformat(),
+                "end_time": (slots[0] + timedelta(minutes=30)).isoformat(),
+            },
+        )
+        assert resp.status_code == 400, (
+            f"un cliente eliminato dall'admin non deve poter prenotare — {resp.status_code} {resp.text}"
+        )
+        assert (await db.execute(
+            select(Appointment).where(Appointment.client_id == cliente.id)
+        )).scalar_one_or_none() is None
 
 
 class TestClientDataIsolation:

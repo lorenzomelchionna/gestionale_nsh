@@ -362,10 +362,15 @@ ancora la Sandbox `+14155238886`), `TWILIO_TEMPLATE_CONFERMA`,
 
   **Resta aperto**:
   - [ ] Ticket Twilio per correggere il nome business («New Style Hair»)
-  - [ ] Confermare a vista che una risposta vera della cliente sul fisso
-    arrivi alla pagina Chat — webhook appena impostato, non ancora provato
-    in ricezione (per il numero ponte questo controllo c'era stato, vedi
-    17 settembre più sopra)
+  - [ ] Confermare **a vista** che una risposta vera della cliente sul
+    fisso compaia nella pagina Chat. Metà strada è fatta il 2026-09-22:
+    mandato un messaggio vero dal telefono di Lorenzo al fisso, e nei log
+    HTTP di Railway risulta `POST /api/public/whatsapp/webhook 200` —
+    quindi Twilio inoltra e la firma è valida (senza firma o con firma
+    sbagliata sarebbe 403). Resta da guardare la pagina Chat del
+    gestionale: il `200` dice che la richiesta è stata accettata, non che
+    il messaggio sia visibile a chi deve rispondere. Stessa voce rimasta
+    aperta per il numero ponte il 17 settembre, per lo stesso motivo.
   - [ ] Decidere quando cancellare/disattivare il numero ponte
     `+1 689 344-8830` — resta come secondo Sender dello stesso WABA finché
     non si toglie

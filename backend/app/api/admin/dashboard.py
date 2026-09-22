@@ -9,7 +9,7 @@ from app.models.payment import Payment, PaymentMethod, PaymentType
 from app.models.expense import Expense
 from app.models.user import User
 from app.dependencies import require_admin
-from app.utils.tempo import adesso, istante, ora_salone
+from app.utils.tempo import adesso, colonna_ora_salone, istante, ora_salone
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 
@@ -111,14 +111,22 @@ async def revenue_chart(
     end = datetime.now(timezone.utc)
     start = end - timedelta(days=days)
 
+    # `func.date()` su una colonna `timestamptz` taglia usando il `TimeZone`
+    # di *sessione* del database — UTC su Railway — non quello del salone:
+    # un incasso delle 01:00 a Roma finiva raggruppato nel giorno prima.
+    # `colonna_ora_salone` converte esplicitamente prima del taglio, quindi
+    # non dipende da quella variabile. `start`/`end` restano istanti veri:
+    # qui non c'è un giorno di calendario da indovinare, solo "da N giorni
+    # fa a adesso".
+    giorno = colonna_ora_salone(Payment.date)
     result = await db.execute(
         select(
-            func.date(Payment.date).label("day"),
+            func.date(giorno).label("day"),
             func.sum(Payment.amount).label("total"),
         )
         .where(and_(Payment.date >= start, Payment.date <= end))
-        .group_by(func.date(Payment.date))
-        .order_by(func.date(Payment.date))
+        .group_by(func.date(giorno))
+        .order_by(func.date(giorno))
     )
     rows = result.all()
     return [{"date": str(r.day), "total": float(r.total)} for r in rows]
@@ -131,18 +139,25 @@ async def yearly_chart(
     year: int = Query(default=None),
 ):
     """Monthly revenue, expenses and appointment count for a given year."""
-    now = datetime.now(timezone.utc)
-    target_year = year or now.year
+    # L'anno di default è quello del salone, non quello UTC: cambia solo
+    # negli ultimi secondi del 31 dicembre e nei primi del 1° gennaio, ma è
+    # lo stesso meccanismo di tutto il resto di questa funzione.
+    target_year = year or ora_salone(adesso()).year
+
+    # Come in `revenue_chart`: `extract()` su una colonna `timestamptz` usa
+    # il `TimeZone` di sessione (UTC), non il fuso del salone.
+    pagamento_ora_salone = colonna_ora_salone(Payment.date)
+    appuntamento_ora_salone = colonna_ora_salone(Appointment.start_time)
 
     # Monthly revenue
     rev_result = await db.execute(
         select(
-            extract("month", Payment.date).label("month"),
+            extract("month", pagamento_ora_salone).label("month"),
             func.sum(Payment.amount).label("revenue"),
         )
-        .where(extract("year", Payment.date) == target_year)
-        .group_by(extract("month", Payment.date))
-        .order_by(extract("month", Payment.date))
+        .where(extract("year", pagamento_ora_salone) == target_year)
+        .group_by(extract("month", pagamento_ora_salone))
+        .order_by(extract("month", pagamento_ora_salone))
     )
     rev_rows = {int(r.month): float(r.revenue) for r in rev_result.all()}
 
@@ -161,17 +176,17 @@ async def yearly_chart(
     # Monthly appointments
     appt_result = await db.execute(
         select(
-            extract("month", Appointment.start_time).label("month"),
+            extract("month", appuntamento_ora_salone).label("month"),
             func.count().label("count"),
         )
         .where(
             and_(
-                extract("year", Appointment.start_time) == target_year,
+                extract("year", appuntamento_ora_salone) == target_year,
                 Appointment.status.in_([AppointmentStatus.confirmed, AppointmentStatus.completed]),
             )
         )
-        .group_by(extract("month", Appointment.start_time))
-        .order_by(extract("month", Appointment.start_time))
+        .group_by(extract("month", appuntamento_ora_salone))
+        .order_by(extract("month", appuntamento_ora_salone))
     )
     appt_rows = {int(r.month): int(r.count) for r in appt_result.all()}
 

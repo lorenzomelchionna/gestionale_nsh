@@ -142,6 +142,11 @@ ancora la Sandbox `+14155238886`), `TWILIO_TEMPLATE_CONFERMA`,
   email mostrati → email svuotata davvero → Elimina → scheda sparita da
   elenco e ricerca. Da collaboratrice nessun pulsante, anagrafica ancora
   leggibile.
+
+  Rilasciato insieme all'ordine dei collaboratori, stessa PR ([#123](https://github.com/lorenzomelchionna/gestionale_nsh/pull/123)
+  → `develop`, [#124](https://github.com/lorenzomelchionna/gestionale_nsh/pull/124)
+  → `main`, commit `143bc51`): **deploy confermato** il 2026-09-23 alle
+  10:20 UTC, dettagli nella voce «Ordine dei collaboratori nel calendario».
 - [ ] **Il calendario chiede un'impostazione che ai collaboratori è
   negata** — trovato il 2026-09-23 mentre si provava la scheda cliente da
   collaboratrice. `CalendarPage` carica sempre `GET
@@ -1623,6 +1628,19 @@ sotto come voce aperta.
   Vincenzo al centro **si imposta dopo il rilascio**, con un clic, e non
   nella migration: sarebbero dati di un salone nella storia dello schema,
   e la migration gira anche su database vuoti.
+
+  [PR #123](https://github.com/lorenzomelchionna/gestionale_nsh/pull/123)
+  → `develop`, [PR #124](https://github.com/lorenzomelchionna/gestionale_nsh/pull/124)
+  → `main` (commit `143bc51`), CI verde su entrambe (8/8 su #124). 750
+  test. **Deploy confermato** il 2026-09-23 alle 10:20 UTC: backend,
+  frontend e worker `SUCCESS` e `online`. Nei log del backend la
+  migration `Running upgrade f8a2e916c4d3 -> c4e7a2d91b05, add position to
+  collaborators`, poi bootstrap completato; worker `celery@... ready`,
+  nessun errore vero. `/health` → 200, `www.newstylehair.it` → 200.
+  Ordine letto dal portale subito dopo: Flavia, Raffaella, Vincenzo —
+  quello di prima, come voleva il backfill.
+  - [ ] **Mettere Vincenzo al centro**: Collaboratori → striscia «Ordine
+    nel calendario» → ‹ accanto a Vincenzo.
 
 - [ ] **Vedere se un messaggio è arrivato** — domanda di Flavia: «dove vedo
   se al cliente è arrivato il messaggio?». **Nel gestionale oggi da

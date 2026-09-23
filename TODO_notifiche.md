@@ -248,6 +248,20 @@ ancora la Sandbox `+14155238886`), `TWILIO_TEMPLATE_CONFERMA`,
   non il colore, Elena il contrario), calendario e orari concordi (11 e
   11), ultimo orario 16:00 = fine giornata 19:00 meno 3 ore, riepilogo e
   prenotazione salvata «Taglio donna + Colore base», 16:00–19:00, €90.
+
+  [PR #135](https://github.com/lorenzomelchionna/gestionale_nsh/pull/135)
+  → `develop`, [PR #136](https://github.com/lorenzomelchionna/gestionale_nsh/pull/136)
+  → `main` (commit `1f3ec97`), CI verde su entrambe (8/8 su #136). 768
+  test. **Deploy confermato** il 2026-09-23: backend, frontend e worker
+  `SUCCESS` alle 18:31 UTC.
+
+  Verificato dal vivo sugli endpoint pubblici di produzione, con un
+  collaboratore e due servizi da 30 minuti che fa entrambi, il 25/09:
+  - un servizio: 22 orari, l'ultimo alle 18:30;
+  - due servizi: 21 orari, l'ultimo alle 18:00, cioè anticipato
+    **esattamente della durata del secondo**;
+  - formato vecchio `service_id`: 200, con gli stessi orari del nuovo;
+  - «Puoi sceglierne più di uno» presente nel bundle servito.
 - [ ] **Il seed crea la cliente demo senza verifiche** — trovato il
   2026-09-23. `seed.py` crea `giulia.marino@email.it` con
   `email_verified` e `phone_verified` a `false`, quindi le credenziali demo

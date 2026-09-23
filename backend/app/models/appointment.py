@@ -48,6 +48,12 @@ class Appointment(Base):
 
     reminder_sent: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     whatsapp_reminder_sent: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # When the confirmation actually went out. The reminder waits an hour after
+    # it; `created_at` would not do, since online bookings sit pending and
+    # are confirmed later.
+    confirmation_sent_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(

@@ -54,8 +54,12 @@ def _wa_enabled(cfg: Optional[BookingConfig]) -> bool:
 
 # ── Per-event orchestrators ──────────────────────────────────────────
 
-async def notify_booking_confirmation(db: AsyncSession, appointment) -> None:
+async def notify_booking_confirmation(db: AsyncSession, appointment) -> bool:
     """Sent when an appointment is confirmed (admin create or pending→confirmed).
+
+    Returns whether it reached the client on at least one channel: the
+    reminder holds off for an hour after a confirmation that actually arrived,
+    and only then.
 
     Nothing goes out for an appointment that has already happened. The salon
     records past visits from the admin side — filling in history, or confirming
@@ -69,22 +73,26 @@ async def notify_booking_confirmation(db: AsyncSession, appointment) -> None:
     caller, not just the one that prompted it.
     """
     if appointment.start_time < adesso():
-        return
+        return False
 
     cfg = await _get_config(db)
     client = appointment.client
     if not client:
-        return
+        return False
+    consegnata = False
     if client.email:
         try:
             await email_util.send_booking_confirmation_email(appointment)
+            consegnata = True
         except Exception:
             _fallita("conferma_prenotazione", "email", id_appuntamento=appointment.id)
     if _wa_enabled(cfg) and client.phone:
         try:
             await wa_util.send_booking_confirmation(appointment, cfg)
+            consegnata = True
         except Exception:
             _fallita("conferma_prenotazione", "whatsapp", id_appuntamento=appointment.id)
+    return consegnata
 
 
 async def notify_appointment_reminder(db: AsyncSession, appointment) -> bool:

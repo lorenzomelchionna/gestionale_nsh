@@ -2,9 +2,11 @@
 import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
-from sqlalchemy import select, and_, extract
+from sqlalchemy import select, and_, or_, extract
 from sqlalchemy.orm import selectinload
 from app.tasks.celery_app import celery_app
+
+DISTANZA_DALLA_CONFERMA = timedelta(hours=1)
 
 log = logging.getLogger("nsh.attivita")
 
@@ -42,10 +44,17 @@ async def _async_send_reminders():
             cfg_result = await db.execute(select(BookingConfig).limit(1))
             cfg = cfg_result.scalar_one_or_none()
 
-            # Single configurable window — used for both channels
+            # Everything confirmed that starts within the next `hours` and has
+            # not had its reminder — not just the 15-minute slice `hours`
+            # away. That slice missed every booking made less than `hours`
+            # ahead (they are born inside it), and lost for good whatever
+            # fell in a tick the worker skipped while restarting.
+            # `reminder_sent` is what prevents repeats.
             hours = cfg.whatsapp_reminder_hours if cfg else 24
-            window_start = now + timedelta(hours=hours)
-            window_end   = now + timedelta(hours=hours, minutes=15)
+            window_end = now + timedelta(hours=hours)
+            # A confirmation that just arrived is its own reminder for a
+            # while; sending both within minutes is one paid message too many.
+            quiet_since = now - DISTANZA_DALLA_CONFERMA
 
             result = await db.execute(
                 select(Appointment)
@@ -56,10 +65,14 @@ async def _async_send_reminders():
                 )
                 .where(
                     and_(
-                        Appointment.start_time >= window_start,
+                        Appointment.start_time > now,
                         Appointment.start_time <= window_end,
                         Appointment.status == AppointmentStatus.confirmed,
                         Appointment.reminder_sent == False,
+                        or_(
+                            Appointment.confirmation_sent_at.is_(None),
+                            Appointment.confirmation_sent_at <= quiet_since,
+                        ),
                     )
                 )
             )
@@ -152,7 +165,9 @@ async def _async_send_booking_confirmation(appointment_id: int):
             appt = result.scalar_one_or_none()
             if not appt:
                 return
-            await notify_booking_confirmation(db, appt)
+            if await notify_booking_confirmation(db, appt):
+                appt.confirmation_sent_at = datetime.now(timezone.utc)
+                await db.commit()
     finally:
         await task_engine.dispose()
 

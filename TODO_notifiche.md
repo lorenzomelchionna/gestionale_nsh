@@ -207,6 +207,44 @@ ancora la Sandbox `+14155238886`), `TWILIO_TEMPLATE_CONFERMA`,
   dell'appuntamento #42, conferma alle 13:45:08 e **promemoria alle
   14:30:00 ora di Roma**, entrambi `delivered`. Appuntamento per il giorno
   stesso: col codice di prima quel promemoria non sarebbe partito mai.
+- [x] ~~**Registrazione impossibile dal vecchio indirizzo**~~ — **trovato e
+  corretto il 2026-09-23.** Una delle clienti di prova provava a
+  registrarsi di nuovo e non ci riusciva.
+
+  **La causa non era nel codice di registrazione.** Nei log HTTP di
+  produzione, da un telefono Android: quattro `OPTIONS
+  /api/public/auth/register` → **400**, e poi nessun `POST`. È il
+  controllo preventivo CORS che il browser fa prima di mandare la
+  richiesta; se fallisce, la richiesta non parte proprio. Dallo stesso
+  telefono fallivano allo stesso modo login ed elenco servizi, mentre dal
+  PC del salone, stessa rete, andava tutto.
+
+  Il frontend risponde a **due indirizzi**: `www.newstylehair.it` e quello
+  generato da Railway, `happy-benevolence-production.up.railway.app`. Il
+  backend accetta come origine solo il primo. Riprodotto: il preflight dal
+  vecchio indirizzo risponde `400 Disallowed CORS origin`, da `www` 200.
+  La pagina sul vecchio indirizzo è identica e funzionante a vista, finché
+  non si prova a mandare qualcosa. Le clienti di prova si erano
+  registrate a luglio e agosto, prima del dominio: quel vecchio indirizzo
+  ce l'avevano nei preferiti o come icona sul telefono.
+
+  **Corretto in nginx**: il vecchio indirizzo, e solo quello per nome,
+  risponde **301** su `https://www.newstylehair.it`, conservando percorso e
+  parametri. Non un redirect generico «tutto ciò che non è www»: il
+  controllo di salute di Railway interroga `/` con un altro host e vuole
+  200. Si sarebbe potuto aggiungere il vecchio indirizzo alle origini CORS,
+  ma avrebbe lasciato due siti con due insiemi di login salvati; il
+  redirect ne lascia uno.
+
+  Provato con `nginx:alpine` e la configurazione vera: vecchio host → 301
+  con percorso conservato, `www` → 200, host del controllo di salute → 200.
+  E falsificato il dettaglio che non si vede: senza `default_server` sul
+  blocco principale, nginx prende il redirect come predefinito e `www`
+  rimanda a se stesso all'infinito. Provato: `www` e controllo di salute
+  entrambi 301.
+
+  **Intanto, per quella cliente**: aprire `https://www.newstylehair.it`
+  invece del vecchio link.
 - [x] ~~**La Chat sembrava svuotata**~~ — **chiarito e corretto il
   2026-09-23.** Lorenzo: «quando sono stati eliminati i messaggi della
   chat? non è che ogni release cancella i messaggi?». La pagina Chat era
@@ -243,8 +281,16 @@ ancora la Sandbox `+14155238886`), `TWILIO_TEMPLATE_CONFERMA`,
   corso» → riarchiviata e riaperta subito, pulsante giusto. Su telefono a
   375 px nessuno scorrimento orizzontale.
 
-  Le due conversazioni vere si recuperano da «Archiviate» appena questo è
-  in produzione.
+  [PR #131](https://github.com/lorenzomelchionna/gestionale_nsh/pull/131)
+  → `develop`, [PR #132](https://github.com/lorenzomelchionna/gestionale_nsh/pull/132)
+  → `main` (commit `2e72f77`), CI verde su entrambe (8/8 su #132).
+  **Deploy confermato** il 2026-09-23: backend e frontend `SUCCESS` alle
+  13:03–13:04 UTC, worker alle 13:05. `/health` → 200,
+  `www.newstylehair.it` → 200, e «Archiviate» e «Riporta in lista»
+  presenti nel bundle JavaScript servito in produzione.
+
+  Le due conversazioni vere **ora si recuperano**: Chat → «Archiviate» →
+  apri la conversazione → «Riporta in lista».
 - [ ] **Il calendario chiede un'impostazione che ai collaboratori è
   negata** — trovato il 2026-09-23 mentre si provava la scheda cliente da
   collaboratrice. `CalendarPage` carica sempre `GET

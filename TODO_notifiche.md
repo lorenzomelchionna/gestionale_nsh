@@ -362,13 +362,31 @@ ancora la Sandbox `+14155238886`), `TWILIO_TEMPLATE_CONFERMA`,
 
   **Resta aperto**:
   - [ ] Ticket Twilio per correggere il nome business («New Style Hair»)
-  - [ ] Confermare a vista che una risposta vera della cliente sul fisso
-    arrivi alla pagina Chat — webhook appena impostato, non ancora provato
-    in ricezione (per il numero ponte questo controllo c'era stato, vedi
-    17 settembre più sopra)
+  - [ ] Confermare **a vista** che una risposta vera della cliente sul
+    fisso compaia nella pagina Chat. Metà strada è fatta il 2026-09-22:
+    mandato un messaggio vero dal telefono di Lorenzo al fisso, e nei log
+    HTTP di Railway risulta `POST /api/public/whatsapp/webhook 200` —
+    quindi Twilio inoltra e la firma è valida (senza firma o con firma
+    sbagliata sarebbe 403). Resta da guardare la pagina Chat del
+    gestionale: il `200` dice che la richiesta è stata accettata, non che
+    il messaggio sia visibile a chi deve rispondere. Stessa voce rimasta
+    aperta per il numero ponte il 17 settembre, per lo stesso motivo.
   - [ ] Decidere quando cancellare/disattivare il numero ponte
     `+1 689 344-8830` — resta come secondo Sender dello stesso WABA finché
     non si toglie
+
+  **Deploy confermato**: [PR #119](https://github.com/lorenzomelchionna/gestionale_nsh/pull/119)
+  (verifica telefono, questa voce) → `develop`,
+  [PR #120](https://github.com/lorenzomelchionna/gestionale_nsh/pull/120)
+  → `main` (merge commit `00402f2`), CI verde su entrambe (8/8 check su
+  #120). Backend, frontend e worker tutti `SUCCESS` sul commit del merge.
+  Log di startup del backend confermano la migrazione applicata,
+  `Running upgrade b6e21c8f0a53 -> f8a2e916c4d3, add phone verification to
+  client_accounts`, e il bootstrap completato senza errori; worker
+  `celery@... ready.`, nessun errore vero (solo l'avviso normale su
+  superuser). `/health` → 200, `www.newstylehair.it` → 200. Il numero fisso
+  come `TWILIO_WHATSAPP_FROM` era già attivo da prima di questo rilascio
+  (switchato a mano su Railway, non fa parte del codice deployato).
 
 - [x] ~~**Fuso orario degli appuntamenti**~~ — **corretto il 2026-09-17**, in
   due rilasci. Sotto resta il referto, perché il ragionamento serve a chi un
@@ -935,15 +953,21 @@ quella che si legge non è mai quella aggiornata — quindi ne resta una.
   `skip_deploys` per non far ripartire il deploy prima che il codice ci sia
   davvero): arriverà con il rilascio di questa PR.
 
-  **Resta da fare quando è approvato**: variabile `TWILIO_TEMPLATE_VERIFICA`
-  su Railway (backend **e** worker), e il collegamento vero e proprio —
-  `app/services/email_verification.py` è già scritto per essere
-  riutilizzabile cambiando solo il canale, ma quel collegamento non è stato
-  scritto qui, solo il template Twilio.
-- [ ] **Pulizia dei profili cliente di prova** — chiesta il 2026-08-12, da
-  fare prima di aprire alle clienti vere. Rimandata di proposito: non
-  dipende da nient'altro e si può fare in qualunque momento. Prima di
-  toccare qualcosa:
+  ~~«Resta da fare quando è approvato: la variabile su Railway e il
+  collegamento vero»~~ — **scritto quando esisteva solo il template, ed è
+  stato superato lo stesso giorno.** Entrambe le cose sono fatte e
+  descritte qui sopra: la variabile è su backend e worker, il collegamento
+  è `app/services/phone_verification.py` con i due passi in
+  `api/public/auth.py`. Lasciata la riga barrata invece di cancellarla
+  perché la contraddizione fra due paragrafi vicini è l'errore che questo
+  documento ha già fatto due volte in cima.
+- [x] ~~**Pulizia dei profili cliente di prova**~~ — **fatta il
+  2026-09-23**, e non come «pulizia»: svuotate del tutto anagrafica,
+  account del portale e appuntamenti. Il come, e i quattro punti qui
+  sotto che l'hanno guidata, restano scritti perché servono la prossima
+  volta. Resoconto in fondo alla voce.
+
+  Prima di toccare qualcosa:
   1. **Decidere il criterio** di «di prova» (nome, email, data di
      creazione, nessun appuntamento…) ed estrarre l'elenco in **sola
      lettura** dalla produzione. Nessuna cancellazione senza l'elenco
@@ -951,14 +975,52 @@ quella che si legge non è mai quella aggiornata — quindi ne resta una.
   2. **«Elimina» dal gestionale non cancella**: mette solo
      `Client.is_active = False` (`api/admin/clients.py:123`). La scheda
      sparisce dagli elenchi ma resta a database.
-  3. **E non chiude il portale**: vedi «Una scheda eliminata può ancora
-     prenotare» fra i difetti aperti. Per un profilo di prova con accesso
-     al portale va disattivato anche l'account.
+  3. **Chiude il portale, ma non il login.** ~~«E non chiude il portale:
+     vedi fra i difetti aperti»~~ — quel difetto è stato corretto, la voce
+     è più su in questo file. Oggi `_cliente_del_portale`
+     (`api/public/booking.py:47`) filtra su `Client.is_active`, quindi una
+     scheda eliminata non prenota, non cancella e non entra in lista
+     d'attesa. Resta però valido il **login**: `ClientAccount.is_active` è
+     un interruttore separato, e chi accede si trova «Profilo cliente non
+     trovato». Per un profilo di prova conviene disattivare anche
+     l'account — non più per sicurezza, solo per non lasciare un accesso
+     che porta a una schermata rotta.
   4. Una cancellazione vera è bloccata dagli appuntamenti
      (`ondelete="RESTRICT"`); pagamenti, chat, comunicazioni e buoni regalo
      restano ma perdono il cliente (`SET NULL`); la lista d'attesa se ne va
      con lui (`CASCADE`). Per i doppioni c'è già **Unione schede**, che va
      preferita alla cancellazione.
+
+  **Com'è andata (2026-09-23).** L'estrazione del punto 1 ha trovato **sei**
+  schede, e il criterio «di prova» **non si poteva applicare**: nomi veri,
+  Gmail veri, cellulari italiani veri, tutte con account verificato. Niente
+  che da fuori distinguesse una prova da una cliente — una aveva perfino un
+  appuntamento *confermato*. Messo l'elenco davanti, la decisione è stata
+  di svuotare tutto: il salone non ha ancora clienti veri a sistema, quindi
+  l'anagrafica intera era il banco di prova.
+
+  Cancellati: **4 appuntamenti** (più i 4 `appointment_services`, portati
+  via in `CASCADE`), **6 clienti**, **6 account del portale**. Restano
+  intatti **19 servizi**, **13 prodotti**, **3 collaboratori** — verificato
+  confrontando i conteggi prima e dopo, non fidandosi dell'intenzione.
+  `/health` 200 e frontend 200 dopo l'operazione, nessun errore nei log.
+
+  Due precauzioni che vale la pena ripetere:
+  - **Copia di sicurezza prima**, JSON di tutte le tabelle coinvolte. È ciò
+    che ha reso reversibile una cosa che di suo non lo è. Contiene dati
+    personali: sta fuori dal repository e va cancellata quando non serve.
+  - **Una transazione sola.** A metà strada il database sarebbe rimasto in
+    uno stato che nessuno ha scelto — appuntamenti orfani senza cliente.
+
+  **La conversazione WhatsApp**, lasciata indietro al primo giro perché non
+  era nella richiesta, è stata tolta subito dopo su conferma: 1
+  conversazione e i suoi 5 messaggi (`CASCADE`). Vale la pena sapere che le
+  conversazioni sono indicizzate per **numero di telefono**, non per
+  cliente — svuotare l'anagrafica non le porta via, restano con `client_id`
+  a `NULL`. Chi rifà questa pulizia deve cancellarle a parte.
+
+  Stato finale del database: anagrafica, account, appuntamenti e chat a
+  zero; servizi, prodotti e collaboratori intatti.
 - [x] ~~Stessa gara di commit sul lato admin~~ — fatto 2026-08-02, trovata
   mentre si sistemava `notify_new_booking`. In `api/admin/appointments.py`
   `_trigger_booking_confirmation` partiva dopo `flush()` ma prima che `get_db`

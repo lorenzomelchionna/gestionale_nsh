@@ -147,6 +147,49 @@ ancora la Sandbox `+14155238886`), `TWILIO_TEMPLATE_CONFERMA`,
   → `develop`, [#124](https://github.com/lorenzomelchionna/gestionale_nsh/pull/124)
   → `main`, commit `143bc51`): **deploy confermato** il 2026-09-23 alle
   10:20 UTC, dettagli nella voce «Ordine dei collaboratori nel calendario».
+- [x] ~~**Promemoria mai partiti per le prenotazioni ravvicinate**~~ —
+  **corretto il 2026-09-23**, segnalato da Flavia: appuntamento per il giorno
+  stesso, conferma arrivata (appuntamento #42, nei log del worker alle 11:45
+  UTC), promemoria no.
+
+  Il worker, ogni 15 minuti, cercava gli appuntamenti che iniziano fra **24
+  ore esatte**, con una finestra larga 15 minuti. Due buchi:
+  - **Chi prenota con meno di 24 ore di anticipo non riceveva mai il
+    promemoria**: l'appuntamento nasce già dentro le 24 ore e non passa mai
+    per la fetta «fra 24 ore». In un salone sono le prenotazioni più comuni.
+  - **Un giro saltato era un promemoria perso per sempre**: la finestra era
+    larga esattamente quanto l'intervallo fra due giri, e il worker salta un
+    giro ogni volta che riparte — a ogni rilascio.
+
+  Nessun test esercitava la finestra: quelli esistenti controllavano il
+  valore di ritorno e lo spostamento dell'orario, ed è per questo che il
+  difetto è arrivato in produzione.
+
+  Ora il promemoria parte per **ogni appuntamento confermato che inizia
+  entro le prossime N ore** e non l'ha ancora ricevuto (il flag
+  `reminder_sent` impedisce i doppioni, e rende la cosa robusta ai giri
+  saltati), **ma non nella prima ora dopo la conferma** — deciso con
+  Lorenzo: il promemoria ci deve essere anche per le prenotazioni del
+  giorno stesso, ma due messaggi a un quarto d'ora di distanza sono uno di
+  troppo, e il secondo si paga. Per contare quell'ora serviva sapere quando
+  la conferma è **partita**, non quando l'appuntamento è nato: le
+  prenotazioni online restano «in attesa» e vengono confermate dopo. Nuova
+  colonna `appointments.confirmation_sent_at` (migration `a1f3c8d27e64`),
+  scritta solo se la conferma è arrivata su almeno un canale.
+
+  Chi prenota per fra meno di un'ora non riceve promemoria: un'ora dopo la
+  conferma l'appuntamento è già iniziato.
+
+  Test in `tests/test_promemoria_finestra.py`, che chiamano il task vero.
+  Il caso di Flavia e il giro saltato visti **rossi prima** della
+  correzione (zero promemoria partiti); poi falsificati uno per uno la
+  prima ora di silenzio, l'esclusione degli appuntamenti già iniziati, la
+  registrazione della conferma e il suo «non partita» per gli appuntamenti
+  passati.
+
+  **Al primo giro dopo il rilascio** partirà il promemoria per ogni
+  appuntamento confermato entro le 24 ore che non l'ha ancora avuto,
+  compreso quello di Flavia se non è ancora passato: è il recupero voluto.
 - [ ] **Il calendario chiede un'impostazione che ai collaboratori è
   negata** — trovato il 2026-09-23 mentre si provava la scheda cliente da
   collaboratrice. `CalendarPage` carica sempre `GET

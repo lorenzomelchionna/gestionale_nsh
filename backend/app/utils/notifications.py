@@ -14,6 +14,7 @@ from app.models.booking_config import BookingConfig
 from app.models.client import Client
 from app.utils import email as email_util
 from app.utils import whatsapp as wa_util
+from app.utils.tempo import adesso
 
 
 Channel = Literal["email", "whatsapp", "both"]
@@ -54,7 +55,22 @@ def _wa_enabled(cfg: Optional[BookingConfig]) -> bool:
 # ── Per-event orchestrators ──────────────────────────────────────────
 
 async def notify_booking_confirmation(db: AsyncSession, appointment) -> None:
-    """Sent when an appointment is confirmed (admin create or pending→confirmed)."""
+    """Sent when an appointment is confirmed (admin create or pending→confirmed).
+
+    Nothing goes out for an appointment that has already happened. The salon
+    records past visits from the admin side — filling in history, or confirming
+    a request nobody got to in time — and every one of those rows would
+    otherwise mail and message the client a confirmation for a date that has
+    come and gone. Beyond the confusion, utility templates outside the 24-hour
+    window are paid for, and a burst of unexpected messages is what gets a
+    WhatsApp number reported.
+
+    The guard lives here rather than in the endpoint so it holds for every
+    caller, not just the one that prompted it.
+    """
+    if appointment.start_time < adesso():
+        return
+
     cfg = await _get_config(db)
     client = appointment.client
     if not client:

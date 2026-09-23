@@ -207,6 +207,54 @@ ancora la Sandbox `+14155238886`), `TWILIO_TEMPLATE_CONFERMA`,
   dell'appuntamento #42, conferma alle 13:45:08 e **promemoria alle
   14:30:00 ora di Roma**, entrambi `delivered`. Appuntamento per il giorno
   stesso: col codice di prima quel promemoria non sarebbe partito mai.
+- [x] ~~**Più servizi in un appuntamento, dal portale**~~ — **fatto il
+  2026-09-23.** Dal gestionale si poteva già: il modale somma le durate.
+  Dal portale no, ma mancava meno di quanto sembrasse. La prenotazione
+  lato server gestiva già più servizi (somma delle durate, tempi di posa in
+  sequenza, collaboratore che deve farli tutti, ora di fine calcolata da
+  lui). Erano **gli orari** a saperne uno solo: `/availability` e
+  `/availability/calendar` accettavano un unico `service_id`, quindi
+  avrebbero mostrato orari validi per il primo servizio che la prenotazione
+  poi rifiutava.
+
+  Ora i due endpoint accettano `service_ids` (ripetuto nella query) e
+  calcolano sulla durata complessiva; `service_id` resta valido per le
+  pagine già aperte. L'**ordine** dei servizi conta, perché i tempi di
+  posa dipendono da quale viene prima: nel portale è l'ordine in cui la
+  cliente li tocca, e **lo stesso elenco** va sia agli orari sia alla
+  prenotazione, così i due non possono discordare. In elenco compaiono
+  solo i collaboratori che fanno **tutti** i servizi scelti; se nessuno li
+  fa tutti, il messaggio suggerisce di toglierne uno o di prenotare due
+  appuntamenti. Un appuntamento ha un solo collaboratore: «colore con
+  Flavia e piega con Raffaella» restano due appuntamenti.
+
+  Due trappole evitate lungo la strada:
+  - axios manda le liste come `service_ids[]=1`, che FastAPI legge come
+    niente: impostato `paramsSerializer: { indexes: null }` sulle due
+    chiamate, e controllato nella richiesta vera (`service_ids=1&service_ids=3`);
+  - la barra «Continua» fissata in basso sarebbe finita **sotto** la barra
+    delle schede del portale, che è fissa in fondo per chi ha fatto
+    l'accesso: sta a `bottom-tabbar`, misurata sul telefono.
+
+  Test in `tests/test_booking_multi_servizio.py`, rossi prima
+  dell'intervento. Il test che conta è l'accordo: l'ultimo orario offerto
+  per due servizi viene accettato dalla prenotazione. Falsificato: con la
+  disponibilità calcolata sul solo primo servizio quell'orario viene
+  **rifiutato con 409**. Falsificato anche il controllo «il collaboratore
+  deve farli tutti».
+
+  Verificato nel browser da cliente: taglio + colore → barra «2 servizi ·
+  180 min · €90.00», solo Sofia fra i collaboratori (Marco fa il taglio e
+  non il colore, Elena il contrario), calendario e orari concordi (11 e
+  11), ultimo orario 16:00 = fine giornata 19:00 meno 3 ore, riepilogo e
+  prenotazione salvata «Taglio donna + Colore base», 16:00–19:00, €90.
+- [ ] **Il seed crea la cliente demo senza verifiche** — trovato il
+  2026-09-23. `seed.py` crea `giulia.marino@email.it` con
+  `email_verified` e `phone_verified` a `false`, quindi le credenziali demo
+  che il seed stesso stampa non aprono il portale: il login risponde 403.
+  È nato con le due verifiche, e tocca solo lo sviluppo locale. Basta
+  mettere entrambe a `true` nel seed, come fa `portal_account.crea` per
+  gli accessi creati dal salone.
 - [x] ~~**Registrazione impossibile dal vecchio indirizzo**~~ — **trovato e
   corretto il 2026-09-23.** Una delle clienti di prova provava a
   registrarsi di nuovo e non ci riusciva.

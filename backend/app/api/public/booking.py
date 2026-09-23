@@ -1,5 +1,5 @@
 """Client-facing booking portal endpoints."""
-from typing import Annotated, List
+from typing import Annotated, List, Optional
 from datetime import date, datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -157,12 +157,42 @@ async def _bookable_collaborator(
     return collab
 
 
+async def _servizi_richiesti(
+    db: AsyncSession, service_id: Optional[int], service_ids: Optional[List[int]]
+) -> List[Service]:
+    """The services to compute availability for, in the order given.
+
+    `service_ids` for several services in one appointment; `service_id` for
+    one, the older form, still accepted from pages already open in browsers.
+    Order is not cosmetic: services run one after the other and their
+    processing time depends on which comes first, so this must be the order
+    the booking will receive — `book_appointment` loads them the same way.
+    """
+    ids = service_ids or ([service_id] if service_id is not None else [])
+    if not ids:
+        raise HTTPException(status_code=422, detail="Indica almeno un servizio")
+    trovati = {
+        s.id: s
+        for s in (await db.execute(select(Service).where(Service.id.in_(ids)))).scalars()
+    }
+    servizi = []
+    for sid in ids:
+        s = trovati.get(sid)
+        if not s or not s.bookable_online:
+            raise HTTPException(
+                status_code=404, detail="Servizio non trovato o non prenotabile online"
+            )
+        servizi.append(s)
+    return servizi
+
+
 @router.get("/availability", response_model=List[str])
 async def public_availability(
     db: Annotated[AsyncSession, Depends(get_db)],
-    service_id: int = Query(...),
     collaborator_id: int = Query(...),
     target_date: date = Query(...),
+    service_id: Optional[int] = Query(None),
+    service_ids: Optional[List[int]] = Query(None),
 ):
     # Validate booking config
     cfg_result = await db.execute(select(BookingConfig).limit(1))
@@ -176,17 +206,12 @@ async def public_availability(
         if target_date > max_date:
             raise HTTPException(status_code=400, detail="Data troppo lontana nel futuro")
 
-    # Get service duration
-    svc_result = await db.execute(select(Service).where(Service.id == service_id))
-    service = svc_result.scalar_one_or_none()
-    if not service or not service.bookable_online:
-        raise HTTPException(status_code=404, detail="Servizio non trovato o non prenotabile online")
-
-    await _bookable_collaborator(db, collaborator_id, [service_id])
+    services = await _servizi_richiesti(db, service_id, service_ids)
+    await _bookable_collaborator(db, collaborator_id, [s.id for s in services])
 
     slots = await get_available_slots(
-        db, collaborator_id, target_date, service.duration_slots,
-        busy_offsets=busy_slot_offsets([service]),
+        db, collaborator_id, target_date, sum(s.duration_slots for s in services),
+        busy_offsets=busy_slot_offsets(services),
     )
     return [s.isoformat() for s in slots]
 
@@ -194,10 +219,11 @@ async def public_availability(
 @router.get("/availability/calendar", response_model=List[DayAvailability])
 async def public_availability_calendar(
     db: Annotated[AsyncSession, Depends(get_db)],
-    service_id: int = Query(...),
     collaborator_id: int = Query(...),
     start_date: date = Query(...),
     end_date: date = Query(...),
+    service_id: Optional[int] = Query(None),
+    service_ids: Optional[List[int]] = Query(None),
 ):
     """
     How many slots each day of a range holds.
@@ -219,12 +245,10 @@ async def public_availability_calendar(
     if cfg and not cfg.is_enabled:
         raise HTTPException(status_code=403, detail="Prenotazione online disabilitata")
 
-    svc_result = await db.execute(select(Service).where(Service.id == service_id))
-    service = svc_result.scalar_one_or_none()
-    if not service or not service.bookable_online:
-        raise HTTPException(status_code=404, detail="Servizio non trovato o non prenotabile online")
-
-    await _bookable_collaborator(db, collaborator_id, [service_id])
+    services = await _servizi_richiesti(db, service_id, service_ids)
+    await _bookable_collaborator(db, collaborator_id, [s.id for s in services])
+    durata = sum(s.duration_slots for s in services)
+    posa = busy_slot_offsets(services)
 
     # La data del salone: `date.today()` è quella del processo, che su
     # Railway è UTC, quindi fra mezzanotte e le due risponderebbe «ieri».
@@ -242,8 +266,7 @@ async def public_availability_calendar(
             out.append(DayAvailability(date=day, slots=0))
         else:
             slots = await get_available_slots(
-                db, collaborator_id, day, service.duration_slots,
-                busy_offsets=busy_slot_offsets([service]),
+                db, collaborator_id, day, durata, busy_offsets=posa,
             )
             out.append(DayAvailability(date=day, slots=len(slots)))
         day += timedelta(days=1)

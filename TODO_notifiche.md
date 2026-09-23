@@ -1787,6 +1787,15 @@ sotto come voce aperta.
   nuovo è selezionabile, 12:30 mostra «L'orario cade in un'assenza del
   collaboratore (13:00–14:00)», 15:00 salva senza avvisi.
 
+  [PR #129](https://github.com/lorenzomelchionna/gestionale_nsh/pull/129)
+  → `develop`, [PR #130](https://github.com/lorenzomelchionna/gestionale_nsh/pull/130)
+  → `main` (commit `2e419e0`), CI verde su entrambe (8/8 su #130).
+  **Deploy confermato** il 2026-09-23: frontend e worker `SUCCESS` alle
+  12:50 UTC, backend alle 12:51 (build più lento del solito, avvio pulito,
+  nessuna migration da applicare). `/health` → 200, `www.newstylehair.it`
+  → 200, e il testo del nuovo avviso («cade in un'assenza del
+  collaboratore») presente nel bundle JavaScript servito in produzione.
+
   Da chiarire con Flavia: se «solo per i collaboratori» vuol dire anche
   che **i collaboratori stessi** devono potersela mettere. Oggi creare e
   cancellare assenze è solo admin (`EXPECTED_GUARDS`: `POST` e `DELETE`

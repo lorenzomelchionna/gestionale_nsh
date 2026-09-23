@@ -207,6 +207,44 @@ ancora la Sandbox `+14155238886`), `TWILIO_TEMPLATE_CONFERMA`,
   dell'appuntamento #42, conferma alle 13:45:08 e **promemoria alle
   14:30:00 ora di Roma**, entrambi `delivered`. Appuntamento per il giorno
   stesso: col codice di prima quel promemoria non sarebbe partito mai.
+- [x] ~~**La Chat sembrava svuotata**~~ — **chiarito e corretto il
+  2026-09-23.** Lorenzo: «quando sono stati eliminati i messaggi della
+  chat? non è che ogni release cancella i messaggi?». La pagina Chat era
+  vuota.
+
+  **Non era stato cancellato niente.** Verificato nel database, in sola
+  lettura: 2 conversazioni e 5 messaggi, tutti intatti, entrambe con
+  `is_archived = True`. La conversazione nata alle 07:59 era sopravvissuta
+  a quattro rilasci. Nel codice non esiste nessun percorso che cancelli
+  conversazioni o messaggi. L'unica cancellazione della giornata era
+  stata quella fatta a mano la notte prima, su richiesta, durante la
+  pulizia dei clienti.
+
+  **La causa era l'archiviazione.** Nell'intestazione di ogni
+  conversazione c'è un'icona «Archivia»: un clic, nessuna conferma, e la
+  conversazione sparisce. La pagina però chiedeva solo le non archiviate e
+  **non aveva nessun modo di mostrare le altre**, quindi una conversazione
+  archiviata tornava visibile solo se la cliente riscriveva. Con due
+  conversazioni archiviate la Chat risultava vuota, e sembrava un database
+  svuotato.
+
+  Ora c'è un selettore **«In corso / Archiviate»**, e dentro una
+  conversazione archiviata **«Riporta in lista»**. Il server lo sapeva già
+  fare (`PATCH …/archive?archived=false`), mancava solo l'interfaccia.
+
+  Trovato durante la prova: riaperta subito dopo averla archiviata, la
+  conversazione mostrava ancora il pulsante sbagliato. Lo `staleTime`
+  globale di 30 secondi teneva buona la copia in cache, e l'archiviazione
+  aggiornava le liste ma non la singola conversazione. Ora aggiorna anche
+  quella.
+
+  Verificato nel browser: archivia → «In corso» vuota (lo stato visto da
+  Flavia) → «Archiviate» la mostra → «Riporta in lista» → di nuovo in «In
+  corso» → riarchiviata e riaperta subito, pulsante giusto. Su telefono a
+  375 px nessuno scorrimento orizzontale.
+
+  Le due conversazioni vere si recuperano da «Archiviate» appena questo è
+  in produzione.
 - [ ] **Il calendario chiede un'impostazione che ai collaboratori è
   negata** — trovato il 2026-09-23 mentre si provava la scheda cliente da
   collaboratrice. `CalendarPage` carica sempre `GET

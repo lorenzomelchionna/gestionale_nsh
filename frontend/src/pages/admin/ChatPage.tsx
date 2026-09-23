@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { format, parseISO, formatDistanceToNowStrict, isToday } from 'date-fns'
 import { it } from 'date-fns/locale'
 import {
-  MessageSquare, Send, ChevronLeft, AlertTriangle, Archive, Loader2, Clock, User,
+  MessageSquare, Send, ChevronLeft, AlertTriangle, Archive, ArchiveRestore, Loader2, Clock, User,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import {
@@ -17,10 +17,15 @@ import clsx from 'clsx'
 export default function ChatPage() {
   const qc = useQueryClient()
   const [selectedId, setSelectedId] = useState<number | null>(null)
+  // Archiving used to be a one-way door: one click, no confirmation, and no
+  // way to see an archived thread again until the client wrote back. On
+  // 2026-09-23 both of the salon's conversations went that way and the page
+  // looked wiped — every message was still in the database.
+  const [showArchived, setShowArchived] = useState(false)
 
   const { data: conversations = [], isLoading } = useQuery({
-    queryKey: ['conversations'],
-    queryFn: () => getConversations(false),
+    queryKey: ['conversations', showArchived],
+    queryFn: () => getConversations(showArchived),
     // New messages arrive by webhook, so the list has to poll to notice them.
     refetchInterval: 20_000,
   })
@@ -61,14 +66,38 @@ export default function ChatPage() {
             selectedId !== null && 'hidden lg:block'
           )}
         >
+          <div className="flex border border-border mb-3" role="tablist">
+            {([false, true] as const).map(archiviate => (
+              <button
+                key={String(archiviate)}
+                type="button"
+                role="tab"
+                aria-selected={showArchived === archiviate}
+                onClick={() => { setShowArchived(archiviate); setSelectedId(null) }}
+                className={clsx(
+                  'flex-1 py-2 font-heading text-[11px] uppercase tracking-[0.08em] transition-colors',
+                  showArchived === archiviate
+                    ? 'bg-foreground/[0.06] text-foreground'
+                    : 'text-ink-3 hover:text-foreground'
+                )}
+              >
+                {archiviate ? 'Archiviate' : 'In corso'}
+              </button>
+            ))}
+          </div>
+
           {isLoading ? (
             <SkeletonList rows={4} />
           ) : conversations.length === 0 ? (
             <div className="card">
               <EmptyState
-                icon={MessageSquare}
-                title="Nessun messaggio"
-                description="Le conversazioni WhatsApp dei clienti compaiono qui."
+                icon={showArchived ? Archive : MessageSquare}
+                title={showArchived ? 'Nessuna conversazione archiviata' : 'Nessun messaggio'}
+                description={
+                  showArchived
+                    ? 'Le conversazioni archiviate compaiono qui, e da qui si riportano in lista.'
+                    : 'Le conversazioni WhatsApp dei clienti compaiono qui.'
+                }
               />
             </div>
           ) : (
@@ -214,9 +243,18 @@ function Thread({ conversationId, onBack, onChanged }: {
     },
   })
 
+  // One toggle both ways: archive from the open list, bring back from the
+  // archived one.
   const archiveMut = useMutation({
-    mutationFn: () => setConversationArchived(conversationId, true),
-    onSuccess: () => { onBack(); onChanged() },
+    mutationFn: (archived: boolean) => setConversationArchived(conversationId, archived),
+    onSuccess: () => {
+      // The thread too, not just the lists: with the global 30s staleTime a
+      // thread reopened right after would show its old archived state, and
+      // the wrong button.
+      qc.invalidateQueries({ queryKey: ['conversation', conversationId] })
+      onBack()
+      onChanged()
+    },
   })
 
   if (isLoading || !conv) return <SkeletonList rows={3} />
@@ -252,13 +290,25 @@ function Thread({ conversationId, onBack, onChanged }: {
             <User className="w-[18px] h-[18px]" />
           </Link>
         )}
-        <button
-          onClick={() => archiveMut.mutate()}
-          className="btn-icon"
-          title="Archivia conversazione"
-        >
-          <Archive className="w-[18px] h-[18px]" />
-        </button>
+        {conv.is_archived ? (
+          <button
+            onClick={() => archiveMut.mutate(false)}
+            className="btn-secondary btn-sm"
+            title="Riporta la conversazione fra quelle in corso"
+          >
+            <ArchiveRestore className="w-4 h-4" />
+            Riporta in lista
+          </button>
+        ) : (
+          <button
+            onClick={() => archiveMut.mutate(true)}
+            className="btn-icon"
+            title="Archivia conversazione"
+            aria-label="Archivia conversazione"
+          >
+            <Archive className="w-[18px] h-[18px]" />
+          </button>
+        )}
       </div>
 
       {/* Messages */}

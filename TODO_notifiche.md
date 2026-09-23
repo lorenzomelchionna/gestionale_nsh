@@ -1537,6 +1537,105 @@ Non bloccano il go-live: il gestionale funziona senza. Stanno qui separate
 apposta, così le caselle aperte qui sotto non si confondono con quelle della
 roadmap sopra.
 
+### Richieste di Flavia — 2026-09-23 (primo giorno col database vuoto)
+
+Cinque punti, ognuno controllato sul codice prima di decidere se era una
+risposta o un lavoro. Tre avevano una risposta immediata; ma due di quelle
+tre, guardate da vicino, nascondevano un difetto vero, che è registrato qui
+sotto come voce aperta.
+
+- [ ] **Ordine dei collaboratori nel calendario** — «Vincenzo al centro».
+  Oggi non si può, e non per un'impostazione mancante: `list_collaborators`
+  (`api/admin/collaborators.py`) **non ha nessun `ORDER BY`**, quindi le
+  colonne escono nell'ordine fisico delle righe in Postgres. Non è solo un
+  ordine sbagliato, è un ordine **instabile**: dopo un `UPDATE` su un
+  collaboratore la riga può spostarsi e le colonne rimescolarsi da sole.
+  Serve un campo `posizione` (migration), l'`ORDER BY` sull'endpoint, e un
+  modo di cambiarlo dalla pagina Collaboratori — frecce su/giù bastano, con
+  tre persone non serve il trascinamento. L'`ORDER BY` da solo andrebbe
+  messo anche se la richiesta non ci fosse.
+
+- [ ] **Vedere se un messaggio è arrivato** — domanda di Flavia: «dove vedo
+  se al cliente è arrivato il messaggio?». **Nel gestionale oggi da
+  nessuna parte.** Per le notifiche automatiche (conferme, promemoria) il
+  gestionale non registra niente: la tabella `communications` esiste ma
+  non la scrive nessuno, e sul Sender non c'è `status_callback`, quindi
+  Twilio non gli racconta mai l'esito. Per le risposte dalla pagina Chat
+  lo stato arriva fino a `sent`, che vuol dire «Twilio l'ha preso», non
+  «è arrivato sul telefono».
+
+  **Risposta data intanto**: l'esito vero sta nella console Twilio, Monitor
+  → Logs → Messaging, con `delivered` / `read` / `failed` per messaggio.
+
+  **Il lavoro**: un endpoint per i callback di stato di Twilio, impostato
+  sul Sender, che aggiorni lo stato del messaggio — e da mostrare dove il
+  salone lo cerca, cioè sulla scheda cliente e sull'appuntamento. È lo
+  stesso punto cieco che questo file ha già registrato il 17 settembre in
+  cima: «la richiesta va a buon fine, la consegna fallisce, e il registro
+  di Twilio non lo guardava nessuno».
+
+- [ ] **La PAUSA non si vede nel calendario** — Flavia chiede un «servizio
+  PAUSA solo per i collaboratori». È **la stessa richiesta del 4 agosto**,
+  risolta allora coi **permessi a ore** (`tests/test_partial_absences.py`):
+  un servizio avrebbe voluto un cliente finto per ogni pausa, perché
+  `appointments.client_id` è obbligatorio.
+
+  **Risposta data intanto**: Collaboratori → il collaboratore → «Aggiungi
+  assenza» → spunta «Solo alcune ore» → Dalle / Alle → Tipo «Permesso».
+
+  Ma se la richiede di nuovo, il permesso a ore non le basta, e il perché
+  è nel codice: la griglia del calendario **le assenze non le carica né le
+  disegna**. `getAbsences` in `CalendarPage.tsx` è chiamato solo dentro il
+  modale di nuovo appuntamento. Una pausa blocca le prenotazioni online,
+  ma nel calendario quell'ora sembra libera — chi guarda l'agenda non la
+  vede. Il lavoro: disegnare assenze e permessi nella griglia, come blocco
+  grigio nella colonna del collaboratore.
+
+  Trovato insieme, **un difetto**: nel modale di nuovo appuntamento
+  `isClosedDay` considera chiusa **l'intera giornata** per qualunque
+  assenza, anche un permesso di due ore, perché confronta solo le date e
+  non guarda `start_time` / `end_time`.
+
+  Da chiarire con Flavia: se «solo per i collaboratori» vuol dire anche
+  che **i collaboratori stessi** devono potersela mettere. Oggi creare e
+  cancellare assenze è solo admin (`EXPECTED_GUARDS`: `POST` e `DELETE`
+  su `/api/admin/absences` → `admin`).
+
+- [ ] **«Rivedere il tempo di risposta ai messaggi WhatsApp»** — richiesta
+  ambigua, **da chiarire con Flavia prima di toccare codice**. La lettura
+  più probabile, e quella che il codice rende plausibile: non è che i
+  messaggi arrivino tardi, è che **ci si accorge tardi che sono
+  arrivati**. Col fisso sull'app WhatsApp Business ogni messaggio era una
+  notifica sul telefono; adesso finisce nella pagina Chat e basta:
+  - il webhook in entrata salva il messaggio e **non avvisa nessuno**;
+  - il badge nel menu si aggiorna ogni 30 secondi, la conversazione aperta
+    ogni 15;
+  - e nessuna query ha `refetchIntervalInBackground`, quindi con il
+    gestionale in una scheda dietro — o lo schermo del telefono spento —
+    **non si aggiorna proprio** finché non ci si torna sopra.
+
+  Le strade vanno da un suono e un titolo di scheda lampeggiante (poco) a
+  una notifica push o un'email allo staff per ogni messaggio in entrata
+  (di più). Quale serve dipende da dove sta il gestionale durante la
+  giornata in salone — domanda da fare, non da indovinare.
+
+- [ ] **Una pagina per chi arriva dal QR code** — Flavia vuole mettere un
+  QR in salone perché le clienti scoprano il nuovo sistema, e chiede una
+  «schermata diversa». **Risposta data intanto**: `www.newstylehair.it`
+  apre già la home del portale clienti (`BookingHomePage`), non il login
+  dello staff — un QR verso quell'indirizzo funziona da oggi. Il lavoro,
+  se lo vuole: una pagina di benvenuto che spieghi cosa si può fare
+  (prenotare, vedere gli appuntamenti, la lista d'attesa) prima di
+  chiedere la registrazione. Contenuto da decidere con lei. Il QR va
+  comunque fatto puntare al dominio e non a un percorso interno: così
+  resta valido qualunque pagina ci si metta dietro.
+
+  Nella stessa domanda: **«come vedo le credenziali di tutti i
+  collaboratori»**. Non si vedono, e di proposito: le password sono
+  salvate come hash, nessuno può rileggerle — nemmeno l'admin, nemmeno
+  dal database. **Risposta data**: Team e accessi → «Password» accanto al
+  collaboratore → se ne imposta una nuova.
+
 ### Richieste di Flavia — 2026-08-04 (WhatsApp, dopo un giro sezione per sezione)
 
 Ognuna verificata sul codice, non ipotizzata: dove il campo già esiste manca

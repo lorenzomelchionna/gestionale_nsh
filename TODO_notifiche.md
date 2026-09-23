@@ -1686,6 +1686,15 @@ sotto come voce aperta.
   di quel collaboratore saltano da 12:00 a 14:00 — sparisce anche 12:30,
   perché un servizio di un'ora finirebbe dentro la pausa.
 
+  [PR #125](https://github.com/lorenzomelchionna/gestionale_nsh/pull/125)
+  → `develop`, [PR #126](https://github.com/lorenzomelchionna/gestionale_nsh/pull/126)
+  → `main` (commit `0858991`), CI verde su entrambe (8/8 su #126).
+  **Deploy confermato** il 2026-09-23 alle 10:47 UTC: backend, frontend e
+  worker `SUCCESS` e `online`, `/health` → 200, `www.newstylehair.it` →
+  200, e la stringa «Assenze» presente nel bundle JavaScript servito in
+  produzione — cioè la tab rinominata è quella che vede chi apre la
+  pagina, non solo quella nel repository.
+
   Ma se la richiede di nuovo, il permesso a ore non le basta, e il perché
   è nel codice: la griglia del calendario **le assenze non le carica né le
   disegna**. `getAbsences` in `CalendarPage.tsx` è chiamato solo dentro il

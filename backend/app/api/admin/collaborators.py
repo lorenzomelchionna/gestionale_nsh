@@ -8,7 +8,7 @@ from app.models.collaborator import Collaborator, CollaboratorSchedule, Collabor
 from app.models.service import Service
 from app.models.user import User
 from app.schemas.collaborator import (
-    CollaboratorCreate, CollaboratorUpdate, CollaboratorOut,
+    CollaboratorCreate, CollaboratorUpdate, CollaboratorOut, CollaboratorOrder,
     CollaboratorScheduleBase, CollaboratorScheduleOut,
 )
 from app.schemas.common import PaginatedResponse
@@ -48,6 +48,7 @@ async def list_collaborators(
     )
     if active_only:
         q = q.where(Collaborator.is_active == True)
+    q = q.order_by(Collaborator.position, Collaborator.id)
 
     total = (await db.execute(select(func.count()).select_from(q.subquery()))).scalar_one()
     result = await db.execute(q.offset((page - 1) * page_size).limit(page_size))
@@ -68,11 +69,36 @@ async def create_collaborator(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(require_admin)],
 ):
-    collab = Collaborator(**payload.model_dump())
+    ultima = (await db.execute(select(func.max(Collaborator.position)))).scalar()
+    collab = Collaborator(
+        **payload.model_dump(),
+        position=0 if ultima is None else ultima + 1,
+    )
     db.add(collab)
     await db.flush()
     await db.refresh(collab, ["schedules", "services"])
     return _build_out(collab)
+
+
+@router.put("/order", status_code=status.HTTP_204_NO_CONTENT)
+async def reorder_collaborators(
+    payload: CollaboratorOrder,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(require_admin)],
+):
+    # Declared before the `/{collaborator_id}` routes on purpose: FastAPI
+    # matches in order, and `PUT /{collaborator_id}` would take "order" as an
+    # id and answer 422.
+    collabs = (await db.execute(select(Collaborator))).scalars().all()
+    if len(payload.ids) != len(set(payload.ids)) or set(payload.ids) != {c.id for c in collabs}:
+        raise HTTPException(
+            status_code=400,
+            detail="L'elenco non corrisponde ai collaboratori attuali. Ricarica la pagina e riprova.",
+        )
+    per_id = {c.id: c for c in collabs}
+    for posizione, cid in enumerate(payload.ids):
+        per_id[cid].position = posizione
+    await db.flush()
 
 
 @router.get("/{collaborator_id}", response_model=CollaboratorOut)

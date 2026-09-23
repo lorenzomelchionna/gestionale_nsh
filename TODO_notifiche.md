@@ -51,6 +51,105 @@ ancora la Sandbox `+14155238886`), `TWILIO_TEMPLATE_CONFERMA`,
 (fallback). `whatsapp_enabled=true` in BookingConfig.
 
 ### Restano (NON bloccanti)
+- [x] ~~**Conferme per appuntamenti già passati**~~ — **corretto e
+  rilasciato il 2026-09-23**, prima che il salone caricasse lo storico.
+
+  `create_appointment` lato gestionale accoda sempre una conferma, e in
+  tutta la catena — endpoint, task Celery, `notify_booking_confirmation` —
+  non c'era **nessun controllo sulla data**. Per l'uso normale non si
+  vedeva: si confermano appuntamenti futuri. Si sarebbe visto al primo
+  caricamento dello storico, dove ogni riga inserita manda alla cliente una
+  conferma via email **e** WhatsApp per una data trascorsa.
+
+  Non solo rumore: i template utility fuori dalla finestra di 24 ore si
+  pagano, e una raffica di messaggi inattesi è il modo più rapido per far
+  segnalare un numero WhatsApp — sul fisso, attivato il giorno prima e
+  senza storico di invii a difenderlo, sarebbe stato il primo banco di
+  prova della sua reputazione.
+
+  La guardia sta in `notify_booking_confirmation` (`app/utils/notifications.py`)
+  e **non nell'endpoint**, così copre anche il passaggio `pending →
+  confirmed` e qualunque chiamante venga aggiunto dopo. I promemoria non
+  erano interessati: interrogano una finestra futura, lo storico non li
+  sveglia.
+
+  Test scritto prima della correzione (`tests/test_conferma_appuntamenti_passati.py`):
+  i due casi «passato» rossi per il motivo giusto — i messaggi partivano
+  davvero — e il caso «futuro» già verde, a dire che la guardia non stava
+  per spegnere il caso normale.
+
+  Nella stessa PR, **i contatti facoltativi lato gestionale**: chiesto di
+  poter registrare clienti senza email, o senza né email né telefono, solo
+  da admin, e di completare i dati dopo.
+  ~~«Si è scoperto che funzionava già da capo a fondo»~~ — **questa riga
+  era falsa, per metà.** Creare una scheda senza contatti funzionava
+  davvero. **Completarla dopo no**: l'endpoint c'era e il test lo provava,
+  ma nell'interfaccia **non esisteva nessun pulsante** per modificare o
+  eliminare un cliente — `updateClient` importato e mai chiamato fin dal
+  commit iniziale, `deleteClient` mai scritto. L'ha scoperto Flavia lo
+  stesso giorno, arrivando a un vicolo cieco: «Crea accesso portale» le
+  diceva di aggiungere l'email «dalla modifica cliente», che non c'era.
+  Corretto nella voce «Modifica ed elimina cliente» più sotto.
+
+  La lezione è la stessa che questo file ha già scritto in cima per
+  WhatsApp: **un test sull'API dice che il codice è giusto, non che la
+  persona ci arriva.** Qui era stato verificato l'endpoint e letto il form,
+  ma nessuno aveva cercato il pulsante che apre il form in modifica.
+
+  [PR #121](https://github.com/lorenzomelchionna/gestionale_nsh/pull/121)
+  → `develop`, [PR #122](https://github.com/lorenzomelchionna/gestionale_nsh/pull/122)
+  → `main` (commit `be575e0`), CI verde su entrambe (8/8 su #122). 738 test.
+  **Deploy confermato**: backend, frontend e worker tutti `SUCCESS` e
+  `online`, riavviati alle 07:33 UTC. `/health` → 200,
+  `www.newstylehair.it` → 200, worker `celery@... ready` con beat avviato,
+  nessun errore vero nei log.
+
+  *Nota per chi legge i log di Railway*: le righe di alembic all'avvio
+  compaiono con severity `error` perché alembic scrive su stderr. Sono
+  `INFO`, non errori.
+- [x] ~~**Modifica ed elimina cliente**~~ — **corretto il 2026-09-23**,
+  segnalato da Flavia con due foto: una scheda senza contatti, e «Crea
+  accesso portale» che le diceva di aggiungere l'email «dalla modifica
+  cliente». Quel comando **non è mai esistito**: nella scheda cliente
+  c'erano solo accesso portale e «Unisci duplicato», nell'elenco solo
+  «Nuovo cliente». Il form sapeva già modificare (titolo «Modifica
+  cliente» compreso) ma nessun pulsante lo apriva in modifica.
+
+  Ora nella scheda cliente ci sono **Modifica** ed **Elimina**, con una
+  conferma che dice cosa succede: la scheda sparisce da elenco e ricerca,
+  appuntamenti e incassi restano nello storico, e se c'è un accesso al
+  portale non si potrà più prenotare. Il form è passato in
+  `components/admin/ClientFormSheet.tsx`, condiviso da elenco e scheda.
+
+  Due difetti trovati sulla strada, entrambi corretti nello stesso giro:
+  - **Svuotare un campo non lo cancellava.** Il form mandava `undefined`,
+    che sparisce dal JSON; l'aggiornamento tocca solo i campi ricevuti,
+    quindi l'email vecchia restava. Ora manda `null` — fissato lato server
+    da `test_un_contatto_si_puo_anche_togliere`.
+  - **Gli errori del server non si vedevano.** Un telefono troppo corto o
+    un'email come `rosa@b` (valida per il browser, non per il server)
+    davano 422 e niente a schermo. Ora il messaggio compare nel form, in
+    italiano.
+
+  E una terza cosa: **tutte** le azioni della scheda (modifica, elimina,
+  unisci, accesso portale, password) sono solo admin sul server, ma i
+  pulsanti comparivano anche ai collaboratori, che cliccando ricevevano un
+  403. Ora il gruppo intero si vede solo da admin.
+
+  Verificato nel browser, percorso completo: scheda creata senza contatti
+  → Modifica → telefono ed email aggiunti e visibili → «Crea accesso
+  portale» ora mostra l'indirizzo e si attiva → errori di telefono ed
+  email mostrati → email svuotata davvero → Elimina → scheda sparita da
+  elenco e ricerca. Da collaboratrice nessun pulsante, anagrafica ancora
+  leggibile.
+- [ ] **Il calendario chiede un'impostazione che ai collaboratori è
+  negata** — trovato il 2026-09-23 mentre si provava la scheda cliente da
+  collaboratrice. `CalendarPage` carica sempre `GET
+  /api/admin/settings/booking`, che è solo admin: a un collaboratore
+  risponde 403, e il calendario lavora senza la configurazione del
+  salone (giorni di chiusura compresi). Da decidere se esporre ai
+  collaboratori la parte di configurazione che serve al calendario, o non
+  chiederla quando non si è admin.
 - [ ] **`min_cancel_hours` (24) supera `min_advance_hours` (2) in
   produzione** — trovato il 2026-09-22 durante la prova di prenotazione sul
   numero fisso: prenotazione riuscita, cancellazione rifiutata. Non un bug
@@ -1487,6 +1586,124 @@ password" — quella non invalida nessuna sessione.
 Non bloccano il go-live: il gestionale funziona senza. Stanno qui separate
 apposta, così le caselle aperte qui sotto non si confondono con quelle della
 roadmap sopra.
+
+### Richieste di Flavia — 2026-09-23 (primo giorno col database vuoto)
+
+Cinque punti, ognuno controllato sul codice prima di decidere se era una
+risposta o un lavoro. Tre avevano una risposta immediata; ma due di quelle
+tre, guardate da vicino, nascondevano un difetto vero, che è registrato qui
+sotto come voce aperta.
+
+- [x] ~~**Ordine dei collaboratori nel calendario**~~ — «Vincenzo al
+  centro». **Fatto il 2026-09-23.** Non si poteva, e non per
+  un'impostazione mancante: `list_collaborators` **non aveva nessun
+  `ORDER BY`**, quindi le colonne uscivano nell'ordine fisico delle righe
+  in Postgres. Non solo sbagliato, **instabile**: provato con un test,
+  cambiare il telefono ad Anna in un elenco Anna, Bea, Carla dava Bea,
+  Carla, Anna — la riga aggiornata diventa una tupla nuova e torna in fondo.
+
+  Cosa c'è ora:
+  - colonna `position` (migration `c4e7a2d91b05`, backfill in ordine di id,
+    cioè l'ordine di prima: il rilascio da solo non sposta niente);
+  - `ORDER BY position, id` sull'elenco admin **e** su quello del portale,
+    così la cliente che sceglie con chi prenotare vede lo stesso ordine
+    del calendario;
+  - `PUT /api/admin/collaborators/order` con l'elenco completo degli id:
+    una scrittura sola, niente buchi né doppioni, e un elenco che non
+    combacia — pagina rimasta indietro, collaboratore appena aggiunto in
+    un'altra scheda — viene **rifiutato per intero** invece che applicato
+    a metà. Dichiarato prima delle rotte `/{collaborator_id}`: dopo,
+    FastAPI legge «order» come un id e risponde 422 (verificato);
+  - un collaboratore nuovo va **in fondo**;
+  - nella pagina Collaboratori una striscia **«Ordine nel calendario»**
+    con i nomi in fila e le frecce ‹ ›. Prima versione con le frecce su
+    ogni card, scartata dopo averla vista: a 1024 px — un tablet in
+    orizzontale — il nome restava largo **31 pixel**.
+
+  Vincenzo al centro **si imposta dopo il rilascio**, con un clic, e non
+  nella migration: sarebbero dati di un salone nella storia dello schema,
+  e la migration gira anche su database vuoti.
+
+- [ ] **Vedere se un messaggio è arrivato** — domanda di Flavia: «dove vedo
+  se al cliente è arrivato il messaggio?». **Nel gestionale oggi da
+  nessuna parte.** Per le notifiche automatiche (conferme, promemoria) il
+  gestionale non registra niente: la tabella `communications` esiste ma
+  non la scrive nessuno, e sul Sender non c'è `status_callback`, quindi
+  Twilio non gli racconta mai l'esito. Per le risposte dalla pagina Chat
+  lo stato arriva fino a `sent`, che vuol dire «Twilio l'ha preso», non
+  «è arrivato sul telefono».
+
+  **Risposta data intanto**: l'esito vero sta nella console Twilio, Monitor
+  → Logs → Messaging, con `delivered` / `read` / `failed` per messaggio.
+
+  **Il lavoro**: un endpoint per i callback di stato di Twilio, impostato
+  sul Sender, che aggiorni lo stato del messaggio — e da mostrare dove il
+  salone lo cerca, cioè sulla scheda cliente e sull'appuntamento. È lo
+  stesso punto cieco che questo file ha già registrato il 17 settembre in
+  cima: «la richiesta va a buon fine, la consegna fallisce, e il registro
+  di Twilio non lo guardava nessuno».
+
+- [ ] **La PAUSA non si vede nel calendario** — Flavia chiede un «servizio
+  PAUSA solo per i collaboratori». È **la stessa richiesta del 4 agosto**,
+  risolta allora coi **permessi a ore** (`tests/test_partial_absences.py`):
+  un servizio avrebbe voluto un cliente finto per ogni pausa, perché
+  `appointments.client_id` è obbligatorio.
+
+  **Risposta data intanto**: Collaboratori → il collaboratore → «Aggiungi
+  assenza» → spunta «Solo alcune ore» → Dalle / Alle → Tipo «Permesso».
+
+  Ma se la richiede di nuovo, il permesso a ore non le basta, e il perché
+  è nel codice: la griglia del calendario **le assenze non le carica né le
+  disegna**. `getAbsences` in `CalendarPage.tsx` è chiamato solo dentro il
+  modale di nuovo appuntamento. Una pausa blocca le prenotazioni online,
+  ma nel calendario quell'ora sembra libera — chi guarda l'agenda non la
+  vede. Il lavoro: disegnare assenze e permessi nella griglia, come blocco
+  grigio nella colonna del collaboratore.
+
+  Trovato insieme, **un difetto**: nel modale di nuovo appuntamento
+  `isClosedDay` considera chiusa **l'intera giornata** per qualunque
+  assenza, anche un permesso di due ore, perché confronta solo le date e
+  non guarda `start_time` / `end_time`.
+
+  Da chiarire con Flavia: se «solo per i collaboratori» vuol dire anche
+  che **i collaboratori stessi** devono potersela mettere. Oggi creare e
+  cancellare assenze è solo admin (`EXPECTED_GUARDS`: `POST` e `DELETE`
+  su `/api/admin/absences` → `admin`).
+
+- [ ] **«Rivedere il tempo di risposta ai messaggi WhatsApp»** — richiesta
+  ambigua, **da chiarire con Flavia prima di toccare codice**. La lettura
+  più probabile, e quella che il codice rende plausibile: non è che i
+  messaggi arrivino tardi, è che **ci si accorge tardi che sono
+  arrivati**. Col fisso sull'app WhatsApp Business ogni messaggio era una
+  notifica sul telefono; adesso finisce nella pagina Chat e basta:
+  - il webhook in entrata salva il messaggio e **non avvisa nessuno**;
+  - il badge nel menu si aggiorna ogni 30 secondi, la conversazione aperta
+    ogni 15;
+  - e nessuna query ha `refetchIntervalInBackground`, quindi con il
+    gestionale in una scheda dietro — o lo schermo del telefono spento —
+    **non si aggiorna proprio** finché non ci si torna sopra.
+
+  Le strade vanno da un suono e un titolo di scheda lampeggiante (poco) a
+  una notifica push o un'email allo staff per ogni messaggio in entrata
+  (di più). Quale serve dipende da dove sta il gestionale durante la
+  giornata in salone — domanda da fare, non da indovinare.
+
+- [ ] **Una pagina per chi arriva dal QR code** — Flavia vuole mettere un
+  QR in salone perché le clienti scoprano il nuovo sistema, e chiede una
+  «schermata diversa». **Risposta data intanto**: `www.newstylehair.it`
+  apre già la home del portale clienti (`BookingHomePage`), non il login
+  dello staff — un QR verso quell'indirizzo funziona da oggi. Il lavoro,
+  se lo vuole: una pagina di benvenuto che spieghi cosa si può fare
+  (prenotare, vedere gli appuntamenti, la lista d'attesa) prima di
+  chiedere la registrazione. Contenuto da decidere con lei. Il QR va
+  comunque fatto puntare al dominio e non a un percorso interno: così
+  resta valido qualunque pagina ci si metta dietro.
+
+  Nella stessa domanda: **«come vedo le credenziali di tutti i
+  collaboratori»**. Non si vedono, e di proposito: le password sono
+  salvate come hash, nessuno può rileggerle — nemmeno l'admin, nemmeno
+  dal database. **Risposta data**: Team e accessi → «Password» accanto al
+  collaboratore → se ne imposta una nuova.
 
 ### Richieste di Flavia — 2026-08-04 (WhatsApp, dopo un giro sezione per sezione)
 

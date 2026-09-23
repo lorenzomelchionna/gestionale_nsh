@@ -1,15 +1,18 @@
 import { useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { KeyRound, Merge, UserPlus } from 'lucide-react'
+import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { KeyRound, Merge, UserPlus, Pencil, Trash2 } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { it } from 'date-fns/locale'
-import { getClient, getClientAppointments } from '@/services/api'
-import type { Appointment } from '@/types'
+import { getClient, getClientAppointments, updateClient, deleteClient } from '@/services/api'
+import type { Appointment, Client } from '@/types'
 import { SkeletonList } from '@/components/ui'
+import Sheet from '@/components/ui/Sheet'
+import { useAuthStore } from '@/store/authStore'
 import MergeClientsSheet from '@/components/admin/MergeClientsSheet'
 import ClientPasswordSheet from '@/components/admin/ClientPasswordSheet'
 import ClientPortalAccountSheet from '@/components/admin/ClientPortalAccountSheet'
+import ClientFormSheet from '@/components/admin/ClientFormSheet'
 import clsx from 'clsx'
 
 const STATUS_LABELS: Record<string, string> = {
@@ -27,6 +30,32 @@ export default function ClientDetailPage() {
   const [showMerge, setShowMerge] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [showNewAccount, setShowNewAccount] = useState(false)
+  const [showEdit, setShowEdit] = useState(false)
+  const [showDelete, setShowDelete] = useState(false)
+  const qc = useQueryClient()
+  const navigate = useNavigate()
+  // Collaborators can open a client too, but every action in the header —
+  // edit, delete, merge, portal access and password — is admin-only on the
+  // server: showing them the buttons would promise a 403.
+  const isAdmin = useAuthStore(s => s.user?.role === 'admin')
+
+  // Every list that shows this client: the archive, the calendar's client
+  // picker, and the record itself.
+  const refreshClientLists = () => {
+    qc.invalidateQueries({ queryKey: ['client', clientId] })
+    qc.invalidateQueries({ queryKey: ['clients'] })
+    qc.invalidateQueries({ queryKey: ['clients-all'] })
+  }
+
+  const updateMut = useMutation({
+    mutationFn: (data: Partial<Client>) => updateClient(clientId, data),
+    onSuccess: () => { refreshClientLists(); setShowEdit(false) },
+  })
+
+  const deleteMut = useMutation({
+    mutationFn: () => deleteClient(clientId),
+    onSuccess: () => { refreshClientLists(); navigate('/admin/clients') },
+  })
 
   const { data: client, isLoading } = useQuery({
     queryKey: ['client', clientId],
@@ -63,7 +92,17 @@ export default function ClientDetailPage() {
             manutenzione che capita di rado, non un gesto quotidiano — e da
             qui è chiaro *quale* scheda resta, cioè quella che si sta
             guardando. */}
-        <div className="flex items-center gap-2 ml-auto">
+        {isAdmin && (
+        <div className="flex flex-wrap items-center gap-2 ml-auto">
+          <button
+            type="button"
+            onClick={() => { updateMut.reset(); setShowEdit(true) }}
+            className="btn-secondary btn-sm"
+          >
+            <Pencil className="w-4 h-4" />
+            Modifica
+          </button>
+
           {/* Solo per chi ha un accesso online: su una cliente da banco non
               c'è nessuna password da reimpostare, e il pulsante prometterebbe
               qualcosa che l'API rifiuta. */}
@@ -102,8 +141,66 @@ export default function ClientDetailPage() {
             <Merge className="w-4 h-4" />
             Unisci duplicato
           </button>
+
+          <button
+            type="button"
+            onClick={() => { deleteMut.reset(); setShowDelete(true) }}
+            className="btn-danger-outline btn-sm"
+          >
+            <Trash2 className="w-4 h-4" />
+            Elimina
+          </button>
         </div>
+        )}
       </div>
+
+      {showEdit && (
+        <ClientFormSheet
+          client={client}
+          onClose={() => setShowEdit(false)}
+          onSave={(data) => updateMut.mutate(data)}
+          loading={updateMut.isPending}
+          error={updateMut.error}
+        />
+      )}
+
+      {showDelete && (
+        <Sheet
+          onClose={() => setShowDelete(false)}
+          title="Eliminare la scheda?"
+          footer={
+            <>
+              <button type="button" onClick={() => setShowDelete(false)} className="btn-secondary btn-sm">
+                Annulla
+              </button>
+              <button
+                type="button"
+                onClick={() => deleteMut.mutate()}
+                disabled={deleteMut.isPending}
+                className="btn-danger btn-sm"
+              >
+                {deleteMut.isPending ? 'Eliminazione...' : 'Elimina'}
+              </button>
+            </>
+          }
+        >
+          <div className="space-y-3 text-sm text-foreground">
+            <p>
+              <strong>{client.first_name} {client.last_name}</strong> sparisce
+              dall'elenco clienti e dalla ricerca.
+            </p>
+            <p className="text-muted-foreground">
+              Gli appuntamenti e gli incassi già registrati restano nello storico.
+              {client.account_id != null && ' Ha un accesso al portale: da ora non potrà più prenotare.'}
+            </p>
+            {deleteMut.isError && (
+              <p role="alert" className="text-[13px] text-danger bg-danger/10 px-3 py-2.5">
+                Eliminazione non riuscita. Riprova.
+              </p>
+            )}
+          </div>
+        </Sheet>
+      )}
 
       {showMerge && (
         <MergeClientsSheet target={client} onClose={() => setShowMerge(false)} />

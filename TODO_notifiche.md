@@ -1667,8 +1667,24 @@ sotto come voce aperta.
   un servizio avrebbe voluto un cliente finto per ogni pausa, perché
   `appointments.client_id` è obbligatorio.
 
-  **Risposta data intanto**: Collaboratori → il collaboratore → «Aggiungi
-  assenza» → spunta «Solo alcune ore» → Dalle / Alle → Tipo «Permesso».
+  ~~«Risposta data intanto: Collaboratori → il collaboratore → «Aggiungi
+  assenza» → …»~~ — **istruzione incompleta, e Flavia non ha trovato il
+  pulsante.** Scritta leggendo l'etichetta nel codice, senza aprire la
+  pagina: «Aggiungi assenza» sta dentro una tab della card, che si
+  chiamava **«Ferie»** — cioè il posto in cui nessuno cerca una pausa,
+  anche se lì dentro ci sono pure permessi a ore e malattia. Tab
+  rinominata **«Assenze»** il 2026-09-23. Con l'etichetta più lunga la
+  riga di tab sforava la card a 1024 px (264 px in 237; già prima di 11,
+  e «Straord.» risultava tagliata): recuperato lo spazio dalla spaziatura,
+  non dai nomi.
+
+  **Percorso verificato nel browser**, clic per clic: Collaboratori → card
+  del collaboratore → tab **«Assenze»** → «Aggiungi assenza» → spunta
+  «Solo alcune ore» → Dal / Al (stesso giorno) → Dalle / Alle → Tipo
+  **«Permesso»** (è preselezionato «Ferie») → nota facoltativa, es.
+  «Pausa pranzo» → Salva. Provato con 13:00–14:00: le prenotazioni online
+  di quel collaboratore saltano da 12:00 a 14:00 — sparisce anche 12:30,
+  perché un servizio di un'ora finirebbe dentro la pausa.
 
   Ma se la richiede di nuovo, il permesso a ore non le basta, e il perché
   è nel codice: la griglia del calendario **le assenze non le carica né le

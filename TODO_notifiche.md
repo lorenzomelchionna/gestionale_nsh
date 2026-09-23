@@ -243,8 +243,16 @@ ancora la Sandbox `+14155238886`), `TWILIO_TEMPLATE_CONFERMA`,
   corso» → riarchiviata e riaperta subito, pulsante giusto. Su telefono a
   375 px nessuno scorrimento orizzontale.
 
-  Le due conversazioni vere si recuperano da «Archiviate» appena questo è
-  in produzione.
+  [PR #131](https://github.com/lorenzomelchionna/gestionale_nsh/pull/131)
+  → `develop`, [PR #132](https://github.com/lorenzomelchionna/gestionale_nsh/pull/132)
+  → `main` (commit `2e72f77`), CI verde su entrambe (8/8 su #132).
+  **Deploy confermato** il 2026-09-23: backend e frontend `SUCCESS` alle
+  13:03–13:04 UTC, worker alle 13:05. `/health` → 200,
+  `www.newstylehair.it` → 200, e «Archiviate» e «Riporta in lista»
+  presenti nel bundle JavaScript servito in produzione.
+
+  Le due conversazioni vere **ora si recuperano**: Chat → «Archiviate» →
+  apri la conversazione → «Riporta in lista».
 - [ ] **Il calendario chiede un'impostazione che ai collaboratori è
   negata** — trovato il 2026-09-23 mentre si provava la scheda cliente da
   collaboratrice. `CalendarPage` carica sempre `GET

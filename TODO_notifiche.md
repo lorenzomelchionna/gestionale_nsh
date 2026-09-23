@@ -51,6 +51,55 @@ ancora la Sandbox `+14155238886`), `TWILIO_TEMPLATE_CONFERMA`,
 (fallback). `whatsapp_enabled=true` in BookingConfig.
 
 ### Restano (NON bloccanti)
+- [x] ~~**Conferme per appuntamenti già passati**~~ — **corretto e
+  rilasciato il 2026-09-23**, prima che il salone caricasse lo storico.
+
+  `create_appointment` lato gestionale accoda sempre una conferma, e in
+  tutta la catena — endpoint, task Celery, `notify_booking_confirmation` —
+  non c'era **nessun controllo sulla data**. Per l'uso normale non si
+  vedeva: si confermano appuntamenti futuri. Si sarebbe visto al primo
+  caricamento dello storico, dove ogni riga inserita manda alla cliente una
+  conferma via email **e** WhatsApp per una data trascorsa.
+
+  Non solo rumore: i template utility fuori dalla finestra di 24 ore si
+  pagano, e una raffica di messaggi inattesi è il modo più rapido per far
+  segnalare un numero WhatsApp — sul fisso, attivato il giorno prima e
+  senza storico di invii a difenderlo, sarebbe stato il primo banco di
+  prova della sua reputazione.
+
+  La guardia sta in `notify_booking_confirmation` (`app/utils/notifications.py`)
+  e **non nell'endpoint**, così copre anche il passaggio `pending →
+  confirmed` e qualunque chiamante venga aggiunto dopo. I promemoria non
+  erano interessati: interrogano una finestra futura, lo storico non li
+  sveglia.
+
+  Test scritto prima della correzione (`tests/test_conferma_appuntamenti_passati.py`):
+  i due casi «passato» rossi per il motivo giusto — i messaggi partivano
+  davvero — e il caso «futuro» già verde, a dire che la guardia non stava
+  per spegnere il caso normale.
+
+  Nella stessa PR, **i contatti facoltativi lato gestionale**: chiesto di
+  poter registrare clienti senza email, o senza né email né telefono, solo
+  da admin. Si è scoperto che **funzionava già da capo a fondo** — schemi
+  con entrambi i campi opzionali su `ClientCreate` e obbligatori su
+  `ClientRegister`, form con solo nome e cognome obbligatori, i vuoti
+  convertiti in `undefined`, ogni percorso di notifica che controlla il
+  contatto prima di usarlo, ed entrambe le viste cliente che mostrano già
+  «Nessun contatto». Non c'era però un solo test a dirlo: reggeva per la
+  forma del codice, non per qualcosa che protesti se cambia. Nove test in
+  `tests/test_client_contatti_facoltativi.py` lo rendono un contratto.
+
+  [PR #121](https://github.com/lorenzomelchionna/gestionale_nsh/pull/121)
+  → `develop`, [PR #122](https://github.com/lorenzomelchionna/gestionale_nsh/pull/122)
+  → `main` (commit `be575e0`), CI verde su entrambe (8/8 su #122). 738 test.
+  **Deploy confermato**: backend, frontend e worker tutti `SUCCESS` e
+  `online`, riavviati alle 07:33 UTC. `/health` → 200,
+  `www.newstylehair.it` → 200, worker `celery@... ready` con beat avviato,
+  nessun errore vero nei log.
+
+  *Nota per chi legge i log di Railway*: le righe di alembic all'avvio
+  compaiono con severity `error` perché alembic scrive su stderr. Sono
+  `INFO`, non errori.
 - [ ] **`min_cancel_hours` (24) supera `min_advance_hours` (2) in
   produzione** — trovato il 2026-09-22 durante la prova di prenotazione sul
   numero fisso: prenotazione riuscita, cancellazione rifiutata. Non un bug

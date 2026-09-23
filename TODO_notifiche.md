@@ -142,6 +142,11 @@ ancora la Sandbox `+14155238886`), `TWILIO_TEMPLATE_CONFERMA`,
   email mostrati → email svuotata davvero → Elimina → scheda sparita da
   elenco e ricerca. Da collaboratrice nessun pulsante, anagrafica ancora
   leggibile.
+
+  Rilasciato insieme all'ordine dei collaboratori, stessa PR ([#123](https://github.com/lorenzomelchionna/gestionale_nsh/pull/123)
+  → `develop`, [#124](https://github.com/lorenzomelchionna/gestionale_nsh/pull/124)
+  → `main`, commit `143bc51`): **deploy confermato** il 2026-09-23 alle
+  10:20 UTC, dettagli nella voce «Ordine dei collaboratori nel calendario».
 - [ ] **Il calendario chiede un'impostazione che ai collaboratori è
   negata** — trovato il 2026-09-23 mentre si provava la scheda cliente da
   collaboratrice. `CalendarPage` carica sempre `GET
@@ -1624,6 +1629,19 @@ sotto come voce aperta.
   nella migration: sarebbero dati di un salone nella storia dello schema,
   e la migration gira anche su database vuoti.
 
+  [PR #123](https://github.com/lorenzomelchionna/gestionale_nsh/pull/123)
+  → `develop`, [PR #124](https://github.com/lorenzomelchionna/gestionale_nsh/pull/124)
+  → `main` (commit `143bc51`), CI verde su entrambe (8/8 su #124). 750
+  test. **Deploy confermato** il 2026-09-23 alle 10:20 UTC: backend,
+  frontend e worker `SUCCESS` e `online`. Nei log del backend la
+  migration `Running upgrade f8a2e916c4d3 -> c4e7a2d91b05, add position to
+  collaborators`, poi bootstrap completato; worker `celery@... ready`,
+  nessun errore vero. `/health` → 200, `www.newstylehair.it` → 200.
+  Ordine letto dal portale subito dopo: Flavia, Raffaella, Vincenzo —
+  quello di prima, come voleva il backfill.
+  - [ ] **Mettere Vincenzo al centro**: Collaboratori → striscia «Ordine
+    nel calendario» → ‹ accanto a Vincenzo.
+
 - [ ] **Vedere se un messaggio è arrivato** — domanda di Flavia: «dove vedo
   se al cliente è arrivato il messaggio?». **Nel gestionale oggi da
   nessuna parte.** Per le notifiche automatiche (conferme, promemoria) il
@@ -1649,8 +1667,24 @@ sotto come voce aperta.
   un servizio avrebbe voluto un cliente finto per ogni pausa, perché
   `appointments.client_id` è obbligatorio.
 
-  **Risposta data intanto**: Collaboratori → il collaboratore → «Aggiungi
-  assenza» → spunta «Solo alcune ore» → Dalle / Alle → Tipo «Permesso».
+  ~~«Risposta data intanto: Collaboratori → il collaboratore → «Aggiungi
+  assenza» → …»~~ — **istruzione incompleta, e Flavia non ha trovato il
+  pulsante.** Scritta leggendo l'etichetta nel codice, senza aprire la
+  pagina: «Aggiungi assenza» sta dentro una tab della card, che si
+  chiamava **«Ferie»** — cioè il posto in cui nessuno cerca una pausa,
+  anche se lì dentro ci sono pure permessi a ore e malattia. Tab
+  rinominata **«Assenze»** il 2026-09-23. Con l'etichetta più lunga la
+  riga di tab sforava la card a 1024 px (264 px in 237; già prima di 11,
+  e «Straord.» risultava tagliata): recuperato lo spazio dalla spaziatura,
+  non dai nomi.
+
+  **Percorso verificato nel browser**, clic per clic: Collaboratori → card
+  del collaboratore → tab **«Assenze»** → «Aggiungi assenza» → spunta
+  «Solo alcune ore» → Dal / Al (stesso giorno) → Dalle / Alle → Tipo
+  **«Permesso»** (è preselezionato «Ferie») → nota facoltativa, es.
+  «Pausa pranzo» → Salva. Provato con 13:00–14:00: le prenotazioni online
+  di quel collaboratore saltano da 12:00 a 14:00 — sparisce anche 12:30,
+  perché un servizio di un'ora finirebbe dentro la pausa.
 
   Ma se la richiede di nuovo, il permesso a ore non le basta, e il perché
   è nel codice: la griglia del calendario **le assenze non le carica né le

@@ -80,14 +80,21 @@ ancora la Sandbox `+14155238886`), `TWILIO_TEMPLATE_CONFERMA`,
 
   Nella stessa PR, **i contatti facoltativi lato gestionale**: chiesto di
   poter registrare clienti senza email, o senza né email né telefono, solo
-  da admin. Si è scoperto che **funzionava già da capo a fondo** — schemi
-  con entrambi i campi opzionali su `ClientCreate` e obbligatori su
-  `ClientRegister`, form con solo nome e cognome obbligatori, i vuoti
-  convertiti in `undefined`, ogni percorso di notifica che controlla il
-  contatto prima di usarlo, ed entrambe le viste cliente che mostrano già
-  «Nessun contatto». Non c'era però un solo test a dirlo: reggeva per la
-  forma del codice, non per qualcosa che protesti se cambia. Nove test in
-  `tests/test_client_contatti_facoltativi.py` lo rendono un contratto.
+  da admin, e di completare i dati dopo.
+  ~~«Si è scoperto che funzionava già da capo a fondo»~~ — **questa riga
+  era falsa, per metà.** Creare una scheda senza contatti funzionava
+  davvero. **Completarla dopo no**: l'endpoint c'era e il test lo provava,
+  ma nell'interfaccia **non esisteva nessun pulsante** per modificare o
+  eliminare un cliente — `updateClient` importato e mai chiamato fin dal
+  commit iniziale, `deleteClient` mai scritto. L'ha scoperto Flavia lo
+  stesso giorno, arrivando a un vicolo cieco: «Crea accesso portale» le
+  diceva di aggiungere l'email «dalla modifica cliente», che non c'era.
+  Corretto nella voce «Modifica ed elimina cliente» più sotto.
+
+  La lezione è la stessa che questo file ha già scritto in cima per
+  WhatsApp: **un test sull'API dice che il codice è giusto, non che la
+  persona ci arriva.** Qui era stato verificato l'endpoint e letto il form,
+  ma nessuno aveva cercato il pulsante che apre il form in modifica.
 
   [PR #121](https://github.com/lorenzomelchionna/gestionale_nsh/pull/121)
   → `develop`, [PR #122](https://github.com/lorenzomelchionna/gestionale_nsh/pull/122)
@@ -100,6 +107,49 @@ ancora la Sandbox `+14155238886`), `TWILIO_TEMPLATE_CONFERMA`,
   *Nota per chi legge i log di Railway*: le righe di alembic all'avvio
   compaiono con severity `error` perché alembic scrive su stderr. Sono
   `INFO`, non errori.
+- [x] ~~**Modifica ed elimina cliente**~~ — **corretto il 2026-09-23**,
+  segnalato da Flavia con due foto: una scheda senza contatti, e «Crea
+  accesso portale» che le diceva di aggiungere l'email «dalla modifica
+  cliente». Quel comando **non è mai esistito**: nella scheda cliente
+  c'erano solo accesso portale e «Unisci duplicato», nell'elenco solo
+  «Nuovo cliente». Il form sapeva già modificare (titolo «Modifica
+  cliente» compreso) ma nessun pulsante lo apriva in modifica.
+
+  Ora nella scheda cliente ci sono **Modifica** ed **Elimina**, con una
+  conferma che dice cosa succede: la scheda sparisce da elenco e ricerca,
+  appuntamenti e incassi restano nello storico, e se c'è un accesso al
+  portale non si potrà più prenotare. Il form è passato in
+  `components/admin/ClientFormSheet.tsx`, condiviso da elenco e scheda.
+
+  Due difetti trovati sulla strada, entrambi corretti nello stesso giro:
+  - **Svuotare un campo non lo cancellava.** Il form mandava `undefined`,
+    che sparisce dal JSON; l'aggiornamento tocca solo i campi ricevuti,
+    quindi l'email vecchia restava. Ora manda `null` — fissato lato server
+    da `test_un_contatto_si_puo_anche_togliere`.
+  - **Gli errori del server non si vedevano.** Un telefono troppo corto o
+    un'email come `rosa@b` (valida per il browser, non per il server)
+    davano 422 e niente a schermo. Ora il messaggio compare nel form, in
+    italiano.
+
+  E una terza cosa: **tutte** le azioni della scheda (modifica, elimina,
+  unisci, accesso portale, password) sono solo admin sul server, ma i
+  pulsanti comparivano anche ai collaboratori, che cliccando ricevevano un
+  403. Ora il gruppo intero si vede solo da admin.
+
+  Verificato nel browser, percorso completo: scheda creata senza contatti
+  → Modifica → telefono ed email aggiunti e visibili → «Crea accesso
+  portale» ora mostra l'indirizzo e si attiva → errori di telefono ed
+  email mostrati → email svuotata davvero → Elimina → scheda sparita da
+  elenco e ricerca. Da collaboratrice nessun pulsante, anagrafica ancora
+  leggibile.
+- [ ] **Il calendario chiede un'impostazione che ai collaboratori è
+  negata** — trovato il 2026-09-23 mentre si provava la scheda cliente da
+  collaboratrice. `CalendarPage` carica sempre `GET
+  /api/admin/settings/booking`, che è solo admin: a un collaboratore
+  risponde 403, e il calendario lavora senza la configurazione del
+  salone (giorni di chiusura compresi). Da decidere se esporre ai
+  collaboratori la parte di configurazione che serve al calendario, o non
+  chiederla quando non si è admin.
 - [ ] **`min_cancel_hours` (24) supera `min_advance_hours` (2) in
   produzione** — trovato il 2026-09-22 durante la prova di prenotazione sul
   numero fisso: prenotazione riuscita, cancellazione rifiutata. Non un bug

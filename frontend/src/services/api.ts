@@ -148,6 +148,10 @@ export const createClient = (data: Partial<Client>) =>
 export const updateClient = (id: number, data: Partial<Client>) =>
   api.put<Client>(`/admin/clients/${id}`, data).then(r => r.data)
 
+/** Soft delete: the record leaves every list, its history stays. */
+export const deleteClient = (id: number) =>
+  api.delete(`/admin/clients/${id}`)
+
 export const getClientAppointments = (id: number) =>
   api.get<Appointment[]>(`/admin/clients/${id}/appointments`).then(r => r.data)
 

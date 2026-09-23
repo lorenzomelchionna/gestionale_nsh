@@ -190,6 +190,23 @@ ancora la Sandbox `+14155238886`), `TWILIO_TEMPLATE_CONFERMA`,
   **Al primo giro dopo il rilascio** partirà il promemoria per ogni
   appuntamento confermato entro le 24 ore che non l'ha ancora avuto,
   compreso quello di Flavia se non è ancora passato: è il recupero voluto.
+
+  [PR #127](https://github.com/lorenzomelchionna/gestionale_nsh/pull/127)
+  → `develop`, [PR #128](https://github.com/lorenzomelchionna/gestionale_nsh/pull/128)
+  → `main` (commit `d29e73b`), CI verde su entrambe (8/8 su #128). 760
+  test. **Deploy confermato** il 2026-09-23 alle 12:25 UTC: backend,
+  frontend e worker `SUCCESS`; nei log del backend `Running upgrade
+  c4e7a2d91b05 -> a1f3c8d27e64, add confirmation_sent_at to appointments`;
+  `/health` → 200, frontend → 200.
+
+  **Provato dal vivo, sul caso che l'aveva fatto trovare.** Primo giro del
+  worker dopo il rilascio, 12:30 UTC: `succeeded`, nessun «promemoria non
+  inviato». Dai log da soli non si poteva dire di più — `nsh.whatsapp` e
+  `nsh.email` scrivono solo i fallimenti — quindi la prova l'ha data
+  Twilio, interrogato in sola lettura: dal fisso, alla cliente
+  dell'appuntamento #42, conferma alle 13:45:08 e **promemoria alle
+  14:30:00 ora di Roma**, entrambi `delivered`. Appuntamento per il giorno
+  stesso: col codice di prima quel promemoria non sarebbe partito mai.
 - [ ] **Il calendario chiede un'impostazione che ai collaboratori è
   negata** — trovato il 2026-09-23 mentre si provava la scheda cliente da
   collaboratrice. `CalendarPage` carica sempre `GET

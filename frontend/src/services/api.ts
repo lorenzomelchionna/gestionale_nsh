@@ -121,6 +121,10 @@ export const createCollaborator = (data: Partial<Collaborator>) =>
 export const updateCollaborator = (id: number, data: Partial<Collaborator>) =>
   api.put<Collaborator>(`/admin/collaborators/${id}`, data).then(r => r.data)
 
+/** The whole left-to-right calendar order, as every collaborator's id. */
+export const reorderCollaborators = (ids: number[]) =>
+  api.put('/admin/collaborators/order', { ids })
+
 export const deleteCollaborator = (id: number) =>
   api.delete(`/admin/collaborators/${id}`)
 

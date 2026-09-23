@@ -73,6 +73,7 @@ EXPECTED_GUARDS = {
     ("POST", "/api/admin/clients/{client_id}/portal-account"): "admin",
     ("GET", "/api/admin/collaborators"): "staff",
     ("POST", "/api/admin/collaborators"): "admin",
+    ("PUT", "/api/admin/collaborators/order"): "admin",
     ("DELETE", "/api/admin/collaborators/{collaborator_id}"): "admin",
     ("GET", "/api/admin/collaborators/{collaborator_id}"): "staff",
     ("PUT", "/api/admin/collaborators/{collaborator_id}"): "admin",

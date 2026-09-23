@@ -38,6 +38,16 @@ class CollaboratorUpdate(CollaboratorBase):
     visible_online: Optional[bool] = None
 
 
+class CollaboratorOrder(BaseModel):
+    """The full left-to-right order, as the ids of every collaborator.
+
+    The whole list rather than "move this one up": a single write that cannot
+    leave gaps or two collaborators on the same position, and a request built
+    from a stale page is refused instead of half-applied.
+    """
+    ids: List[int]
+
+
 class CollaboratorOut(CollaboratorBase):
     model_config = {"from_attributes": True}
 

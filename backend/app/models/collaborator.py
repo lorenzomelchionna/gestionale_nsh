@@ -29,6 +29,10 @@ class Collaborator(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     visible_online: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     color: Mapped[str] = mapped_column(String(7), default="#C8A96E", nullable=False)
+    # Left-to-right column order in the calendar, set by the salon. The list
+    # endpoints order by it; without it the rows came back in Postgres's
+    # physical order, which an UPDATE can reshuffle.
+    position: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     # Optional link to a User account
     user_id: Mapped[Optional[int]] = mapped_column(

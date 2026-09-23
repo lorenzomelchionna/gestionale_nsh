@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Check, Edit, Trash2 } from 'lucide-react'
+import { Plus, Check, Edit, Trash2, ChevronLeft, ChevronRight } from 'lucide-react'
 import {
-  getCollaborators, createCollaborator, updateCollaborator,
+  getCollaborators, createCollaborator, updateCollaborator, reorderCollaborators,
   updateCollaboratorSchedule, updateCollaboratorServices, getServices,
   getAbsences, createAbsence, deleteAbsence,
   getExtraWorkDays, createExtraWorkDay, deleteExtraWorkDay,
@@ -73,8 +73,28 @@ export default function CollaboratorsPage() {
   const updateMut = useMutation({ mutationFn: ({ id, data }: any) => updateCollaborator(id, data), onSuccess: () => { inv(); setShowForm(false) } })
   const schedMut = useMutation({ mutationFn: ({ id, s }: any) => updateCollaboratorSchedule(id, s), onSuccess: inv })
   const svcsMut = useMutation({ mutationFn: ({ id, ids }: any) => updateCollaboratorServices(id, ids), onSuccess: inv })
+  const orderMut = useMutation({
+    mutationFn: reorderCollaborators,
+    // On failure too: a refusal means this page's list is out of date, and
+    // refreshing it is what makes the next click work.
+    onSettled: () => {
+      inv()
+      // The calendar reads its columns under its own key.
+      qc.invalidateQueries({ queryKey: ['collaborators-active'] })
+    },
+  })
 
   const collaborators = data?.items ?? []
+
+  // Only active collaborators have a column. The server wants every id, so
+  // the inactive ones follow at the end — where a new one would land too.
+  const attivi = collaborators.filter(c => c.is_active)
+  const move = (index: number, delta: -1 | 1) => {
+    const ids = attivi.map(c => c.id)
+    const target = index + delta
+    ;[ids[index], ids[target]] = [ids[target], ids[index]]
+    orderMut.mutate([...ids, ...collaborators.filter(c => !c.is_active).map(c => c.id)])
+  }
   const services = servicesData?.items ?? []
 
   return (
@@ -87,6 +107,45 @@ export default function CollaboratorsPage() {
           </button>
         }
       />
+
+      {attivi.length > 1 && (
+        <div className="panel px-3.5 py-2.5 flex flex-wrap items-center gap-x-3 gap-y-2">
+          <span className="font-heading text-[11px] uppercase tracking-[0.08em] text-ink-3">
+            Ordine nel calendario
+          </span>
+          {attivi.map((c, i) => (
+            <div
+              key={c.id}
+              className="flex items-center border border-border"
+              style={{ borderLeft: `3px solid ${c.color}` }}
+            >
+              <button
+                onClick={() => move(i, -1)}
+                disabled={i === 0 || orderMut.isPending}
+                className="btn-icon !w-8 !h-8 disabled:opacity-30"
+                aria-label={`Sposta ${c.first_name} più a sinistra`}
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <span className="px-1.5 text-sm text-foreground">{c.first_name}</span>
+              <button
+                onClick={() => move(i, 1)}
+                disabled={i === attivi.length - 1 || orderMut.isPending}
+                className="btn-icon !w-8 !h-8 disabled:opacity-30"
+                aria-label={`Sposta ${c.first_name} più a destra`}
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {orderMut.isError && (
+        <p className="text-sm text-danger">
+          {(orderMut.error as any)?.response?.data?.detail ?? "Non è stato possibile cambiare l'ordine."}
+        </p>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
         {collaborators.map(c => (

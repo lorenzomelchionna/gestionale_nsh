@@ -1544,16 +1544,35 @@ risposta o un lavoro. Tre avevano una risposta immediata; ma due di quelle
 tre, guardate da vicino, nascondevano un difetto vero, che è registrato qui
 sotto come voce aperta.
 
-- [ ] **Ordine dei collaboratori nel calendario** — «Vincenzo al centro».
-  Oggi non si può, e non per un'impostazione mancante: `list_collaborators`
-  (`api/admin/collaborators.py`) **non ha nessun `ORDER BY`**, quindi le
-  colonne escono nell'ordine fisico delle righe in Postgres. Non è solo un
-  ordine sbagliato, è un ordine **instabile**: dopo un `UPDATE` su un
-  collaboratore la riga può spostarsi e le colonne rimescolarsi da sole.
-  Serve un campo `posizione` (migration), l'`ORDER BY` sull'endpoint, e un
-  modo di cambiarlo dalla pagina Collaboratori — frecce su/giù bastano, con
-  tre persone non serve il trascinamento. L'`ORDER BY` da solo andrebbe
-  messo anche se la richiesta non ci fosse.
+- [x] ~~**Ordine dei collaboratori nel calendario**~~ — «Vincenzo al
+  centro». **Fatto il 2026-09-23.** Non si poteva, e non per
+  un'impostazione mancante: `list_collaborators` **non aveva nessun
+  `ORDER BY`**, quindi le colonne uscivano nell'ordine fisico delle righe
+  in Postgres. Non solo sbagliato, **instabile**: provato con un test,
+  cambiare il telefono ad Anna in un elenco Anna, Bea, Carla dava Bea,
+  Carla, Anna — la riga aggiornata diventa una tupla nuova e torna in fondo.
+
+  Cosa c'è ora:
+  - colonna `position` (migration `c4e7a2d91b05`, backfill in ordine di id,
+    cioè l'ordine di prima: il rilascio da solo non sposta niente);
+  - `ORDER BY position, id` sull'elenco admin **e** su quello del portale,
+    così la cliente che sceglie con chi prenotare vede lo stesso ordine
+    del calendario;
+  - `PUT /api/admin/collaborators/order` con l'elenco completo degli id:
+    una scrittura sola, niente buchi né doppioni, e un elenco che non
+    combacia — pagina rimasta indietro, collaboratore appena aggiunto in
+    un'altra scheda — viene **rifiutato per intero** invece che applicato
+    a metà. Dichiarato prima delle rotte `/{collaborator_id}`: dopo,
+    FastAPI legge «order» come un id e risponde 422 (verificato);
+  - un collaboratore nuovo va **in fondo**;
+  - nella pagina Collaboratori una striscia **«Ordine nel calendario»**
+    con i nomi in fila e le frecce ‹ ›. Prima versione con le frecce su
+    ogni card, scartata dopo averla vista: a 1024 px — un tablet in
+    orizzontale — il nome restava largo **31 pixel**.
+
+  Vincenzo al centro **si imposta dopo il rilascio**, con un clic, e non
+  nella migration: sarebbero dati di un salone nella storia dello schema,
+  e la migration gira anche su database vuoti.
 
 - [ ] **Vedere se un messaggio è arrivato** — domanda di Flavia: «dove vedo
   se al cliente è arrivato il messaggio?». **Nel gestionale oggi da

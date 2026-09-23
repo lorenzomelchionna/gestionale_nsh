@@ -98,6 +98,7 @@ async def public_collaborators(db: Annotated[AsyncSession, Depends(get_db)]):
         select(Collaborator)
         .options(selectinload(Collaborator.schedules), selectinload(Collaborator.services))
         .where(Collaborator.is_active == True, Collaborator.visible_online == True)
+        .order_by(Collaborator.position, Collaborator.id)
     )
     collabs = result.scalars().all()
     return [

@@ -5,7 +5,7 @@ import { format, parseISO } from 'date-fns'
 import { Plus, ChevronRight, Users, Phone, Mail } from 'lucide-react'
 import { getClients, createClient } from '@/services/api'
 import type { Client } from '@/types'
-import Sheet from '@/components/ui/Sheet'
+import ClientFormSheet from '@/components/admin/ClientFormSheet'
 import { PageHeader, SearchInput, EmptyState, SkeletonList, Pagination } from '@/components/ui'
 
 export default function ClientsPage() {
@@ -174,10 +174,11 @@ export default function ClientsPage() {
       )}
 
       {showCreate && (
-        <ClientFormModal
-          onClose={() => setShowCreate(false)}
+        <ClientFormSheet
+          onClose={() => { setShowCreate(false); createMut.reset() }}
           onSave={(payload) => createMut.mutate(payload)}
           loading={createMut.isPending}
+          error={createMut.error}
         />
       )}
     </div>
@@ -194,117 +195,5 @@ function Avatar({ client }: { client: Client }) {
         {client.last_name?.[0]?.toUpperCase()}
       </span>
     </div>
-  )
-}
-
-function ClientFormModal({ client, onClose, onSave, loading }: {
-  client?: Client
-  onClose: () => void
-  onSave: (data: Partial<Client>) => void
-  loading: boolean
-}) {
-  const [form, setForm] = useState({
-    first_name: client?.first_name ?? '',
-    last_name: client?.last_name ?? '',
-    phone: client?.phone ?? '',
-    email: client?.email ?? '',
-    birth_date: client?.birth_date ?? '',
-    notes: client?.notes ?? '',
-  })
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    onSave({
-      ...form,
-      birth_date: form.birth_date || undefined,
-      phone: form.phone || undefined,
-      email: form.email || undefined,
-    })
-  }
-
-  return (
-    <Sheet
-      onClose={onClose}
-      title={client ? 'Modifica cliente' : 'Nuovo cliente'}
-      footer={
-        <>
-          <button type="button" onClick={onClose} className="btn-secondary btn-sm">
-            Annulla
-          </button>
-          <button type="submit" form="client-form" disabled={loading} className="btn-primary btn-sm">
-            {loading ? 'Salvataggio...' : 'Salva'}
-          </button>
-        </>
-      }
-    >
-      <form id="client-form" onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="label">Nome *</label>
-            <input
-              className="input"
-              required
-              autoCapitalize="words"
-              value={form.first_name}
-              onChange={e => setForm({ ...form, first_name: e.target.value })}
-            />
-          </div>
-          <div>
-            <label className="label">Cognome *</label>
-            <input
-              className="input"
-              required
-              autoCapitalize="words"
-              value={form.last_name}
-              onChange={e => setForm({ ...form, last_name: e.target.value })}
-            />
-          </div>
-        </div>
-        <div>
-          <label className="label">Telefono</label>
-          <input
-            className="input"
-            type="tel"
-            inputMode="tel"
-            placeholder="+39 333 1234567"
-            value={form.phone}
-            onChange={e => setForm({ ...form, phone: e.target.value })}
-          />
-          <p className="text-xs text-muted-foreground mt-1.5">
-            Puoi scriverlo come preferisci: senza prefisso viene completato con
-            +39, il formato che serve alle notifiche WhatsApp.
-          </p>
-        </div>
-        <div>
-          <label className="label">Email</label>
-          <input
-            className="input"
-            type="email"
-            inputMode="email"
-            autoCapitalize="none"
-            value={form.email}
-            onChange={e => setForm({ ...form, email: e.target.value })}
-          />
-        </div>
-        <div>
-          <label className="label">Data di nascita</label>
-          <input
-            className="input"
-            type="date"
-            value={form.birth_date ?? ''}
-            onChange={e => setForm({ ...form, birth_date: e.target.value })}
-          />
-        </div>
-        <div>
-          <label className="label">Note</label>
-          <textarea
-            className="input"
-            rows={3}
-            value={form.notes}
-            onChange={e => setForm({ ...form, notes: e.target.value })}
-          />
-        </div>
-      </form>
-    </Sheet>
   )
 }

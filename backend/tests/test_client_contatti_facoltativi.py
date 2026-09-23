@@ -105,6 +105,33 @@ class TestCompletamentoSuccessivo:
         assert r.json()["phone"] == "+393331234567"
 
 
+    async def test_un_contatto_si_puo_anche_togliere(self, client, admin_tokens):
+        """Il form manda `null` per un campo svuotato: deve cancellarlo.
+
+        Con `undefined` il campo spariva dal JSON e l'aggiornamento — che
+        tocca solo i campi ricevuti — teneva il valore vecchio. Il test fissa
+        la metà server di quel contratto, e che l'altro contatto resti.
+        """
+        creata = await client.post(
+            "/api/admin/clients",
+            json={
+                "first_name": "Rosa", "last_name": "Esposito",
+                "phone": "3331234567", "email": "rosa@example.com",
+            },
+            headers=auth(admin_tokens),
+        )
+        cid = creata.json()["id"]
+
+        r = await client.put(
+            f"/api/admin/clients/{cid}",
+            json={"email": None},
+            headers=auth(admin_tokens),
+        )
+        assert r.status_code == 200, r.text
+        assert r.json()["email"] is None
+        assert r.json()["phone"] == "+393331234567"
+
+
 @pytest.mark.asyncio
 class TestIlPortaleInveceLiPretende:
     """La contropartita: da fuori i due campi restano obbligatori."""

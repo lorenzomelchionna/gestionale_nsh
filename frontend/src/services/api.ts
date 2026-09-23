@@ -121,6 +121,10 @@ export const createCollaborator = (data: Partial<Collaborator>) =>
 export const updateCollaborator = (id: number, data: Partial<Collaborator>) =>
   api.put<Collaborator>(`/admin/collaborators/${id}`, data).then(r => r.data)
 
+/** The whole left-to-right calendar order, as every collaborator's id. */
+export const reorderCollaborators = (ids: number[]) =>
+  api.put('/admin/collaborators/order', { ids })
+
 export const deleteCollaborator = (id: number) =>
   api.delete(`/admin/collaborators/${id}`)
 
@@ -143,6 +147,10 @@ export const createClient = (data: Partial<Client>) =>
 
 export const updateClient = (id: number, data: Partial<Client>) =>
   api.put<Client>(`/admin/clients/${id}`, data).then(r => r.data)
+
+/** Soft delete: the record leaves every list, its history stays. */
+export const deleteClient = (id: number) =>
+  api.delete(`/admin/clients/${id}`)
 
 export const getClientAppointments = (id: number) =>
   api.get<Appointment[]>(`/admin/clients/${id}/appointments`).then(r => r.data)

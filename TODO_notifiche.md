@@ -243,8 +243,27 @@ ancora la Sandbox `+14155238886`), `TWILIO_TEMPLATE_CONFERMA`,
   rimanda a se stesso all'infinito. Provato: `www` e controllo di salute
   entrambi 301.
 
-  **Intanto, per quella cliente**: aprire `https://www.newstylehair.it`
-  invece del vecchio link.
+  [PR #133](https://github.com/lorenzomelchionna/gestionale_nsh/pull/133)
+  → `develop`, [PR #134](https://github.com/lorenzomelchionna/gestionale_nsh/pull/134)
+  → `main` (commit `fd80b59`), CI verde su entrambe (8/8 su #134).
+  **Deploy confermato** il 2026-09-23: backend `SUCCESS` alle 14:06 UTC,
+  frontend alle 14:08. Il passaggio delicato era il controllo di salute
+  sulla nginx nuova, e nei log del frontend c'è `GET / 200
+  "RailwayHealthCheck/1.0"`. Il worker stava ancora ricostruendosi, ma
+  quello precedente restava attivo; questa modifica non lo riguarda.
+
+  Verificato dal vivo subito dopo:
+  - `happy-benevolence-production.up.railway.app/login?registrati` → **301**
+    su `https://www.newstylehair.it/login?registrati`;
+  - `https://www.newstylehair.it` → 200;
+  - preflight di `POST /api/public/auth/register` con origine `www` → 200.
+
+  ~~«Intanto, per quella cliente: aprire `https://www.newstylehair.it`
+  invece del vecchio link»~~ — **non serve più**: anche il vecchio link, i
+  preferiti e l'icona sul telefono portano adesso all'indirizzo giusto.
+  Chi aveva effettuato l'accesso sul vecchio indirizzo dovrà rientrare una
+  volta, perché i login salvati appartengono all'indirizzo su cui sono
+  stati fatti.
 - [x] ~~**La Chat sembrava svuotata**~~ — **chiarito e corretto il
   2026-09-23.** Lorenzo: «quando sono stati eliminati i messaggi della
   chat? non è che ogni release cancella i messaggi?». La pagina Chat era

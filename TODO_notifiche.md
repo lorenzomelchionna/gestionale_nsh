@@ -629,8 +629,14 @@ ancora la Sandbox `+14155238886`), `TWILIO_TEMPLATE_CONFERMA`,
 
   **Resta aperto**:
   - [ ] Ticket Twilio per correggere il nome business («New Style Hair»)
-  - [ ] Confermare **a vista** che una risposta vera della cliente sul
-    fisso compaia nella pagina Chat. Metà strada è fatta il 2026-09-22:
+  - [x] ~~Confermare **a vista** che una risposta vera della cliente sul
+    fisso compaia nella pagina Chat~~ — **confermato il 2026-09-23, dai
+    fatti e non da una prova.** Nel database (letto in sola lettura) una
+    conversazione ha messaggi in arrivo alle 07:59 e alle 09:37 e le
+    risposte del salone alle 09:24 e alle 09:39, partite **dalla pagina
+    Chat**: qualcuno ha visto lì il messaggio della cliente e ha risposto.
+    Twilio conferma quelle risposte come `read`. Resta la nota storica:
+    Metà strada era fatta il 2026-09-22:
     mandato un messaggio vero dal telefono di Lorenzo al fisso, e nei log
     HTTP di Railway risulta `POST /api/public/whatsapp/webhook 200` —
     quindi Twilio inoltra e la firma è valida (senza firma o con firma
@@ -1802,8 +1808,8 @@ sotto come voce aperta.
   nessun errore vero. `/health` → 200, `www.newstylehair.it` → 200.
   Ordine letto dal portale subito dopo: Flavia, Raffaella, Vincenzo —
   quello di prima, come voleva il backfill.
-  - [ ] **Mettere Vincenzo al centro**: Collaboratori → striscia «Ordine
-    nel calendario» → ‹ accanto a Vincenzo.
+  - [x] ~~**Mettere Vincenzo al centro**~~ — fatto il 2026-09-23 dal
+    gestionale. Letto dal portale: Flavia | Vincenzo | Raffaella.
 
 - [ ] **Vedere se un messaggio è arrivato** — domanda di Flavia: «dove vedo
   se al cliente è arrivato il messaggio?». **Nel gestionale oggi da

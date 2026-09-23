@@ -15,7 +15,7 @@ type Step = 'service' | 'collaborator' | 'datetime' | 'confirm' | 'done'
 
 const ORDER: Step[] = ['service', 'collaborator', 'datetime', 'confirm']
 const STEP_LABELS: Record<string, string> = {
-  service: 'Servizio',
+  service: 'Servizi',
   collaborator: 'Con chi',
   datetime: 'Quando',
   confirm: 'Conferma',
@@ -26,7 +26,10 @@ const MINUTES_PER_SLOT = 30
 
 export default function BookingFlowPage() {
   const [step, setStep] = useState<Step>('service')
-  const [selectedService, setSelectedService] = useState<Service | null>(null)
+  // In the order the client tapped them. That order is the one the services
+  // run in, it changes processing times, and the same array goes to both the
+  // availability query and the booking — so the two cannot disagree.
+  const [selectedServices, setSelectedServices] = useState<Service[]>([])
   const [selectedCollab, setSelectedCollab] = useState<Collaborator | null>(null)
   const [selectedDate, setSelectedDate] = useState('')
   const [selectedSlot, setSelectedSlot] = useState('')
@@ -44,14 +47,18 @@ export default function BookingFlowPage() {
     enabled: step === 'collaborator' || step === 'datetime',
   })
 
+  const serviceIds = selectedServices.map(s => s.id)
+  const totalSlots = selectedServices.reduce((n, s) => n + s.duration_slots, 0)
+  const totalPrice = selectedServices.reduce((n, s) => n + s.price, 0)
+
   const { data: slots, isLoading: slotsLoading } = useQuery({
-    queryKey: ['public-slots', selectedService?.id, selectedCollab?.id, selectedDate],
+    queryKey: ['public-slots', serviceIds, selectedCollab?.id, selectedDate],
     queryFn: () => publicGetAvailability({
-      service_id: selectedService!.id,
+      service_ids: serviceIds,
       collaborator_id: selectedCollab!.id,
       target_date: selectedDate,
     }),
-    enabled: !!selectedService && !!selectedCollab && !!selectedDate,
+    enabled: serviceIds.length > 0 && !!selectedCollab && !!selectedDate,
   })
 
   const bookMut = useMutation({
@@ -70,22 +77,37 @@ export default function BookingFlowPage() {
     },
   })
 
-  const availableCollabs = selectedService
-    ? (collaborators ?? []).filter(c => c.service_ids.includes(selectedService.id))
-    : []
+  // Only who does every chosen service: an appointment has one collaborator.
+  const availableCollabs = (collaborators ?? []).filter(
+    c => serviceIds.length > 0 && serviceIds.every(id => c.service_ids.includes(id))
+  )
+
+  const toggleService = (svc: Service) =>
+    setSelectedServices(prev =>
+      prev.some(s => s.id === svc.id) ? prev.filter(s => s.id !== svc.id) : [...prev, svc]
+    )
+
+  // A changed selection can invalidate what came after it: the collaborator
+  // may not do the new service, the slot may no longer fit.
+  const continueFromServices = () => {
+    setSelectedCollab(null)
+    setSelectedDate('')
+    setSelectedSlot('')
+    setStep('collaborator')
+  }
 
   const handleBook = () => {
     // Being signed in is guaranteed by RequireClient on the route — the flow is
     // no longer reachable without an account, so there is nothing to check here.
-    if (!selectedService || !selectedCollab || !selectedSlot) return
+    if (serviceIds.length === 0 || !selectedCollab || !selectedSlot) return
     const start = parseISO(selectedSlot)
-    const end = addMinutes(start, selectedService.duration_slots * MINUTES_PER_SLOT)
+    const end = addMinutes(start, totalSlots * MINUTES_PER_SLOT)
     bookMut.mutate({
       client_id: 0, // resolved server-side from the token
       collaborator_id: selectedCollab.id,
       start_time: start.toISOString(),
       end_time: end.toISOString(),
-      service_ids: [selectedService.id],
+      service_ids: serviceIds,
     })
   }
 
@@ -108,7 +130,7 @@ export default function BookingFlowPage() {
           </button>
           <button
             onClick={() => {
-              setStep('service'); setSelectedService(null); setSelectedCollab(null)
+              setStep('service'); setSelectedServices([]); setSelectedCollab(null)
               setSelectedDate(''); setSelectedSlot('')
             }}
             className="btn-secondary sm:px-7"
@@ -181,16 +203,37 @@ export default function BookingFlowPage() {
 
       {/* Step: Service */}
       {step === 'service' && (
+        <div className="flex flex-col gap-4">
+        <p className="note">Puoi sceglierne più di uno: si fanno nello stesso appuntamento, uno dopo l'altro.</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {(services ?? []).filter(s => s.bookable_online).map(s => (
+          {(services ?? []).filter(s => s.bookable_online).map(s => {
+            const scelto = selectedServices.some(x => x.id === s.id)
+            return (
             <button
               key={s.id}
-              onClick={() => { setSelectedService(s); setStep('collaborator') }}
-              className="panel p-5 text-left flex flex-col gap-2 transition-colors
-                         hover:border-primary hover:bg-primary/10"
+              type="button"
+              onClick={() => toggleService(s)}
+              aria-pressed={scelto}
+              className={clsx(
+                'panel p-5 text-left flex flex-col gap-2 transition-colors',
+                scelto
+                  ? 'border-primary bg-primary/10'
+                  : 'hover:border-primary hover:bg-primary/10'
+              )}
             >
-              <span className="font-heading text-[21px] leading-tight tracking-[0.03em] text-foreground">
-                {s.name}
+              <span className="flex items-start justify-between gap-3">
+                <span className="font-heading text-[21px] leading-tight tracking-[0.03em] text-foreground">
+                  {s.name}
+                </span>
+                <span
+                  className={clsx(
+                    'w-6 h-6 shrink-0 border flex items-center justify-center',
+                    scelto ? 'bg-primary border-primary text-white' : 'border-border'
+                  )}
+                  aria-hidden
+                >
+                  {scelto && <Check className="w-4 h-4" />}
+                </span>
               </span>
               {s.description && (
                 <span className="text-[13px] leading-relaxed text-muted-foreground">
@@ -206,7 +249,29 @@ export default function BookingFlowPage() {
                 </span>
               </span>
             </button>
-          ))}
+            )
+          })}
+        </div>
+
+        {/* Stays in view at the bottom: with the list longer than the screen,
+            the way on would otherwise be below the fold. Sits on top of the
+            client tab bar, which is fixed at the very bottom — `bottom-0` would
+            put it underneath. */}
+        <div className="sticky bottom-tabbar -mx-4 px-4 py-3 bg-background/95 backdrop-blur border-t border-rule flex items-center gap-3">
+          <span className="flex-1 text-sm text-muted-foreground tabular-nums">
+            {selectedServices.length === 0
+              ? 'Scegli almeno un servizio'
+              : `${selectedServices.length} ${selectedServices.length === 1 ? 'servizio' : 'servizi'} · ${totalSlots * MINUTES_PER_SLOT} min · €${totalPrice.toFixed(2)}`}
+          </span>
+          <button
+            type="button"
+            onClick={continueFromServices}
+            disabled={selectedServices.length === 0}
+            className="btn-primary disabled:opacity-50"
+          >
+            Continua
+          </button>
+        </div>
         </div>
       )}
 
@@ -235,7 +300,9 @@ export default function BookingFlowPage() {
           ))}
           {availableCollabs.length === 0 && (
             <p className="note sm:col-span-2">
-              Nessuno è al momento disponibile per questo servizio.
+              {selectedServices.length > 1
+                ? 'Nessuno fa tutti questi servizi insieme. Prova a toglierne uno, o a prenotarli in due appuntamenti.'
+                : 'Nessuno è al momento disponibile per questo servizio.'}
             </p>
           )}
         </div>
@@ -244,9 +311,9 @@ export default function BookingFlowPage() {
       {/* Step: DateTime */}
       {step === 'datetime' && (
         <div className="flex flex-col gap-6">
-          {selectedService && selectedCollab && (
+          {serviceIds.length > 0 && selectedCollab && (
             <AvailabilityCalendar
-              serviceId={selectedService.id}
+              serviceIds={serviceIds}
               collaboratorId={selectedCollab.id}
               value={selectedDate}
               onChange={date => { setSelectedDate(date); setSelectedSlot('') }}
@@ -294,10 +361,13 @@ export default function BookingFlowPage() {
       )}
 
       {/* Step: Confirm */}
-      {step === 'confirm' && selectedService && selectedCollab && selectedSlot && (
+      {step === 'confirm' && serviceIds.length > 0 && selectedCollab && selectedSlot && (
         <div className="flex flex-col gap-4">
           <div className="panel">
-            <Row label="Servizio" value={selectedService.name} />
+            <Row
+              label={selectedServices.length > 1 ? 'Servizi' : 'Servizio'}
+              value={selectedServices.map(s => s.name).join(' + ')}
+            />
             <Row label="Con" value={`${selectedCollab.first_name} ${selectedCollab.last_name}`} />
             <Row
               label="Data"
@@ -306,12 +376,12 @@ export default function BookingFlowPage() {
             />
             <Row
               label="Orario"
-              value={`${format(parseISO(selectedSlot), 'HH:mm')} – ${format(addMinutes(parseISO(selectedSlot), selectedService.duration_slots * MINUTES_PER_SLOT), 'HH:mm')}`}
+              value={`${format(parseISO(selectedSlot), 'HH:mm')} – ${format(addMinutes(parseISO(selectedSlot), totalSlots * MINUTES_PER_SLOT), 'HH:mm')}`}
               numeric
             />
             <Row
               label="Durata"
-              value={`${selectedService.duration_slots * MINUTES_PER_SLOT} minuti`}
+              value={`${totalSlots * MINUTES_PER_SLOT} minuti`}
               numeric
             />
             {/* The price closes the panel on its own band, like the total on a
@@ -319,7 +389,7 @@ export default function BookingFlowPage() {
             <div className="flex items-baseline justify-between gap-3 px-5 py-4 bg-band">
               <span className="kicker">Prezzo</span>
               <span className="font-heading text-[26px] leading-none tabular-nums text-primary-dark">
-                €{selectedService.price.toFixed(2)}
+                €{totalPrice.toFixed(2)}
               </span>
             </div>
           </div>

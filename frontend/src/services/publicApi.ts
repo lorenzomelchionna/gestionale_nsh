@@ -32,10 +32,14 @@ export interface DayAvailability {
   slots: number
 }
 
+// `indexes: null` sends `service_ids=1&service_ids=2`, the form FastAPI reads
+// as a list; axios's default `service_ids[]=1` would reach it as nothing.
 export const publicGetAvailabilityCalendar = (params: {
-  service_id: number; collaborator_id: number; start_date: string; end_date: string
+  service_ids: number[]; collaborator_id: number; start_date: string; end_date: string
 }) =>
-  publicApi.get<DayAvailability[]>('/availability/calendar', { params }).then(r => r.data)
+  publicApi
+    .get<DayAvailability[]>('/availability/calendar', { params, paramsSerializer: { indexes: null } })
+    .then(r => r.data)
 
 // Inject client token
 publicApi.interceptors.request.use((config) => {
@@ -50,10 +54,13 @@ export const publicGetServices = () =>
 export const publicGetCollaborators = () =>
   publicApi.get<Collaborator[]>('/collaborators').then(r => r.data)
 
+/** Start times for the services together, in the order they will be booked. */
 export const publicGetAvailability = (params: {
-  service_id: number; collaborator_id: number; target_date: string
+  service_ids: number[]; collaborator_id: number; target_date: string
 }) =>
-  publicApi.get<string[]>('/availability', { params }).then(r => r.data)
+  publicApi
+    .get<string[]>('/availability', { params, paramsSerializer: { indexes: null } })
+    .then(r => r.data)
 
 export interface VerificationRequired {
   email: string

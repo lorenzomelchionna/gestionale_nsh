@@ -12,7 +12,8 @@ import { publicGetAvailabilityCalendar } from '@/services/publicApi'
 const WEEKDAYS = ['L', 'M', 'M', 'G', 'V', 'S', 'D']
 
 interface Props {
-  serviceId: number
+  /** In booking order: processing times depend on which service comes first. */
+  serviceIds: number[]
   collaboratorId: number
   /** yyyy-MM-dd, or '' when nothing is chosen yet. */
   value: string
@@ -28,7 +29,7 @@ interface Props {
  * rather than merely unhelpful when tapped.
  */
 export default function AvailabilityCalendar({
-  serviceId, collaboratorId, value, onChange,
+  serviceIds, collaboratorId, value, onChange,
 }: Props) {
   const today = startOfToday()
   const [month, setMonth] = useState(() => (value ? new Date(value) : today))
@@ -40,11 +41,11 @@ export default function AvailabilityCalendar({
 
   const { data, isLoading } = useQuery({
     queryKey: [
-      'availability-calendar', serviceId, collaboratorId,
+      'availability-calendar', serviceIds, collaboratorId,
       format(gridStart, 'yyyy-MM-dd'), format(gridEnd, 'yyyy-MM-dd'),
     ],
     queryFn: () => publicGetAvailabilityCalendar({
-      service_id: serviceId,
+      service_ids: serviceIds,
       collaborator_id: collaboratorId,
       start_date: format(gridStart, 'yyyy-MM-dd'),
       end_date: format(gridEnd, 'yyyy-MM-dd'),

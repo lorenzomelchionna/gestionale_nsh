@@ -208,7 +208,9 @@ function CollaboratorCard({ collaborator: c, services, onEdit, onUpdateSchedule,
     )
   }
 
-  const TAB_LABELS = { info: 'Info', schedule: 'Orari', services: 'Servizi', vacations: 'Ferie', extra: 'Straord.' }
+  // "Assenze", not "Ferie": the tab holds hourly permits and sick days too,
+  // and a salon looking for where to put a break never thought to open "Ferie".
+  const TAB_LABELS = { info: 'Info', schedule: 'Orari', services: 'Servizi', vacations: 'Assenze', extra: 'Straord.' }
 
   return (
     <div className="panel">
@@ -249,8 +251,11 @@ function CollaboratorCard({ collaborator: c, services, onEdit, onUpdateSchedule,
             key={t}
             onClick={() => setTab(t)}
             className={clsx(
-              'flex-1 px-1 py-2 -mb-px border-b-2 transition-colors whitespace-nowrap',
-              'font-heading text-[11px] uppercase tracking-[0.08em]',
+              // Tight on purpose: five labels share a 237px card at 1024px
+              // (three columns, a tablet in landscape), and wider spacing
+              // pushed the last one off the edge.
+              'flex-1 px-0.5 py-2 -mb-px border-b-2 transition-colors whitespace-nowrap',
+              'font-heading text-[11px] uppercase tracking-[0.03em]',
               tab === t
                 ? 'border-primary text-foreground'
                 : 'border-transparent text-ink-3 hover:text-foreground'

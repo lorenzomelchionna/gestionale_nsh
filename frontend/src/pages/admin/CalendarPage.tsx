@@ -1210,7 +1210,7 @@ function CreateAppointmentModal({ initialSlot, collaborators, closedWeekdays, on
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedClientId || !startTime || selectedServiceIds.length === 0) return
-    if (isClosedDay(selectedDate) && !confirmClosed) {
+    if ((isClosedDay(selectedDate) || permitOverlap) && !confirmClosed) {
       setConfirmClosed(true)
       return
     }
@@ -1239,14 +1239,33 @@ function CreateAppointmentModal({ initialSlot, collaborators, closedWeekdays, on
     const dow = d.getDay() // 0=Sun … 6=Sat
     // Salon-wide closed days from config
     if (closedWeekdays.includes(dow)) return true
-    // Collaborator absences (specific dates off)
+    // Only an absence without hours closes the day. An hourly permit used to
+    // count too, which disabled the whole day in the picker: a two-hour break
+    // made the collaborator unbookable from here until midnight.
     return absences.some(a =>
+      a.start_time == null && a.end_time == null &&
       isWithinInterval(startOfDay(d), {
         start: startOfDay(parseISO(a.start_date)),
         end: endOfDay(parseISO(a.end_date)),
       })
     )
   }
+
+  // The hourly permit the chosen slot runs into, if any. With the day no
+  // longer closed by it, this is what stops a booking landing on a break —
+  // the calendar grid does not draw absences. All three are salon-local
+  // "yyyy-MM-dd" / "HH:mm" strings, so plain comparison orders them.
+  const permitOverlap = (() => {
+    if (!startTime || !computedEnd) return null
+    const giorno = startTime.slice(0, 10)
+    const inizio = startTime.slice(11, 16)
+    const fine = computedEnd.slice(11, 16)
+    return absences.find(a =>
+      a.start_time != null && a.end_time != null &&
+      a.start_date <= giorno && giorno <= a.end_date &&
+      inizio < a.end_time.slice(0, 5) && a.start_time.slice(0, 5) < fine
+    ) ?? null
+  })()
 
   // Build calendar grid for calMonth
   const calFirstDay = startOfMonth(calMonth)
@@ -1488,7 +1507,11 @@ function CreateAppointmentModal({ initialSlot, collaborators, closedWeekdays, on
 
           {confirmClosed && (
             <div className="border border-primary/50 bg-primary/10 p-3 text-sm text-primary space-y-2">
-              <p className="font-medium">⚠ Il salone è chiuso in questa data. Vuoi procedere comunque?</p>
+              <p className="font-medium">
+                {permitOverlap && !isClosedDay(selectedDate)
+                  ? `⚠ L'orario cade in un'assenza del collaboratore (${permitOverlap.start_time!.slice(0, 5)}–${permitOverlap.end_time!.slice(0, 5)}). Vuoi procedere comunque?`
+                  : '⚠ Il salone è chiuso in questa data. Vuoi procedere comunque?'}
+              </p>
               <div className="flex gap-2">
                 <button
                   type="button"

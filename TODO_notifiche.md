@@ -190,6 +190,23 @@ ancora la Sandbox `+14155238886`), `TWILIO_TEMPLATE_CONFERMA`,
   **Al primo giro dopo il rilascio** partirà il promemoria per ogni
   appuntamento confermato entro le 24 ore che non l'ha ancora avuto,
   compreso quello di Flavia se non è ancora passato: è il recupero voluto.
+
+  [PR #127](https://github.com/lorenzomelchionna/gestionale_nsh/pull/127)
+  → `develop`, [PR #128](https://github.com/lorenzomelchionna/gestionale_nsh/pull/128)
+  → `main` (commit `d29e73b`), CI verde su entrambe (8/8 su #128). 760
+  test. **Deploy confermato** il 2026-09-23 alle 12:25 UTC: backend,
+  frontend e worker `SUCCESS`; nei log del backend `Running upgrade
+  c4e7a2d91b05 -> a1f3c8d27e64, add confirmation_sent_at to appointments`;
+  `/health` → 200, frontend → 200.
+
+  **Provato dal vivo, sul caso che l'aveva fatto trovare.** Primo giro del
+  worker dopo il rilascio, 12:30 UTC: `succeeded`, nessun «promemoria non
+  inviato». Dai log da soli non si poteva dire di più — `nsh.whatsapp` e
+  `nsh.email` scrivono solo i fallimenti — quindi la prova l'ha data
+  Twilio, interrogato in sola lettura: dal fisso, alla cliente
+  dell'appuntamento #42, conferma alle 13:45:08 e **promemoria alle
+  14:30:00 ora di Roma**, entrambi `delivered`. Appuntamento per il giorno
+  stesso: col codice di prima quel promemoria non sarebbe partito mai.
 - [ ] **Il calendario chiede un'impostazione che ai collaboratori è
   negata** — trovato il 2026-09-23 mentre si provava la scheda cliente da
   collaboratrice. `CalendarPage` carica sempre `GET
@@ -1746,10 +1763,29 @@ sotto come voce aperta.
   vede. Il lavoro: disegnare assenze e permessi nella griglia, come blocco
   grigio nella colonna del collaboratore.
 
-  Trovato insieme, **un difetto**: nel modale di nuovo appuntamento
-  `isClosedDay` considera chiusa **l'intera giornata** per qualunque
-  assenza, anche un permesso di due ore, perché confronta solo le date e
-  non guarda `start_time` / `end_time`.
+  ~~Trovato insieme, **un difetto**: nel modale di nuovo appuntamento
+  `isClosedDay` considera chiusa l'intera giornata per qualunque assenza~~
+  — **corretto il 2026-09-23**, dopo che Flavia l'ha incontrato: «se prendo
+  delle ore di permesso, i clienti non riescono a prenotare con me l'intera
+  giornata». Era peggio di come l'avevo scritto: il giorno «chiuso» nel
+  calendarietto del modale è `disabled`, quindi un permesso di un'ora
+  rendeva quel collaboratore **non prenotabile dal gestionale per tutto il
+  giorno**. Il portale delle clienti invece era giusto — verificato in
+  produzione e in locale, il calendario pubblico passa dal server, che il
+  permesso a ore lo toglie solo dalle sue ore.
+
+  Ora chiude il giorno solo un'assenza senza orari. E siccome, sbloccato il
+  giorno, niente avrebbe più impedito di prenotare sopra la pausa (la
+  griglia del calendario le assenze non le disegna), il modale **avvisa se
+  l'appuntamento scelto si sovrappone a un permesso** — sovrapposizione
+  vera, inizio e fine, non solo l'ora d'inizio: un taglio 12:30–13:30
+  contro una pausa 13:00–14:00 viene fermato. Si può procedere comunque,
+  come già per i giorni di chiusura.
+
+  Verificato nel browser: col codice vecchio il giorno del permesso
+  risulta barrato e non cliccabile (riprodotto il caso di Flavia); col
+  nuovo è selezionabile, 12:30 mostra «L'orario cade in un'assenza del
+  collaboratore (13:00–14:00)», 15:00 salva senza avvisi.
 
   Da chiarire con Flavia: se «solo per i collaboratori» vuol dire anche
   che **i collaboratori stessi** devono potersela mettere. Oggi creare e

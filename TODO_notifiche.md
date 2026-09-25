@@ -1823,6 +1823,82 @@ Non bloccano il go-live: il gestionale funziona senza. Stanno qui separate
 apposta, così le caselle aperte qui sotto non si confondono con quelle della
 roadmap sopra.
 
+### Segnalazione — 2026-09-24: «dice che il numero non ha WhatsApp»
+
+Alcune persone che provano a scrivere al salone su WhatsApp si sentono dire
+che il numero non ha un account. **Il numero funziona**, controllato il
+2026-09-24 da Twilio: sender `whatsapp:+3908251728148` `ONLINE`, qualità
+`HIGH`, 11 messaggi in arrivo in tre giorni. E non solo risposte: **4 di
+quei mittenti hanno aperto la chat da soli**, senza aver mai ricevuto
+niente dal salone (3 il 24, 1 il 23; controllato incrociando ogni primo
+messaggio in arrivo con tutti i messaggi in uscita dell'account). Quindi
+il salone si trova anche partendo da zero: chi non ci riesce ha il numero
+**salvato o digitato male**, e WhatsApp gli propone «Invita».
+
+Cause, dalla più probabile (ricerca con fonti, 2026-09-24):
+1. **Salvato senza lo 0**, `+39 825 1728148`: numero che non esiste. È la
+   trappola delle istruzioni di WhatsApp stesse — la FAQ «formato
+   internazionale», anche in italiano, dice di **togliere gli 0 iniziali**
+   ed elenca eccezioni solo per Argentina e Messico
+   ([FAQ](https://faq.whatsapp.com/1294841057948784/?locale=it_IT)). Per i
+   fissi italiani è sbagliato: lo 0 resta anche col +39. Coi cellulari
+   (iniziano con 3) non c'è nessuno 0 da togliere, ed è per questo che il
+   problema tocca solo alcune persone.
+2. **Salvato come `0825 1728148`**, senza +39 — cioè esattamente come lo
+   mostra il sito. La FAQ dice che un numero nazionale salvato «come lo
+   chiameresti» funziona; un blog italiano sostiene di no. **Non
+   documentato**: lo decide solo una prova su un telefono (voce qui sotto).
+3. **Il telefono non ha ancora «visto» il contatto**: su iPhone con accesso
+   ai contatti limitato un contatto nuovo resta invisibile a WhatsApp
+   finché non lo si autorizza; su Android la rubrica si risincronizza
+   circa una volta al giorno (Nuova chat → ⋮ → Aggiorna la forza).
+4. **Il vecchio numero sbagliato** `095 441 220` (Catania), mostrato dal
+   portale fino al commit `b426a35` del 2026-09-02.
+
+**Escluso**: il nome «Vincenzo Romolo», il profilo vuoto, il fatto che sia
+un fisso, le chiamate WhatsApp disattivate. Nessuna fonte Meta o Twilio li
+collega a «non è su WhatsApp», e un problema lato piattaforma toccherebbe
+tutti, non alcune persone.
+
+- [ ] **Prova su un telefono** (2 minuti), su un numero che non ha mai
+  scritto al salone. Salvare tre contatti — `0825 1728148`,
+  `+39 0825 1728148`, `+39 825 1728148` — poi WhatsApp → Nuova chat → ⋮ →
+  Aggiorna, e annotare quali risultano su WhatsApp. Atteso: il secondo sì,
+  il terzo no. Il primo decide se sul sito serve mostrare il +39.
+  Meglio ancora: uno screenshot del contatto salvato da una delle clienti
+  che non ci sono riuscite.
+- [ ] **Dire alle clienti come salvarlo** — testo pronto: «Per scriverci
+  su WhatsApp salva il numero così: **+39 0825 1728148**. Lo 0 dopo il +39
+  va lasciato.» In alternativa: rispondere al messaggio di conferma
+  ricevuto dal salone, che la chat giusta la apre già.
+- [ ] **Pulsante «Scrivici su WhatsApp» sul sito** →
+  `https://wa.me/3908251728148`: apre la chat senza salvare niente, cioè
+  salta tutte e quattro le cause. Da ricavare da `TELEFONO.tel` in
+  `frontend/src/config/business.ts` **togliendo solo il `+`** — mai
+  togliere zeri: la FAQ italiana del click-to-chat dice «non includere
+  alcuno zero», e seguita alla lettera darebbe `wa.me/398251728148`, rotto.
+  Test unitario che `+3908251728148` dia `3908251728148`. Insieme, mostrare
+  il numero come `+39 0825 1728148` invece di `0825 1728148`; il link
+  `tel:` è già giusto. **Provare il link su un telefono vero prima del
+  rilascio**: da qui non si verifica, perché `wa.me` risponde 302 verso
+  `api.whatsapp.com` anche per numeri inesistenti (provato).
+- [ ] **QR in salone con lo stesso link**, sul bancone. Si lega alla voce
+  «Una pagina per chi arriva dal QR code» qui sotto: possono essere due QR
+  (prenota / scrivici) o una pagina che li offre entrambi. Alternativa
+  ufficiale: QR e short link di Meta (`wa.me/message/CODICE`, con testo
+  precompilato) — da vedere se l'account gestito da Twilio dà accesso a
+  WhatsApp Manager o se va chiesto a Twilio.
+- [ ] **Profilo WhatsApp del fisso vuoto** — letto dal Sender il
+  2026-09-24: nome «Vincenzo Romolo», nessuna descrizione, indirizzo, sito,
+  categoria, logo. Il vecchio numero ponte li aveva. Da compilare come
+  quello (descrizione, «Corso Italia, 32 — 83030 Melito Irpino (AV)»,
+  «Beauty, Spa and Salon», `https://www.newstylehair.it`), così chi apre
+  la chat vede che è il salone. **È pubblico: solo con l'ok di Lorenzo.**
+  Il nome resta al ticket del display name.
+- [ ] **Il vecchio `095 441 220` altrove** — il commit `b426a35` l'ha
+  corretto solo nel portale. Controllare scheda Google, Facebook,
+  Instagram, volantini e biglietti.
+
 ### Richieste di Flavia — 2026-09-23 (primo giorno col database vuoto)
 
 Cinque punti, ognuno controllato sul codice prima di decidere se era una

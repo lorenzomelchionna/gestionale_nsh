@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, require_admin
 from app.models.chat import ChatMessage, Conversation, MessageDirection
 from app.models.user import User
 from app.schemas.chat import (
@@ -205,4 +205,25 @@ async def message_media(
             # Privata: è la foto di una cliente, nessuna cache condivisa deve tenerla.
             "Cache-Control": "private, max-age=86400",
         },
+    )
+
+
+@router.delete("/conversations/{conversation_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_conversation(
+    conversation_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(require_admin)],
+):
+    """Cancella una conversazione e tutti i suoi messaggi, per sempre.
+
+    Solo admin, a differenza del resto della chat: archiviare si annulla,
+    questo no. Cancella la copia del gestionale e basta — Twilio tiene il suo
+    registro, e se la persona riscrive nasce una conversazione nuova.
+    """
+    conv = await _load(db, conversation_id)
+    await db.delete(conv)
+    await db.flush()
+    log.info(
+        "conversazione WhatsApp cancellata",
+        extra={"id_conversazione": conversation_id, "messaggi": len(conv.messages)},
     )

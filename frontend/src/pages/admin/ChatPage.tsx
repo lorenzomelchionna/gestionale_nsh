@@ -4,13 +4,15 @@ import { format, parseISO, formatDistanceToNowStrict, isToday } from 'date-fns'
 import { it } from 'date-fns/locale'
 import {
   MessageSquare, Send, ChevronLeft, AlertTriangle, Archive, ArchiveRestore, Loader2, Clock, User,
-  Paperclip,
+  Paperclip, Trash2,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import {
   getConversations, getConversation, replyToConversation, setConversationArchived,
-  getChatStatus, getChatMedia,
+  getChatStatus, getChatMedia, deleteConversation,
 } from '@/services/api'
+import { useAuthStore } from '@/store/authStore'
+import Sheet from '@/components/ui/Sheet'
 import type { ChatChannelStatus, ChatMedia, ChatMessage, Conversation } from '@/types'
 import { PageHeader, EmptyState, SkeletonList } from '@/components/ui'
 import clsx from 'clsx'
@@ -258,6 +260,20 @@ function Thread({ conversationId, onBack, onChanged }: {
     },
   })
 
+  // Cancellare è per sempre, quindi solo l'admin e sempre dopo una conferma;
+  // per togliere una chat dalla lista c'è già «Archivia», che si annulla.
+  const isAdmin = useAuthStore(s => s.user?.role === 'admin')
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const deleteMut = useMutation({
+    mutationFn: () => deleteConversation(conversationId),
+    onSuccess: () => {
+      qc.removeQueries({ queryKey: ['conversation', conversationId] })
+      setConfirmDelete(false)
+      onBack()
+      onChanged()
+    },
+  })
+
   if (isLoading || !conv) return <SkeletonList rows={3} />
 
   const windowOpen = conv.can_reply_freely
@@ -320,7 +336,56 @@ function Thread({ conversationId, onBack, onChanged }: {
             <Archive className="w-[18px] h-[18px]" />
           </button>
         )}
+        {isAdmin && (
+          <button
+            onClick={() => setConfirmDelete(true)}
+            className="btn-icon hover:text-danger"
+            title="Elimina conversazione"
+            aria-label="Elimina conversazione"
+          >
+            <Trash2 className="w-[18px] h-[18px]" />
+          </button>
+        )}
       </div>
+
+      {confirmDelete && (
+        <Sheet
+          onClose={() => setConfirmDelete(false)}
+          title="Eliminare la conversazione?"
+          footer={
+            <>
+              <button type="button" onClick={() => setConfirmDelete(false)} className="btn-secondary btn-sm">
+                Annulla
+              </button>
+              <button
+                type="button"
+                onClick={() => deleteMut.mutate()}
+                disabled={deleteMut.isPending}
+                className="btn-danger btn-sm"
+              >
+                {deleteMut.isPending ? 'Eliminazione...' : 'Elimina'}
+              </button>
+            </>
+          }
+        >
+          <div className="space-y-3 text-sm text-foreground">
+            <p>
+              La conversazione con <strong>{conv.display_name}</strong> e tutti i
+              suoi {conv.messages.length} messaggi spariscono dal gestionale.
+              Non si può annullare.
+            </p>
+            <p className="text-muted-foreground">
+              Per toglierla solo dalla lista usa «Archivia»: si riporta indietro
+              quando vuoi. Se la persona riscrive, riparte una conversazione nuova.
+            </p>
+            {deleteMut.isError && (
+              <p role="alert" className="text-[13px] text-danger bg-danger/10 px-3 py-2.5">
+                Eliminazione non riuscita. Riprova.
+              </p>
+            )}
+          </div>
+        </Sheet>
+      )}
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-2.5 min-h-0">

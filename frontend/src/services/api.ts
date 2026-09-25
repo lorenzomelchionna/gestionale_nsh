@@ -415,6 +415,10 @@ export const getChatMedia = (messageId: number, index: number) =>
   api.get<Blob>(`/admin/chat/messages/${messageId}/media/${index}`, { responseType: 'blob' })
     .then(r => r.data)
 
+/** Per sempre: conversazione e messaggi. Solo admin. */
+export const deleteConversation = (id: number) =>
+  api.delete(`/admin/chat/conversations/${id}`)
+
 export const setConversationArchived = (id: number, archived: boolean) =>
   api.patch<Conversation>(`/admin/chat/conversations/${id}/archive`, null, {
     params: { archived },

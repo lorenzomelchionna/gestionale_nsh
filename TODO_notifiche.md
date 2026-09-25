@@ -1850,7 +1850,19 @@ roadmap sopra.
     finché il permesso non è stato dato. Verificato nel browser con messaggi
     simulati: titolo «(1)», poi «(2)», notifica «WhatsApp · …» col testo o
     «📷 Foto», clic → conversazione aperta.
-  - [ ] **(b) push sul telefono** a gestionale chiuso — prossimo lavoro. — letti insieme, dicono la stessa cosa
+  - [ ] **(b) push sul telefono** a gestionale chiuso — prossimo lavoro.
+    Servono tre variabili nuove su Railway (chiavi VAPID): da chiedere a
+    Lorenzo prima di impostarle. Sull'iPhone Flavia dovrà aggiungere il
+    gestionale alla schermata Home (iOS 16.4+).
+- **Rilascio dei punti 1, 3 e 2/5(a)**: [PR #143](https://github.com/lorenzomelchionna/gestionale_nsh/pull/143)
+  e [PR #144](https://github.com/lorenzomelchionna/gestionale_nsh/pull/144)
+  → `develop`, [PR #145](https://github.com/lorenzomelchionna/gestionale_nsh/pull/145)
+  → `main` (commit `47fbf36`), CI verde (8/8 su #145). **Deploy
+  confermato** il 2026-09-25 alle 11:13 UTC: backend, frontend e worker
+  `SUCCESS`, nessuna migration. Dal vivo: `/health` 200, `www` 200,
+  `DELETE` di una conversazione senza token → 401; nel bundle servito
+  «Attiva notifiche», «Eliminare la conversazione?» e la chiave degli
+  avvisi; nel CSS servito `thead th.num{text-align:right}`. — letti insieme, dicono la stessa cosa
   (l'ipotesi già scritta sotto il 23/09): il messaggio arriva subito, è chi
   lavora che non se ne accorge. Oggi il gestionale non avvisa nessuno, la
   lista si aggiorna ogni 30 s e **non si aggiorna affatto** con la scheda in

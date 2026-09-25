@@ -199,3 +199,98 @@ class TestIlNome:
         await db.commit()
         await _arriva(client, sid="SM1", body="ciao", profilo="Giuli")
         assert (await _conversazione(client, admin_tokens))["display_name"] == "Giuli"
+
+
+class TestIlNomeSubito:
+    """La scheda nasce dopo che la persona ha scritto: la chat prende il suo
+    nome **subito**, non al prossimo messaggio — che può arrivare fra un mese."""
+
+    async def _chat_senza_scheda(self, client, admin_tokens):
+        await _arriva(client, sid="SM1", body="ciao, vorrei prenotare", profilo="Giuli")
+        assert (await _conversazione(client, admin_tokens))["display_name"] == "Giuli"
+
+    async def test_scheda_creata_dall_admin(self, client, admin_tokens):
+        await self._chat_senza_scheda(client, admin_tokens)
+        r = await client.post("/api/admin/clients", headers=auth(admin_tokens), json={
+            "first_name": "Giulia", "last_name": "Bianchi", "phone": "347 123 4567",
+        })
+        assert r.status_code == 201, r.text
+        assert (await _conversazione(client, admin_tokens))["display_name"] == "Giulia Bianchi"
+
+    async def test_numero_aggiunto_dopo(self, client, db, admin_tokens):
+        await self._chat_senza_scheda(client, admin_tokens)
+        senza = Client(first_name="Giulia", last_name="Bianchi")
+        db.add(senza)
+        await db.commit()
+        r = await client.put(f"/api/admin/clients/{senza.id}", headers=auth(admin_tokens), json={
+            "phone": "+39 347 1234567",
+        })
+        assert r.status_code == 200, r.text
+        assert (await _conversazione(client, admin_tokens))["display_name"] == "Giulia Bianchi"
+
+    async def test_seconda_scheda_con_lo_stesso_numero_non_collega(self, client, db, admin_tokens):
+        await self._chat_senza_scheda(client, admin_tokens)
+        db.add(Client(first_name="Anna", last_name="Bianchi", phone=PHONE))
+        await db.commit()
+        # Con due schede sul numero — madre e figlia — non si sceglie.
+        r = await client.post("/api/admin/clients", headers=auth(admin_tokens), json={
+            "first_name": "Giulia", "last_name": "Bianchi", "phone": PHONE,
+        })
+        assert r.status_code == 201
+        assert (await _conversazione(client, admin_tokens))["client_id"] is None
+
+    async def test_la_chat_segue_il_numero_quando_passa_ad_altri(self, client, db, admin_tokens):
+        """La scheda collegata il numero non ce l'ha più: ora è di un'altra."""
+        prima = Client(first_name="Giulia", last_name="Bianchi", phone=PHONE)
+        db.add(prima)
+        await db.commit()
+        await _arriva(client, sid="SM1", body="ciao")
+        assert (await _conversazione(client, admin_tokens))["client_id"] == prima.id
+
+        await client.put(f"/api/admin/clients/{prima.id}", headers=auth(admin_tokens), json={"phone": "+393330000999"})
+        r = await client.post("/api/admin/clients", headers=auth(admin_tokens), json={
+            "first_name": "Nuova", "last_name": "Titolare", "phone": PHONE,
+        })
+        assert (await _conversazione(client, admin_tokens))["client_id"] == r.json()["id"]
+
+    async def test_resta_a_chi_ha_ancora_il_numero(self, client, db, admin_tokens):
+        prima = Client(first_name="Giulia", last_name="Bianchi", phone=PHONE)
+        db.add(prima)
+        await db.commit()
+        await _arriva(client, sid="SM1", body="ciao")
+        assert (await _conversazione(client, admin_tokens))["client_id"] == prima.id
+
+        altra = Client(first_name="Altra", last_name="Persona")
+        db.add(altra)
+        await db.commit()
+        await client.put(f"/api/admin/clients/{altra.id}", headers=auth(admin_tokens), json={"phone": PHONE})
+        assert (await _conversazione(client, admin_tokens))["client_id"] == prima.id
+
+    async def test_prenotazione_senza_account(
+        self, client, admin_tokens, booking_config, collaborator, service, monkeypatch
+    ):
+        from datetime import date, timedelta
+        from tests.conftest import giorno_lavorativo
+        import app.api.public.guest as guest_api
+
+        codici = []
+
+        async def finto(to_phone, code):
+            codici.append(code)
+
+        monkeypatch.setattr(guest_api, "send_verification_code_whatsapp", finto)
+        await self._chat_senza_scheda(client, admin_tokens)
+
+        giorno = giorno_lavorativo(date.today() + timedelta(days=2))
+        orari = (await client.get("/api/public/availability", params={
+            "service_id": service.id, "collaborator_id": collaborator.id,
+            "target_date": giorno.isoformat(),
+        })).json()
+        chi = {"first_name": "Giulia", "last_name": "Bianchi", "phone": "347 123 4567"}
+        await client.post("/api/public/guest/code", json=chi)
+        r = await client.post("/api/public/guest/appointments", json={
+            **chi, "code": codici[-1], "collaborator_id": collaborator.id,
+            "start_time": orari[0], "service_ids": [service.id],
+        })
+        assert r.status_code == 201, r.text
+        assert (await _conversazione(client, admin_tokens))["display_name"] == "Giulia Bianchi"

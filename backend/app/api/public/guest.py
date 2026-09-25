@@ -28,6 +28,7 @@ from app.rate_limit import limiter
 from app.schemas.appointment import PortalAppointmentOut
 from app.schemas.guest import GuestBooking, GuestCodeRequest, GuestCodeSent, GuestIdentity
 from app.services import guest_verification
+from app.services.chat import collega_conversazione
 from app.utils.nomi import chiave_nome
 from app.utils.whatsapp import send_verification_code_whatsapp
 
@@ -62,6 +63,7 @@ async def _scheda_per(db: AsyncSession, chi: GuestIdentity) -> Client:
     scheda = Client(first_name=chi.first_name, last_name=chi.last_name, phone=chi.phone)
     db.add(scheda)
     await db.flush()
+    await collega_conversazione(db, scheda)
     log.info("scheda creata da prenotazione senza account", extra={"id_scheda": scheda.id})
     return scheda
 

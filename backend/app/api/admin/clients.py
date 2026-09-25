@@ -17,6 +17,7 @@ from app.schemas.appointment import AppointmentOutWithNames
 from app.schemas.common import PaginatedResponse
 from app.dependencies import get_current_user, require_admin
 from app.services import client_merge, portal_account
+from app.services.chat import collega_conversazione
 from app.utils.auth import hash_password
 
 router = APIRouter(prefix="/clients", tags=["Clients"])
@@ -76,6 +77,8 @@ async def create_client(
     client = Client(**payload.model_dump())
     db.add(client)
     await db.flush()
+    # Chi ha già scritto in chat prende subito il suo nome vero lì.
+    await collega_conversazione(db, client)
     await db.refresh(client)
     return ClientOut.model_validate(client)
 
@@ -107,6 +110,9 @@ async def update_client(
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(client, field, value)
     await db.flush()
+    # Il numero aggiunto dopo — «i dati mancanti si completano più tardi» — è
+    # il caso tipico: la chat di quel numero deve prendere questo nome ora.
+    await collega_conversazione(db, client)
     return ClientOut.model_validate(client)
 
 

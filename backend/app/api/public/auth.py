@@ -25,8 +25,9 @@ from app.schemas.common import TokenResponse, MessageResponse
 from app.services.email_verification import (
     CODE_TTL_MINUTES, VerificationError, check_code, issue_code,
 )
-from app.services import phone_verification
+from app.services import client_merge, phone_verification
 from app.utils.auth import hash_password, verify_password, create_access_token, create_refresh_token
+from app.utils.nomi import chiave_nome
 from app.utils.email import send_verification_code_email
 from app.utils.whatsapp import send_verification_code_whatsapp
 
@@ -147,7 +148,8 @@ async def register(
     # without even reading the confirmation email.
     #
     # So sign-up only ever creates its own row. Folding it into the salon's
-    # record happens in verify-email, once the address has been proven.
+    # record happens in verify-email, once the address has been proven, and
+    # in verify-phone — by number and name — once the number has.
     db.add(Client(
         first_name=payload.first_name,
         last_name=payload.last_name,
@@ -170,8 +172,10 @@ async def _adopt_salon_record(db: AsyncSession, account: ClientAccount) -> None:
 
     Runs only after the code has been entered, so the address is the one fact
     about this person that has actually been established — which is why it is
-    the only thing matched on. A phone number is not proof: anyone can type
-    someone else's, and doing so is what used to hand over a stranger's history.
+    the only thing matched on. A phone number is not proof *yet*: anyone can
+    type someone else's, and doing so is what used to hand over a stranger's
+    history. It becomes proof one step later, with the WhatsApp code — which
+    is where `_collega_per_telefono` matches on it.
 
     Only an unclaimed record is adopted. Two people can legitimately share a
     number or an old address — a couple, a mother and daughter — and whoever
@@ -236,6 +240,70 @@ async def _adopt_salon_record(db: AsyncSession, account: ClientAccount) -> None:
     )).scalar_one()
     if booked == 0:
         await db.delete(stub)
+
+
+async def _collega_per_telefono(db: AsyncSession, account: ClientAccount) -> None:
+    """Riunisce alla scheda dell'account quelle con lo stesso numero e nome.
+
+    Le schede senza account nascono in due modi: il salone che segna una
+    cliente con nome, cognome e telefono, e chi prenota dal portale senza
+    registrarsi. Nessuna delle due ha un'email, quindi `_adopt_salon_record`
+    non le trova mai: senza questo passo chi si registra dopo non vedrebbe i
+    propri appuntamenti, e il salone si ritroverebbe con due schede.
+
+    Gira solo qui, a codice WhatsApp appena confermato: è il momento in cui
+    il numero smette di essere una cosa digitata e diventa una cosa
+    dimostrata. Prima, bastava conoscere il cellulare di qualcuno per
+    prendersi il suo storico — il difetto che la nota in `register` racconta.
+
+    Il numero da solo non basta comunque: madre e figlia col fisso di casa
+    hanno due schede e lo stesso numero. Serve anche il nome, confrontato
+    ignorando maiuscole, accenti e spazi (`app/utils/nomi.py`). «Maria» e
+    «Maria Rosaria» restano due schede, da unire a mano se sono la stessa
+    persona.
+
+    Solo schede senza account: una scheda che ne ha già uno è di chi entra
+    con quella password, e toglierla sarebbe chiudere fuori qualcuno.
+
+    L'unione è quella di «Unisci» (`client_merge`): sopravvive la scheda più
+    vecchia, che porta lo storico e le note del salone, e l'account ci si
+    sposta sopra; le altre restano disattivate con scritto dove sono finite.
+    """
+    propria = (await db.execute(
+        select(Client).where(Client.account_id == account.id)
+    )).scalar_one_or_none()
+    if propria is None or not propria.phone:
+        return
+
+    chiave = chiave_nome(propria.first_name, propria.last_name)
+    stesso_numero = (await db.execute(
+        select(Client).where(
+            Client.phone == propria.phone,
+            Client.account_id.is_(None),
+            Client.is_active == True,  # noqa: E712 — confronto SQL
+            Client.id != propria.id,
+        )
+    )).scalars().all()
+    sue = [c for c in stesso_numero if chiave_nome(c.first_name, c.last_name) == chiave]
+    if not sue:
+        return
+
+    tutte = [propria, *sue]
+    superstite = min(tutte, key=lambda c: c.id)
+    for altra in tutte:
+        if altra.id != superstite.id:
+            await client_merge.esegui(db, superstite.id, altra.id)
+
+    # Come per l'email: è il passaggio in cui uno storico cambia
+    # proprietario, quindi resta scritto chi, quando e da quali schede.
+    log.info(
+        "schede collegate all'account per telefono e nome",
+        extra={
+            "id_account": account.id,
+            "id_scheda": superstite.id,
+            "id_schede_unite": [c.id for c in tutte if c.id != superstite.id],
+        },
+    )
 
 
 @router.post("/verify-email", response_model=Union[TokenResponse, PhoneVerificationRequired])
@@ -333,6 +401,10 @@ async def verify_phone(
             motivo="codice_telefono_non_valido",
         )
         raise HTTPException(status_code=400, detail=e.detail)
+
+    # Il numero è dimostrato da qui in poi: è il momento in cui si può
+    # cercare, per numero, quello che il salone aveva già di questa persona.
+    await _collega_per_telefono(db, account)
 
     await db.flush()
     evento(

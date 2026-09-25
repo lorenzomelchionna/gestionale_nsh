@@ -148,6 +148,10 @@ EXPECTED_GUARDS = {
     ("POST", "/api/public/auth/reset-password"): "public",
     ("GET", "/api/public/availability"): "public",
     ("GET", "/api/public/availability/calendar"): "public",
+    # Prenotare senza account: pubbliche per definizione. Il controllo è il
+    # codice WhatsApp mandato al numero, uno per prenotazione.
+    ("POST", "/api/public/guest/code"): "public",
+    ("POST", "/api/public/guest/appointments"): "public",
     # Unauthenticated by necessity — Twilio cannot hold our credentials. The
     # control is the Twilio signature check inside the handler, not a dependency.
     ("POST", "/api/public/whatsapp/webhook"): "public",

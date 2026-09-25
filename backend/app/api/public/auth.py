@@ -26,6 +26,7 @@ from app.services.email_verification import (
     CODE_TTL_MINUTES, VerificationError, check_code, issue_code,
 )
 from app.services import client_merge, phone_verification
+from app.services.chat import collega_conversazione
 from app.utils.auth import hash_password, verify_password, create_access_token, create_refresh_token
 from app.utils.nomi import chiave_nome
 from app.utils.email import send_verification_code_email
@@ -405,6 +406,12 @@ async def verify_phone(
     # Il numero è dimostrato da qui in poi: è il momento in cui si può
     # cercare, per numero, quello che il salone aveva già di questa persona.
     await _collega_per_telefono(db, account)
+    # E la chat di quel numero, se aveva già scritto, prende il suo nome.
+    scheda = (await db.execute(
+        select(Client).where(Client.account_id == account.id)
+    )).scalar_one_or_none()
+    if scheda is not None:
+        await collega_conversazione(db, scheda)
 
     await db.flush()
     evento(

@@ -1851,10 +1851,45 @@ roadmap sopra.
   sola** scheda attiva con quel numero (con due — il fisso di casa — resta il
   nome WhatsApp, che almeno è di chi scrive). Nell'intestazione, se diverso
   da quello della scheda, «su WhatsApp «…»».
-- [ ] **Recuperare i 3 messaggi persi in produzione** dopo il rilascio:
-  `scripts/recupera_allegati_chat.py` (dry-run, poi `--apply`), dal tunnel
-  Railway. Li rimette **con la loro data**: con quella di oggi riaprirebbe
-  per finta la finestra delle 24 ore. Provato sul DB locale coi 3 veri.
+- [PR #139](https://github.com/lorenzomelchionna/gestionale_nsh/pull/139)
+  → `develop`, [PR #140](https://github.com/lorenzomelchionna/gestionale_nsh/pull/140)
+  → `main` (commit `d180d19`), CI verde (8/8 su #140). **Deploy
+  confermato** il 2026-09-25 alle 08:41 UTC: backend, frontend e worker
+  `SUCCESS`, `Running upgrade d7b2e5a91c30 -> e3c9a1f47b82, add media to
+  chat_messages`, bootstrap completato. Dal vivo: `/health` 200, `www` 200;
+  allegato senza token → 401; webhook non firmato con allegato → 403; le
+  stringhe nuove («Scarica il vocale», «Allegato non disponibile», «su
+  WhatsApp «») nel bundle servito.
+- [x] **Il nome vero appena la scheda esiste** — domanda di Lorenzo: «se
+  Flavia registra un cliente che ha scritto in chat, il nome si aggiorna?».
+  Col solo collegamento in arrivo no: la chat restava col nome WhatsApp
+  **fino al messaggio successivo** della persona. Ora `collega_conversazione`
+  gira anche quando la scheda nasce o prende un numero: creazione e modifica
+  dall'admin, prenotazione senza account, registrazione (a numero
+  confermato). Stessa regola: una sola scheda attiva con quel numero. Una
+  chat già collegata segue il numero se la sua scheda non ce l'ha più
+  (numero cambiato, scheda eliminata); se ce l'ha ancora, resta dov'è.
+  Test in `test_chat_allegati.py` (`TestIlNomeSubito`) e
+  `test_collegamento_per_telefono.py` (`TestLaChat`); 824 in tutto.
+  Falsificati i quattro punti di chiamata, la regola dell'unicità e lo
+  spostamento: ognuno rompe il suo test. Una prima versione che non
+  spostava mai le chat già collegate è stata cambiata dopo che la
+  falsificazione ha mostrato che il caso non era né coperto né giusto.
+- [x] ~~**Recuperare i 3 messaggi persi in produzione**~~ — fatto il
+  2026-09-25 alle 08:48 UTC, col tunnel aperto da Lorenzo e il suo ok dopo
+  il dry-run: `scripts/recupera_allegati_chat.py --apply` → «Recuperati 3
+  messaggi»; rilanciato → «Niente da fare». Verificato in sola lettura:
+  id 21 e 22 (foto, 22/09 20:37, conversazione di Lorenzo), id 23 (vocale,
+  25/09 08:17, conversazione «Raffaele»), con la loro data; la finestra
+  della conversazione 4 parte dalle 08:17 del vocale, non dal recupero.
+  Alle 08:49 UTC `admin:1` ha aperto la chat e i tre allegati sono stati
+  serviti dal vivo (`/media/0` → 200, il vocale in 419 ms) — la prima
+  prova in produzione del passaggio dal backend. Aprirle le ha segnate
+  lette, per questo `unread_count` risulta 0.
+  **Resta da fare**: che Flavia ascolti il vocale di Raffaele e risponda —
+  risposta libera possibile fino al 26/09 08:17.
+  La password del superuser Postgres è comparsa di nuovo in chat (output
+  del tunnel): stessa voce di rotazione già aperta in «Sicurezza».
 
 ### Richiesta — 2026-09-25: prenotare senza account
 

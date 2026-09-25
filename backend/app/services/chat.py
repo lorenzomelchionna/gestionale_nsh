@@ -131,6 +131,35 @@ async def find_client_by_phone(db: AsyncSession, phone: str) -> Optional[Client]
     return matches[0] if len(matches) == 1 else None
 
 
+async def collega_conversazione(db: AsyncSession, client: Client) -> None:
+    """Dà il nome della scheda alla chat di quel numero, appena la scheda c'è.
+
+    Il collegamento al messaggio in arrivo (`get_or_create_conversation`)
+    arriva tardi per il caso più comune: una persona scrive, il salone la
+    registra, e la chat continua a mostrare il nome del profilo WhatsApp
+    finché lei non scrive di nuovo — che può essere fra un mese. Chiamata
+    quando una scheda nasce o prende un numero, chiude quel vuoto.
+
+    Stessa regola del collegamento in arrivo: solo se questa è l'**unica**
+    scheda attiva con quel numero. Vale anche per una chat già collegata: se
+    la sua scheda il numero non ce l'ha più — cambiato, o scheda eliminata —
+    la chat segue il numero. Se ce l'ha ancora, le schede col numero sono
+    due e la regola lascia tutto com'è.
+    """
+    if not client.phone or not client.is_active:
+        return
+    numero = normalise_phone(client.phone)
+    conv = (await db.execute(
+        select(Conversation).where(Conversation.phone == numero)
+    )).scalar_one_or_none()
+    if conv is None or conv.client_id == client.id:
+        return
+    unica = await find_client_by_phone(db, numero)
+    if unica is not None and unica.id == client.id:
+        conv.client_id = client.id
+        await db.flush()
+
+
 async def record_inbound(
     db: AsyncSession,
     *,

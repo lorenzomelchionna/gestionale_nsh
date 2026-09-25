@@ -249,3 +249,25 @@ class TestPiuSchede:
 
         r = await client.get(MY_APPOINTMENTS, headers=auth(token))
         assert len(r.json()) == 2
+
+
+class TestLaChat:
+    async def test_la_chat_prende_il_nome_alla_registrazione(self, client, db, codici):
+        """Ha scritto su WhatsApp prima di registrarsi: a numero confermato la
+        chat del salone mostra il suo nome, non quello del profilo WhatsApp."""
+        from app.models.chat import Conversation
+
+        conv = Conversation(phone=PHONE, contact_name="Mary")
+        db.add(conv)
+        await db.commit()
+
+        await _registra_fino_al_telefono(client, codici)
+        await db.refresh(conv)
+        assert conv.client_id is None  # solo email: il numero non è ancora provato
+
+        await _conferma_telefono(client, codici)
+        await db.refresh(conv)
+        scheda = (await db.execute(
+            select(Client).where(Client.account_id == (await _account(db)).id)
+        )).scalar_one()
+        assert conv.client_id == scheda.id

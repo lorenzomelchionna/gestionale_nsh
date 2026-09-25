@@ -1823,6 +1823,39 @@ Non bloccano il go-live: il gestionale funziona senza. Stanno qui separate
 apposta, così le caselle aperte qui sotto non si confondono con quelle della
 roadmap sopra.
 
+### Richiesta — 2026-09-25: le immagini in chat, e da dove vengono i nomi
+
+- [x] **Le immagini non si vedevano perché non venivano salvate.** Il
+  webhook registrava un messaggio solo se aveva testo (`if from_phone and
+  body`): una foto o un vocale senza didascalia sparivano per intero, senza
+  lasciare traccia. Su Twilio ne risultavano 3 — due foto di prova di
+  Lorenzo del 22/09 e **un vocale di una cliente del 25/09 alle 08:17**
+  (numero …3565), che nessuno ha sentito.
+  - `chat_messages.media` (migration `e3c9a1f47b82`): gli allegati dal
+    webhook, solo URL `https://api.twilio.com/`.
+  - I file restano su Twilio e **vogliono le credenziali dell'account**
+    (senza: 401, provato): la pagina li chiede a `GET
+    /api/admin/chat/messages/{id}/media/{indice}` (staff), che li scarica e
+    li serve senza mai mostrare l'URL. Un tipo che il browser eseguirebbe
+    (html, svg, …) si scarica invece di aprirsi.
+  - Nella chat: foto, vocali (con «Scarica il vocale»: i `.ogg` di WhatsApp
+    non si riproducono su Safari vecchi), video, altri file come download;
+    nell'elenco «📷 Foto», «🎤 Messaggio vocale».
+- [x] **I nomi.** Con una scheda cliente collegata si vede il nome della
+  scheda; senza, quello che la persona si è data **sul suo profilo
+  WhatsApp** (`ProfileName`, che Twilio manda con ogni messaggio). Due
+  difetti corretti: quel nome si fissava al primo messaggio e non si
+  aggiornava più; e la scheda si collegava **solo quando la conversazione
+  nasceva** — chi scriveva prima di avere una scheda restava col nome
+  WhatsApp per sempre. Ora si collega al primo messaggio utile, se c'è **una
+  sola** scheda attiva con quel numero (con due — il fisso di casa — resta il
+  nome WhatsApp, che almeno è di chi scrive). Nell'intestazione, se diverso
+  da quello della scheda, «su WhatsApp «…»».
+- [ ] **Recuperare i 3 messaggi persi in produzione** dopo il rilascio:
+  `scripts/recupera_allegati_chat.py` (dry-run, poi `--apply`), dal tunnel
+  Railway. Li rimette **con la loro data**: con quella di oggi riaprirebbe
+  per finta la finestra delle 24 ore. Provato sul DB locale coi 3 veri.
+
 ### Richiesta — 2026-09-25: prenotare senza account
 
 «Prenotare, sia da admin sia dal portale, con nome, cognome e telefono, senza

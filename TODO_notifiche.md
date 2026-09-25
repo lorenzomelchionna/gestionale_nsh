@@ -1836,7 +1836,21 @@ roadmap sopra.
   celle più strette, pulsanti uno sopra l'altro: nessuno scorrimento di
   lato (misurato 341/341 px). Tablet e desktop invariati, verificato.
 - [ ] **2 e 5. «Tempo di risposta» e «notifiche WhatsApp, sennò non mi
-  accorgo quando arrivano»** — letti insieme, dicono la stessa cosa
+  accorgo quando arrivano»** — **deciso con Lorenzo: (a) e poi (b).**
+  - [x] **(a) a gestionale aperto** — `useChatAlerts` in `AdminLayout`:
+    controlla ogni 10 s **anche in secondo piano**, e all'arrivo di un
+    messaggio suona, mette «(N) New Style Hair» nel titolo e mostra una
+    notifica del computer (se consentita e se non si sta già guardando la
+    chat) che cliccata apre quella conversazione (`/admin/chat?c=ID`). Non
+    guarda il numero dei non letti: una chat aperta si segna letta da sola a
+    ogni aggiornamento, e quel numero non salirebbe mai per chi si sta
+    seguendo. Guarda l'id dell'ultimo messaggio arrivato, che il backend
+    ora restituisce insieme al conteggio (`/chat/unread-count` → `ultimo`).
+    Con più schede aperte avvisa una volta sola. In Chat, «Attiva notifiche»
+    finché il permesso non è stato dato. Verificato nel browser con messaggi
+    simulati: titolo «(1)», poi «(2)», notifica «WhatsApp · …» col testo o
+    «📷 Foto», clic → conversazione aperta.
+  - [ ] **(b) push sul telefono** a gestionale chiuso — prossimo lavoro. — letti insieme, dicono la stessa cosa
   (l'ipotesi già scritta sotto il 23/09): il messaggio arriva subito, è chi
   lavora che non se ne accorge. Oggi il gestionale non avvisa nessuno, la
   lista si aggiorna ogni 30 s e **non si aggiorna affatto** con la scheda in
@@ -1864,11 +1878,13 @@ roadmap sopra.
   amministratore, l'account del salone (la pagina mostra l'email, da cui
   «New Style»); `collaborator` = l'email di Flavia, collegato a Flavia
   Romolo, che vede agenda e chat ma non cassa, impostazioni, team.
-  - [ ] **Da decidere**: se Flavia vuole entrare col suo account e avere
+  - [x] ~~**Da decidere**~~ — **deciso: resta così** (Lorenzo, 2026-09-25).
+    Se Flavia vuole entrare col suo account e avere
     tutto, si promuove il suo account ad amministratore (l'API lo permette
     già, la pagina Team no) e «New Style» resta come account di riserva del
     salone.
 - [ ] **6. «Come avvio una chat se non mi scrive prima la cliente?»** —
+  **in sospeso per decisione di Lorenzo, ma va trovata una soluzione.** —
   regola di Meta, non del gestionale: fuori dalle 24 ore dall'ultimo
   messaggio della cliente si può mandare **solo un template approvato**. Il
   lavoro: un template «apertura» (es. «Ciao {{1}}, ti scriviamo da New Style

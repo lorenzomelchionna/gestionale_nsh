@@ -409,6 +409,12 @@ export const getChatUnreadCount = () =>
 export const replyToConversation = (id: number, body: string) =>
   api.post<ChatMessage>(`/admin/chat/conversations/${id}/reply`, { body }).then(r => r.data)
 
+/** Il file di un allegato, preso dal backend: l'URL di Twilio vuole le
+    credenziali dell'account, e la pagina non le ha. */
+export const getChatMedia = (messageId: number, index: number) =>
+  api.get<Blob>(`/admin/chat/messages/${messageId}/media/${index}`, { responseType: 'blob' })
+    .then(r => r.data)
+
 export const setConversationArchived = (id: number, archived: boolean) =>
   api.patch<Conversation>(`/admin/chat/conversations/${id}/archive`, null, {
     params: { archived },

@@ -86,34 +86,49 @@ async def get_or_create_conversation(
 
     if conv is None:
         conv = Conversation(phone=phone, contact_name=contact_name)
-        # Attach a known client when the number matches, so the thread shows a
-        # name and links to their history instead of a bare number.
+        db.add(conv)
+    elif contact_name and contact_name != conv.contact_name:
+        # Il nome del profilo WhatsApp lo sceglie la persona e lo può cambiare:
+        # vale l'ultimo. Prima si fissava al primo messaggio e non si
+        # aggiornava più, quindi la chat poteva mostrare un nome che il
+        # contatto non usa da mesi.
+        conv.contact_name = contact_name
+
+    # Attach a known client when the number matches, so the thread shows a
+    # name and links to their history instead of a bare number. Tried on every
+    # message, not only when the thread is created: someone who wrote before
+    # the salon had a record for them — or before they booked without an
+    # account — would otherwise keep showing their WhatsApp name for good.
+    if conv.client_id is None:
         client = await find_client_by_phone(db, phone)
         if client:
             conv.client_id = client.id
-        db.add(conv)
-        await db.flush()
-    elif contact_name and not conv.contact_name:
-        conv.contact_name = contact_name
 
+    await db.flush()
     return conv
 
 
 async def find_client_by_phone(db: AsyncSession, phone: str) -> Optional[Client]:
     """
-    Match a client by phone, ignoring formatting differences.
+    The one active client with this number, or None.
 
     Stored numbers are not guaranteed to be normalised, so comparison happens on
     the digits rather than the raw string.
+
+    None, rather than a guess, when two active records share the number —
+    mother and daughter on the home landline. Picking one would put a name on
+    the thread that is right half the time; the WhatsApp profile name is at
+    least the sender's own. A deactivated record ("Elimina", or the losing side
+    of a merge) is not a candidate: it stands for nobody any more.
     """
     target = normalise_phone(phone)
     if not target:
         return None
-    clients = (await db.execute(select(Client))).scalars().all()
-    for client in clients:
-        if client.phone and normalise_phone(client.phone) == target:
-            return client
-    return None
+    clients = (await db.execute(
+        select(Client).where(Client.is_active == True)  # noqa: E712 — confronto SQL
+    )).scalars().all()
+    matches = [c for c in clients if c.phone and normalise_phone(c.phone) == target]
+    return matches[0] if len(matches) == 1 else None
 
 
 async def record_inbound(
@@ -123,6 +138,7 @@ async def record_inbound(
     body: str,
     provider_sid: Optional[str],
     contact_name: Optional[str] = None,
+    media: Optional[list[dict[str, str]]] = None,
 ) -> Optional[ChatMessage]:
     """
     Store a message received from a client.
@@ -146,6 +162,7 @@ async def record_inbound(
         body=body,
         status=MessageStatus.received,
         provider_sid=provider_sid,
+        media=media or None,
     )
     db.add(message)
 
@@ -222,3 +239,55 @@ async def _dispatch_whatsapp(to_phone: str, body: str) -> Optional[str]:
 async def mark_read(db: AsyncSession, conversation: Conversation) -> None:
     conversation.unread_count = 0
     await db.flush()
+
+
+# ── Allegati ──────────────────────────────────────────────────────
+
+# Il più grosso che WhatsApp consegna è un video da 16 MB. Oltre, non è un
+# allegato di una cliente: si smette di leggere invece di tenerlo in memoria.
+MAX_ALLEGATO_BYTES = 20 * 1024 * 1024
+
+
+class AllegatoNonDisponibile(Exception):
+    """Twilio non ha dato il file: credenziali mancanti, file cancellato, rete."""
+
+
+async def scarica_allegato(url: str) -> tuple[bytes, Optional[str]]:
+    """Il file dietro un URL media di Twilio, col suo tipo.
+
+    Twilio lo protegge con le credenziali dell'account (senza: 401, provato
+    il 2026-09-25) e poi rimanda a un indirizzo firmato su un altro dominio.
+    httpx toglie da sé l'intestazione di autenticazione quando il redirect
+    cambia dominio, quindi le credenziali non escono dall'API di Twilio.
+    """
+    if not (settings.TWILIO_ACCOUNT_SID and settings.TWILIO_AUTH_TOKEN):
+        raise AllegatoNonDisponibile("Twilio non configurato")
+    if not url.startswith("https://api.twilio.com/"):
+        raise AllegatoNonDisponibile("URL non di Twilio")
+
+    try:
+        async with httpx.AsyncClient(follow_redirects=True, timeout=20.0) as http:
+            async with http.stream(
+                "GET", url, auth=(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
+            ) as resp:
+                if resp.status_code != 200:
+                    raise AllegatoNonDisponibile(f"Twilio ha risposto {resp.status_code}")
+                pezzi, totale = [], 0
+                async for pezzo in resp.aiter_bytes():
+                    totale += len(pezzo)
+                    if totale > MAX_ALLEGATO_BYTES:
+                        raise AllegatoNonDisponibile("allegato troppo grande")
+                    pezzi.append(pezzo)
+                return b"".join(pezzi), resp.headers.get("content-type")
+    except httpx.HTTPError as e:
+        raise AllegatoNonDisponibile(str(e)) from e
+
+
+def etichetta_allegato(content_type: str) -> str:
+    """Come chiamare un allegato dove c'è posto solo per una riga."""
+    tipo = (content_type or "").split("/")[0]
+    return {
+        "image": "📷 Foto",
+        "audio": "🎤 Messaggio vocale",
+        "video": "🎬 Video",
+    }.get(tipo, "📎 Allegato")

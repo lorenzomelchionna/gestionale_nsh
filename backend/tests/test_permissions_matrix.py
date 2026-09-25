@@ -56,6 +56,7 @@ EXPECTED_GUARDS = {
     ("PATCH", "/api/admin/chat/conversations/{conversation_id}/archive"): "staff",
     ("GET", "/api/admin/chat/unread-count"): "staff",
     ("GET", "/api/admin/chat/status"): "staff",
+    ("GET", "/api/admin/chat/messages/{message_id}/media/{index}"): "staff",
     ("GET", "/api/admin/clients"): "staff",
     ("POST", "/api/admin/clients"): "admin",
     ("DELETE", "/api/admin/clients/{client_id}"): "admin",

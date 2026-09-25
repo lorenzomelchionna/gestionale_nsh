@@ -1860,10 +1860,21 @@ roadmap sopra.
   allegato senza token → 401; webhook non firmato con allegato → 403; le
   stringhe nuove («Scarica il vocale», «Allegato non disponibile», «su
   WhatsApp «») nel bundle servito.
-- [ ] **Recuperare i 3 messaggi persi in produzione** dopo il rilascio:
-  `scripts/recupera_allegati_chat.py` (dry-run, poi `--apply`), dal tunnel
-  Railway. Li rimette **con la loro data**: con quella di oggi riaprirebbe
-  per finta la finestra delle 24 ore. Provato sul DB locale coi 3 veri.
+- [x] ~~**Recuperare i 3 messaggi persi in produzione**~~ — fatto il
+  2026-09-25 alle 08:48 UTC, col tunnel aperto da Lorenzo e il suo ok dopo
+  il dry-run: `scripts/recupera_allegati_chat.py --apply` → «Recuperati 3
+  messaggi»; rilanciato → «Niente da fare». Verificato in sola lettura:
+  id 21 e 22 (foto, 22/09 20:37, conversazione di Lorenzo), id 23 (vocale,
+  25/09 08:17, conversazione «Raffaele»), con la loro data; la finestra
+  della conversazione 4 parte dalle 08:17 del vocale, non dal recupero.
+  Alle 08:49 UTC `admin:1` ha aperto la chat e i tre allegati sono stati
+  serviti dal vivo (`/media/0` → 200, il vocale in 419 ms) — la prima
+  prova in produzione del passaggio dal backend. Aprirle le ha segnate
+  lette, per questo `unread_count` risulta 0.
+  **Resta da fare**: che Flavia ascolti il vocale di Raffaele e risponda —
+  risposta libera possibile fino al 26/09 08:17.
+  La password del superuser Postgres è comparsa di nuovo in chat (output
+  del tunnel): stessa voce di rotazione già aperta in «Sicurezza».
 
 ### Richiesta — 2026-09-25: prenotare senza account
 

@@ -1875,6 +1875,13 @@ roadmap sopra.
   spostamento: ognuno rompe il suo test. Una prima versione che non
   spostava mai le chat già collegate è stata cambiata dopo che la
   falsificazione ha mostrato che il caso non era né coperto né giusto.
+  [PR #141](https://github.com/lorenzomelchionna/gestionale_nsh/pull/141)
+  → `develop`, [PR #142](https://github.com/lorenzomelchionna/gestionale_nsh/pull/142)
+  → `main` (commit `71af9ff`), CI verde (8/8 su #142). **Deploy
+  confermato** il 2026-09-25 alle 09:11 UTC: backend, frontend e worker
+  `SUCCESS`, bootstrap completato, nessuna migration, nessun errore;
+  `/health` 200, `www` 200. Le schede create prima si collegano al prossimo
+  messaggio della persona o al prossimo salvataggio della scheda.
 - [x] ~~**Recuperare i 3 messaggi persi in produzione**~~ — fatto il
   2026-09-25 alle 08:48 UTC, col tunnel aperto da Lorenzo e il suo ok dopo
   il dry-run: `scripts/recupera_allegati_chat.py --apply` → «Recuperati 3

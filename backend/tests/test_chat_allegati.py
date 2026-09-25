@@ -294,3 +294,32 @@ class TestIlNomeSubito:
         })
         assert r.status_code == 201, r.text
         assert (await _conversazione(client, admin_tokens))["display_name"] == "Giulia Bianchi"
+
+
+class TestCancellare:
+    async def test_l_admin_cancella_conversazione_e_messaggi(self, client, db, admin_tokens):
+        await _arriva(client, sid="SM1", body="ciao")
+        await _arriva(client, sid="MM2", media=[(TWILIO_MEDIA, "image/jpeg")])
+        conv = await _conversazione(client, admin_tokens)
+
+        r = await client.delete(f"/api/admin/chat/conversations/{conv['id']}", headers=auth(admin_tokens))
+        assert r.status_code == 204
+        assert (await db.execute(select(Conversation))).scalars().all() == []
+        assert (await db.execute(select(ChatMessage))).scalars().all() == []
+
+    async def test_il_collaboratore_non_puo(self, client, db, collab_tokens, admin_tokens):
+        await _arriva(client, sid="SM1", body="ciao")
+        conv = await _conversazione(client, admin_tokens)
+        r = await client.delete(f"/api/admin/chat/conversations/{conv['id']}", headers=auth(collab_tokens))
+        assert r.status_code == 403
+        assert len((await db.execute(select(ChatMessage))).scalars().all()) == 1
+
+    async def test_se_riscrive_ricomincia_da_capo(self, client, db, admin_tokens):
+        await _arriva(client, sid="SM1", body="ciao")
+        conv = await _conversazione(client, admin_tokens)
+        await client.delete(f"/api/admin/chat/conversations/{conv['id']}", headers=auth(admin_tokens))
+
+        await _arriva(client, sid="SM2", body="sono ancora io")
+        nuova = await _conversazione(client, admin_tokens)
+        assert nuova["id"] != conv["id"]
+        assert nuova["last_message_preview"] == "sono ancora io"

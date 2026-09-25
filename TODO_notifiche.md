@@ -1895,8 +1895,9 @@ account **disdice contattando il salone** (nessun link personale).
   Flavia, 1 ottobre 18:30 → 201, id 44, `pending`; lo stesso codice
   riusato → 400 «Nessun codice per questo numero»; `notify_new_booking(44)`
   eseguito dal worker senza errori (email di avviso a admin e Flavia).
-  - [ ] **Pulizia**: rifiutare la richiesta 44 da «In attesa» ed eliminare
-    la scheda «Prova Ospite» dai Clienti.
+  - [x] ~~**Pulizia**~~ — fatta da Lorenzo il 2026-09-25: richiesta 44
+    rifiutata, scheda «Prova Ospite» eliminata. Verificato dal portale:
+    Flavia il 1 ottobre ha di nuovo 22 orari, 18:30 compreso.
 
 - [ ] **Chi prenota senza account non sa se è stata rifiutata** — il
   rifiuto (`POST /appointments/{id}/reject`) non manda niente a nessuno;

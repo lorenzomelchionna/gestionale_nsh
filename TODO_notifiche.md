@@ -1851,6 +1851,15 @@ roadmap sopra.
   sola** scheda attiva con quel numero (con due — il fisso di casa — resta il
   nome WhatsApp, che almeno è di chi scrive). Nell'intestazione, se diverso
   da quello della scheda, «su WhatsApp «…»».
+- [PR #139](https://github.com/lorenzomelchionna/gestionale_nsh/pull/139)
+  → `develop`, [PR #140](https://github.com/lorenzomelchionna/gestionale_nsh/pull/140)
+  → `main` (commit `d180d19`), CI verde (8/8 su #140). **Deploy
+  confermato** il 2026-09-25 alle 08:41 UTC: backend, frontend e worker
+  `SUCCESS`, `Running upgrade d7b2e5a91c30 -> e3c9a1f47b82, add media to
+  chat_messages`, bootstrap completato. Dal vivo: `/health` 200, `www` 200;
+  allegato senza token → 401; webhook non firmato con allegato → 403; le
+  stringhe nuove («Scarica il vocale», «Allegato non disponibile», «su
+  WhatsApp «») nel bundle servito.
 - [ ] **Recuperare i 3 messaggi persi in produzione** dopo il rilascio:
   `scripts/recupera_allegati_chat.py` (dry-run, poi `--apply`), dal tunnel
   Railway. Li rimette **con la loro data**: con quella di oggi riaprirebbe

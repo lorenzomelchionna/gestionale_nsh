@@ -9,7 +9,8 @@ import {
 } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import { useUIStore } from '@/store/uiStore'
-import { getPendingAppointments, getWaitlist, getChatUnreadCount } from '@/services/api'
+import { getPendingAppointments, getWaitlist } from '@/services/api'
+import { useChatAlerts } from '@/hooks/useChatAlerts'
 import { INDIRIZZO } from '@/config/business'
 import Logo from '@/components/ui/Logo'
 import clsx from 'clsx'
@@ -118,12 +119,8 @@ export default function AdminLayout() {
   })
   const waitlistCount = waitlistData?.length ?? 0
 
-  const { data: chatUnread } = useQuery({
-    queryKey: ['chat-unread'],
-    queryFn: getChatUnreadCount,
-    refetchInterval: 30_000,
-  })
-  const chatCount = chatUnread?.unread ?? 0
+  // Il numero sul menu, e gli avvisi quando arriva un messaggio.
+  const chatCount = useChatAlerts()
 
   const countFor = (badge?: Badge) =>
     badge === 'pending' ? pendingCount

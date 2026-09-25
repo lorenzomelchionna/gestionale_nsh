@@ -54,6 +54,8 @@ EXPECTED_GUARDS = {
     ("GET", "/api/admin/chat/conversations/{conversation_id}"): "staff",
     ("POST", "/api/admin/chat/conversations/{conversation_id}/reply"): "staff",
     ("PATCH", "/api/admin/chat/conversations/{conversation_id}/archive"): "staff",
+    # Cancellare non si annulla: solo admin, mentre archiviare resta a tutto lo staff.
+    ("DELETE", "/api/admin/chat/conversations/{conversation_id}"): "admin",
     ("GET", "/api/admin/chat/unread-count"): "staff",
     ("GET", "/api/admin/chat/status"): "staff",
     ("GET", "/api/admin/chat/messages/{message_id}/media/{index}"): "staff",

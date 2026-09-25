@@ -403,8 +403,18 @@ export const getConversation = (id: number) =>
 export const getChatStatus = () =>
   api.get<ChatChannelStatus>('/admin/chat/status').then(r => r.data)
 
+/** L'ultimo messaggio arrivato, per gli avvisi: l'id cresce sempre, anche
+    quando la conversazione si segna letta da sola perché è aperta. */
+export interface ChatLatest {
+  id: number
+  conversation_id: number
+  display_name: string
+  preview: string
+  created_at: string | null
+}
+
 export const getChatUnreadCount = () =>
-  api.get<{ unread: number }>('/admin/chat/unread-count').then(r => r.data)
+  api.get<{ unread: number; ultimo: ChatLatest | null }>('/admin/chat/unread-count').then(r => r.data)
 
 export const replyToConversation = (id: number, body: string) =>
   api.post<ChatMessage>(`/admin/chat/conversations/${id}/reply`, { body }).then(r => r.data)
@@ -414,6 +424,10 @@ export const replyToConversation = (id: number, body: string) =>
 export const getChatMedia = (messageId: number, index: number) =>
   api.get<Blob>(`/admin/chat/messages/${messageId}/media/${index}`, { responseType: 'blob' })
     .then(r => r.data)
+
+/** Per sempre: conversazione e messaggi. Solo admin. */
+export const deleteConversation = (id: number) =>
+  api.delete(`/admin/chat/conversations/${id}`)
 
 export const setConversationArchived = (id: number, archived: boolean) =>
   api.patch<Conversation>(`/admin/chat/conversations/${id}/archive`, null, {

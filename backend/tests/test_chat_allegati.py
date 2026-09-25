@@ -294,3 +294,78 @@ class TestIlNomeSubito:
         })
         assert r.status_code == 201, r.text
         assert (await _conversazione(client, admin_tokens))["display_name"] == "Giulia Bianchi"
+
+
+class TestCancellare:
+    async def test_l_admin_cancella_conversazione_e_messaggi(self, client, db, admin_tokens):
+        await _arriva(client, sid="SM1", body="ciao")
+        await _arriva(client, sid="MM2", media=[(TWILIO_MEDIA, "image/jpeg")])
+        conv = await _conversazione(client, admin_tokens)
+
+        r = await client.delete(f"/api/admin/chat/conversations/{conv['id']}", headers=auth(admin_tokens))
+        assert r.status_code == 204
+        assert (await db.execute(select(Conversation))).scalars().all() == []
+        assert (await db.execute(select(ChatMessage))).scalars().all() == []
+
+    async def test_il_collaboratore_non_puo(self, client, db, collab_tokens, admin_tokens):
+        await _arriva(client, sid="SM1", body="ciao")
+        conv = await _conversazione(client, admin_tokens)
+        r = await client.delete(f"/api/admin/chat/conversations/{conv['id']}", headers=auth(collab_tokens))
+        assert r.status_code == 403
+        assert len((await db.execute(select(ChatMessage))).scalars().all()) == 1
+
+    async def test_se_riscrive_ricomincia_da_capo(self, client, db, admin_tokens):
+        await _arriva(client, sid="SM1", body="ciao")
+        conv = await _conversazione(client, admin_tokens)
+        await client.delete(f"/api/admin/chat/conversations/{conv['id']}", headers=auth(admin_tokens))
+
+        await _arriva(client, sid="SM2", body="sono ancora io")
+        nuova = await _conversazione(client, admin_tokens)
+        assert nuova["id"] != conv["id"]
+        assert nuova["last_message_preview"] == "sono ancora io"
+
+
+class TestAvvisi:
+    """Quello che la pagina usa per suonare e mostrare la notifica."""
+
+    async def test_ultimo_messaggio_arrivato(self, client, admin_tokens):
+        await _arriva(client, sid="SM1", body="primo", profilo="Giuli")
+        await _arriva(client, sid="SM2", body="secondo", profilo="Giuli")
+        r = (await client.get("/api/admin/chat/unread-count", headers=auth(admin_tokens))).json()
+        assert r["unread"] == 2
+        assert r["ultimo"]["preview"] == "secondo"
+        assert r["ultimo"]["display_name"] == "Giuli"
+
+    async def test_cresce_anche_con_la_chat_aperta(self, client, admin_tokens):
+        """Aprire la conversazione azzera il conteggio, non l'ultimo: è per
+        questo che gli avvisi guardano l'id e non il numero di non letti."""
+        await _arriva(client, sid="SM1", body="primo")
+        conv = await _conversazione(client, admin_tokens)
+        prima = (await client.get("/api/admin/chat/unread-count", headers=auth(admin_tokens))).json()
+
+        await _arriva(client, sid="SM2", body="mentre la guardi")
+        await client.get(f"/api/admin/chat/conversations/{conv['id']}", headers=auth(admin_tokens))
+        dopo = (await client.get("/api/admin/chat/unread-count", headers=auth(admin_tokens))).json()
+
+        assert dopo["unread"] == 0
+        assert dopo["ultimo"]["id"] > prima["ultimo"]["id"]
+
+    async def test_una_foto_ha_la_sua_etichetta(self, client, admin_tokens):
+        await _arriva(client, sid="MM1", media=[(TWILIO_MEDIA, "image/jpeg")])
+        r = (await client.get("/api/admin/chat/unread-count", headers=auth(admin_tokens))).json()
+        assert r["ultimo"]["preview"] == "📷 Foto"
+
+    async def test_le_nostre_risposte_non_contano(self, client, admin_tokens):
+        await _arriva(client, sid="SM1", body="ciao")
+        conv = await _conversazione(client, admin_tokens)
+        prima = (await client.get("/api/admin/chat/unread-count", headers=auth(admin_tokens))).json()
+        await client.post(
+            f"/api/admin/chat/conversations/{conv['id']}/reply",
+            headers=auth(admin_tokens), json={"body": "risposta del salone"},
+        )
+        dopo = (await client.get("/api/admin/chat/unread-count", headers=auth(admin_tokens))).json()
+        assert dopo["ultimo"]["id"] == prima["ultimo"]["id"]
+
+    async def test_niente_messaggi(self, client, admin_tokens):
+        r = (await client.get("/api/admin/chat/unread-count", headers=auth(admin_tokens))).json()
+        assert r == {"unread": 0, "ultimo": None}

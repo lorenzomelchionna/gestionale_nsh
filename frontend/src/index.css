@@ -328,6 +328,13 @@
   .num {
     @apply text-right tabular-nums;
   }
+  /* The header of a figures column has to follow its figures. `.ledger thead
+     th` above is more specific than `.num` and would keep it left-aligned:
+     the label then sits at the left edge while the numbers hug the right,
+     and every figure reads as shifted out of its column. */
+  .ledger thead th.num {
+    @apply text-right;
+  }
   /* A money figure, set in the display face like the totals on a receipt. */
   .amount {
     @apply font-heading text-[15px] tabular-nums text-foreground;

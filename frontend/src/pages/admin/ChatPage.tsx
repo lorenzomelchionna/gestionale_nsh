@@ -4,20 +4,34 @@ import { format, parseISO, formatDistanceToNowStrict, isToday } from 'date-fns'
 import { it } from 'date-fns/locale'
 import {
   MessageSquare, Send, ChevronLeft, AlertTriangle, Archive, ArchiveRestore, Loader2, Clock, User,
-  Paperclip,
+  Paperclip, Trash2, Bell,
 } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import {
   getConversations, getConversation, replyToConversation, setConversationArchived,
-  getChatStatus, getChatMedia,
+  getChatStatus, getChatMedia, deleteConversation,
 } from '@/services/api'
+import { useAuthStore } from '@/store/authStore'
+import Sheet from '@/components/ui/Sheet'
 import type { ChatChannelStatus, ChatMedia, ChatMessage, Conversation } from '@/types'
 import { PageHeader, EmptyState, SkeletonList } from '@/components/ui'
 import clsx from 'clsx'
 
 export default function ChatPage() {
   const qc = useQueryClient()
-  const [selectedId, setSelectedId] = useState<number | null>(null)
+  // `?c=ID` apre quella conversazione: è dove porta il clic su una notifica.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [selectedId, setSelectedId] = useState<number | null>(() => {
+    const c = Number(searchParams.get('c'))
+    return Number.isInteger(c) && c > 0 ? c : null
+  })
+  useEffect(() => {
+    const c = Number(searchParams.get('c'))
+    if (Number.isInteger(c) && c > 0) {
+      setSelectedId(c)
+      setSearchParams({}, { replace: true })
+    }
+  }, [searchParams, setSearchParams])
   // Archiving used to be a one-way door: one click, no confirmation, and no
   // way to see an archived thread again until the client wrote back. On
   // 2026-09-23 both of the salon's conversations went that way and the page
@@ -28,7 +42,8 @@ export default function ChatPage() {
     queryKey: ['conversations', showArchived],
     queryFn: () => getConversations(showArchived),
     // New messages arrive by webhook, so the list has to poll to notice them.
-    refetchInterval: 20_000,
+    // `useChatAlerts` also refreshes it the moment it sees a new message.
+    refetchInterval: 10_000,
   })
 
   const { data: status } = useQuery({
@@ -58,6 +73,10 @@ export default function ChatPage() {
           <NotLiveBanner mode={status.mode} />
         </div>
       )}
+
+      <div className={clsx(selectedId !== null && 'hidden lg:block')}>
+        <NotificationsPrompt />
+      </div>
 
       <div className="lg:flex lg:flex-1 lg:min-h-0 lg:gap-4 lg:mt-5">
         {/* Conversation list */}
@@ -225,7 +244,7 @@ function Thread({ conversationId, onBack, onChanged }: {
   const { data: conv, isLoading } = useQuery({
     queryKey: ['conversation', conversationId],
     queryFn: () => getConversation(conversationId),
-    refetchInterval: 15_000,
+    refetchInterval: 10_000,
   })
 
   // Opening the thread clears its unread badge server-side; refresh the list.
@@ -253,6 +272,20 @@ function Thread({ conversationId, onBack, onChanged }: {
       // thread reopened right after would show its old archived state, and
       // the wrong button.
       qc.invalidateQueries({ queryKey: ['conversation', conversationId] })
+      onBack()
+      onChanged()
+    },
+  })
+
+  // Cancellare è per sempre, quindi solo l'admin e sempre dopo una conferma;
+  // per togliere una chat dalla lista c'è già «Archivia», che si annulla.
+  const isAdmin = useAuthStore(s => s.user?.role === 'admin')
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const deleteMut = useMutation({
+    mutationFn: () => deleteConversation(conversationId),
+    onSuccess: () => {
+      qc.removeQueries({ queryKey: ['conversation', conversationId] })
+      setConfirmDelete(false)
       onBack()
       onChanged()
     },
@@ -320,7 +353,56 @@ function Thread({ conversationId, onBack, onChanged }: {
             <Archive className="w-[18px] h-[18px]" />
           </button>
         )}
+        {isAdmin && (
+          <button
+            onClick={() => setConfirmDelete(true)}
+            className="btn-icon hover:text-danger"
+            title="Elimina conversazione"
+            aria-label="Elimina conversazione"
+          >
+            <Trash2 className="w-[18px] h-[18px]" />
+          </button>
+        )}
       </div>
+
+      {confirmDelete && (
+        <Sheet
+          onClose={() => setConfirmDelete(false)}
+          title="Eliminare la conversazione?"
+          footer={
+            <>
+              <button type="button" onClick={() => setConfirmDelete(false)} className="btn-secondary btn-sm">
+                Annulla
+              </button>
+              <button
+                type="button"
+                onClick={() => deleteMut.mutate()}
+                disabled={deleteMut.isPending}
+                className="btn-danger btn-sm"
+              >
+                {deleteMut.isPending ? 'Eliminazione...' : 'Elimina'}
+              </button>
+            </>
+          }
+        >
+          <div className="space-y-3 text-sm text-foreground">
+            <p>
+              La conversazione con <strong>{conv.display_name}</strong> e tutti i
+              suoi {conv.messages.length} messaggi spariscono dal gestionale.
+              Non si può annullare.
+            </p>
+            <p className="text-muted-foreground">
+              Per toglierla solo dalla lista usa «Archivia»: si riporta indietro
+              quando vuoi. Se la persona riscrive, riparte una conversazione nuova.
+            </p>
+            {deleteMut.isError && (
+              <p role="alert" className="text-[13px] text-danger bg-danger/10 px-3 py-2.5">
+                Eliminazione non riuscita. Riprova.
+              </p>
+            )}
+          </div>
+        </Sheet>
+      )}
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-2.5 min-h-0">
@@ -488,5 +570,42 @@ function Attachment({ messageId, media }: { messageId: number; media: ChatMedia 
     >
       <Paperclip className="w-4 h-4" /> Apri l'allegato
     </a>
+  )
+}
+
+/**
+ * Il permesso per le notifiche del computer. Il browser lo chiede solo dopo
+ * un clic, quindi serve un pulsante; si vede finché non si è scelto, e dopo
+ * un «blocca» dice dove si riattiva, perché da qui non si può più chiedere.
+ */
+function NotificationsPrompt() {
+  const supportate = typeof window !== 'undefined' && 'Notification' in window
+  const [permesso, setPermesso] = useState(supportate ? Notification.permission : 'denied')
+  if (!supportate || permesso === 'granted') return null
+
+  if (permesso === 'denied') {
+    return (
+      <p className="mt-4 text-[13px] text-ink-3 flex items-center gap-2">
+        <Bell className="w-4 h-4 shrink-0" />
+        Notifiche bloccate in questo browser: si riattivano dalle impostazioni
+        del sito (il lucchetto accanto all'indirizzo).
+      </p>
+    )
+  }
+  return (
+    <div className="mt-4 flex flex-wrap items-center gap-3 border border-primary/40 bg-primary/[0.06] px-4 py-3">
+      <Bell className="w-4 h-4 text-primary-dark shrink-0" />
+      <p className="text-[13px] text-foreground flex-1 min-w-[12rem]">
+        Attiva le notifiche per sapere quando arriva un messaggio, anche con il
+        gestionale in un'altra scheda.
+      </p>
+      <button
+        type="button"
+        className="btn-secondary btn-sm"
+        onClick={() => { void Notification.requestPermission().then(setPermesso) }}
+      >
+        Attiva notifiche
+      </button>
+    </div>
   )
 }

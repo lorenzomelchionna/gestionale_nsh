@@ -1823,6 +1823,82 @@ Non bloccano il go-live: il gestionale funziona senza. Stanno qui separate
 apposta, così le caselle aperte qui sotto non si confondono con quelle della
 roadmap sopra.
 
+### Richieste di Flavia — 2026-09-25 (sei punti)
+
+- [x] **1. «Nei prodotti giacenza e prezzo si vedono spostati»** — due
+  difetti. Il primo in tutto il gestionale: l'intestazione di una colonna
+  numerica restava a sinistra mentre i numeri stanno a destra, perché
+  `.ledger thead th` (allineato a sinistra) è più specifico di `.num`. Ogni
+  cifra sembrava fuori dalla sua colonna — prodotti, servizi, appuntamenti.
+  Corretto con `.ledger thead th.num` in `index.css`. Il secondo solo su
+  telefono: la tabella prodotti era più larga di 375 px e il prezzo stava
+  fuori schermo. Su telefono ora niente miniatura, niente riga «acquisto»,
+  celle più strette, pulsanti uno sopra l'altro: nessuno scorrimento di
+  lato (misurato 341/341 px). Tablet e desktop invariati, verificato.
+- [ ] **2 e 5. «Tempo di risposta» e «notifiche WhatsApp, sennò non mi
+  accorgo quando arrivano»** — **deciso con Lorenzo: (a) e poi (b).**
+  - [x] **(a) a gestionale aperto** — `useChatAlerts` in `AdminLayout`:
+    controlla ogni 10 s **anche in secondo piano**, e all'arrivo di un
+    messaggio suona, mette «(N) New Style Hair» nel titolo e mostra una
+    notifica del computer (se consentita e se non si sta già guardando la
+    chat) che cliccata apre quella conversazione (`/admin/chat?c=ID`). Non
+    guarda il numero dei non letti: una chat aperta si segna letta da sola a
+    ogni aggiornamento, e quel numero non salirebbe mai per chi si sta
+    seguendo. Guarda l'id dell'ultimo messaggio arrivato, che il backend
+    ora restituisce insieme al conteggio (`/chat/unread-count` → `ultimo`).
+    Con più schede aperte avvisa una volta sola. In Chat, «Attiva notifiche»
+    finché il permesso non è stato dato. Verificato nel browser con messaggi
+    simulati: titolo «(1)», poi «(2)», notifica «WhatsApp · …» col testo o
+    «📷 Foto», clic → conversazione aperta.
+  - [ ] **(b) push sul telefono** a gestionale chiuso — prossimo lavoro. — letti insieme, dicono la stessa cosa
+  (l'ipotesi già scritta sotto il 23/09): il messaggio arriva subito, è chi
+  lavora che non se ne accorge. Oggi il gestionale non avvisa nessuno, la
+  lista si aggiorna ogni 30 s e **non si aggiorna affatto** con la scheda in
+  secondo piano. Strade, da decidere con Lorenzo:
+  - (a) a gestionale aperto: aggiornamento ogni ~10 s anche in secondo
+    piano, suono, contatore nel titolo della scheda, notifica del browser —
+    solo frontend, poche ore; funziona sul PC/tablet del salone, non sul
+    telefono in tasca;
+  - (b) notifiche push sul telefono (web app installata, iOS 16.4+) anche a
+    gestionale chiuso — service worker, chiavi VAPID, iscrizioni salvate,
+    invio dal webhook: circa una giornata;
+  - (c) un WhatsApp al numero personale di Flavia a ogni messaggio in
+    arrivo, con un template da far approvare: la notifica più sicura, ma
+    ogni avviso è un messaggio a pagamento.
+- [x] **3. «Come cancello le chat»** — prima si poteva solo archiviare.
+  Ora c'è «Elimina conversazione» (cestino nell'intestazione), **solo
+  admin**, con conferma che ricorda l'alternativa «Archivia». Cancella
+  conversazione e messaggi dal gestionale (Twilio tiene il suo registro);
+  se la persona riscrive, riparte una conversazione nuova.
+  `DELETE /api/admin/chat/conversations/{id}` → `admin` in
+  `EXPECTED_GUARDS`; aprirlo allo staff fa fallire due test (verificato).
+- [x] **4. «Perché in Team e accessi compare New Style come amministratore,
+  e il mio Flavia?»** — risposta, non difetto: sono due account. In
+  produzione (letto il 2026-09-25): `admin:1` = `newstylehair2019@…`,
+  amministratore, l'account del salone (la pagina mostra l'email, da cui
+  «New Style»); `collaborator` = l'email di Flavia, collegato a Flavia
+  Romolo, che vede agenda e chat ma non cassa, impostazioni, team.
+  - [x] ~~**Da decidere**~~ — **deciso: resta così** (Lorenzo, 2026-09-25).
+    Se Flavia vuole entrare col suo account e avere
+    tutto, si promuove il suo account ad amministratore (l'API lo permette
+    già, la pagina Team no) e «New Style» resta come account di riserva del
+    salone.
+- [ ] **6. «Come avvio una chat se non mi scrive prima la cliente?»** —
+  **in sospeso per decisione di Lorenzo, ma va trovata una soluzione.** —
+  regola di Meta, non del gestionale: fuori dalle 24 ore dall'ultimo
+  messaggio della cliente si può mandare **solo un template approvato**. Il
+  lavoro: un template «apertura» (es. «Ciao {{1}}, ti scriviamo da New Style
+  Hair. Rispondi a questo messaggio per parlare con noi.») e un pulsante
+  «Scrivi su WhatsApp» su scheda cliente e chat; quando lei risponde, la
+  chat è libera per 24 ore. Meta lo classificherà probabilmente
+  **marketing** (costa più di un utility, e serve il consenso della
+  cliente). Da decidere il testo e da farlo approvare.
+  Collegato: la pagina «Messaggi» manda WhatsApp come **testo libero**,
+  quindi arriva solo a chi ha scritto nelle ultime 24 ore — limite già
+  scritto nel codice (`send_custom_message_wa`), ma la pagina conta come
+  «inviati» anche quelli che Meta poi rifiuta. Su Twilio, al 2026-09-25,
+  nessun invio fallito dal fisso: finora non è stata usata così.
+
 ### Richiesta — 2026-09-25: le immagini in chat, e da dove vengono i nomi
 
 - [x] **Le immagini non si vedevano perché non venivano salvate.** Il
@@ -1875,6 +1951,13 @@ roadmap sopra.
   spostamento: ognuno rompe il suo test. Una prima versione che non
   spostava mai le chat già collegate è stata cambiata dopo che la
   falsificazione ha mostrato che il caso non era né coperto né giusto.
+  [PR #141](https://github.com/lorenzomelchionna/gestionale_nsh/pull/141)
+  → `develop`, [PR #142](https://github.com/lorenzomelchionna/gestionale_nsh/pull/142)
+  → `main` (commit `71af9ff`), CI verde (8/8 su #142). **Deploy
+  confermato** il 2026-09-25 alle 09:11 UTC: backend, frontend e worker
+  `SUCCESS`, bootstrap completato, nessuna migration, nessun errore;
+  `/health` 200, `www` 200. Le schede create prima si collegano al prossimo
+  messaggio della persona o al prossimo salvataggio della scheda.
 - [x] ~~**Recuperare i 3 messaggi persi in produzione**~~ — fatto il
   2026-09-25 alle 08:48 UTC, col tunnel aperto da Lorenzo e il suo ok dopo
   il dry-run: `scripts/recupera_allegati_chat.py --apply` → «Recuperati 3

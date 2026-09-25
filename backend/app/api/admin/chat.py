@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, require_admin
 from app.models.chat import ChatMessage, Conversation, MessageDirection
 from app.models.user import User
 from app.schemas.chat import (
@@ -94,11 +94,48 @@ async def unread_count(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(get_current_user)],
 ):
-    """Drives the nav badge, so it stays a single cheap query."""
+    """Il numero sul menu, e l'ultimo messaggio arrivato.
+
+    Chiamato ogni pochi secondi da ogni scheda aperta del gestionale, quindi
+    resta leggero: una somma e una riga sola.
+
+    `ultimo` c'è per gli avvisi (suono, notifica), e non si possono basare sul
+    solo conteggio: una conversazione lasciata aperta sullo schermo si segna
+    letta a ogni aggiornamento, e il conteggio non salirebbe mai proprio per
+    i messaggi di chi si sta seguendo. L'id del messaggio invece cresce
+    sempre: la pagina avvisa quando ne vede uno più alto dell'ultimo visto.
+    """
     total = (await db.execute(
         select(Conversation.unread_count).where(Conversation.is_archived == False)  # noqa: E712
     )).scalars().all()
-    return {"unread": sum(total)}
+
+    ultimo = (await db.execute(
+        select(ChatMessage)
+        .options(selectinload(ChatMessage.conversation).selectinload(Conversation.client))
+        .where(ChatMessage.direction == MessageDirection.inbound)
+        .order_by(ChatMessage.id.desc())
+        .limit(1)
+    )).scalar_one_or_none()
+
+    return {"unread": sum(total), "ultimo": _ultimo_in_arrivo(ultimo)}
+
+
+def _ultimo_in_arrivo(msg: Optional[ChatMessage]) -> Optional[dict]:
+    if msg is None:
+        return None
+    conv = msg.conversation
+    nome = (
+        f"{conv.client.first_name} {conv.client.last_name}".strip()
+        if conv.client else (conv.contact_name or conv.phone)
+    )
+    testo = msg.body or (etichetta_allegato(msg.media[0]["content_type"]) if msg.media else "")
+    return {
+        "id": msg.id,
+        "conversation_id": conv.id,
+        "display_name": nome,
+        "preview": testo[:120],
+        "created_at": msg.created_at.isoformat() if msg.created_at else None,
+    }
 
 
 @router.get("/status")
@@ -205,4 +242,25 @@ async def message_media(
             # Privata: è la foto di una cliente, nessuna cache condivisa deve tenerla.
             "Cache-Control": "private, max-age=86400",
         },
+    )
+
+
+@router.delete("/conversations/{conversation_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_conversation(
+    conversation_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(require_admin)],
+):
+    """Cancella una conversazione e tutti i suoi messaggi, per sempre.
+
+    Solo admin, a differenza del resto della chat: archiviare si annulla,
+    questo no. Cancella la copia del gestionale e basta — Twilio tiene il suo
+    registro, e se la persona riscrive nasce una conversazione nuova.
+    """
+    conv = await _load(db, conversation_id)
+    await db.delete(conv)
+    await db.flush()
+    log.info(
+        "conversazione WhatsApp cancellata",
+        extra={"id_conversazione": conversation_id, "messaggi": len(conv.messages)},
     )

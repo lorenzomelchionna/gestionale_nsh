@@ -132,13 +132,22 @@ export default function ProductsPage() {
         </div>
       ) : (
         /* The stock read as a ledger: figures right-aligned so a shelf can be
-           checked by running down one column. The category column drops on a
-           phone rather than letting the table scroll sideways. */
+           checked by running down one column. On a phone the table has to fit
+           375 px without scrolling sideways — it did not, and the price column
+           sat off-screen: the category column and the thumbnail drop, the
+           cells tighten and the two buttons stack. */
         <div className="panel table-scroll">
-          <table className="ledger [&_tbody_tr:last-child_td]:border-b-0">
+          <table
+            className={clsx(
+              'ledger [&_tbody_tr:last-child_td]:border-b-0',
+              // `tbody td` / `thead th`, not bare `td`: `.ledger tbody td` sets
+              // the padding, and a less specific selector silently loses to it.
+              'max-sm:[&_tbody_td]:px-1.5 max-sm:[&_thead_th]:px-1.5 max-sm:[&_thead_th]:tracking-[0.04em]',
+            )}
+          >
             <thead>
               <tr>
-                <th className="w-px" />
+                <th className="w-px hidden sm:table-cell" />
                 <th>Prodotto</th>
                 <th className="hidden sm:table-cell">Categoria</th>
                 <th className="num">Giacenza</th>
@@ -151,7 +160,7 @@ export default function ProductsPage() {
                 const low = p.quantity <= p.min_quantity
                 return (
                   <tr key={p.id}>
-                    <td className="w-px">
+                    <td className="w-px hidden sm:table-cell">
                       <Thumbnail
                         product={p}
                         onClick={isAdmin ? () => setPhotoProduct(p) : undefined}
@@ -195,12 +204,14 @@ export default function ProductsPage() {
                     </td>
                     <td className="num whitespace-nowrap">
                       <span className="amount">€{p.sale_price.toFixed(2)}</span>
-                      <span className="block text-[11px] text-ink-3 tabular-nums">
+                      {/* Su telefono no: è la riga più larga della tabella, e il
+                          prezzo d'acquisto resta nella scheda del prodotto. */}
+                      <span className="hidden sm:block text-[11px] text-ink-3 tabular-nums">
                         acquisto €{p.purchase_price.toFixed(2)}
                       </span>
                     </td>
                     <td className="w-px">
-                      <div className="flex items-center gap-1">
+                      <div className="flex flex-col sm:flex-row items-center gap-1">
                         <button
                           onClick={() => setMovementProduct(p)}
                           className="btn-icon hover:text-primary"

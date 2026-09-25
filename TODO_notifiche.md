@@ -1876,6 +1876,20 @@ account **disdice contattando il salone** (nessun link personale).
   numero del salone e «Crea un account»; nel DB scheda senza email né
   account, richiesta `pending` `online`. Modale admin: avviso doppione,
   cliente creata e selezionata, appuntamento salvato.
+- [PR #137](https://github.com/lorenzomelchionna/gestionale_nsh/pull/137)
+  → `develop`, [PR #138](https://github.com/lorenzomelchionna/gestionale_nsh/pull/138)
+  → `main` (commit `8ed4dc1`), CI verde (8/8 su #138). **Deploy
+  confermato** il 2026-09-25 alle 07:36 UTC: backend, frontend e worker
+  `SUCCESS`; nei log `Running upgrade a1f3c8d27e64 -> d7b2e5a91c30, add
+  guest_phone_codes`, poi bootstrap completato. Dal vivo, senza mandare
+  codici né scrivere nulla: `/health` 200, `www` e `/booking/new` 200;
+  `POST /guest/code` con numero non valido → 422; `POST
+  /guest/appointments` alle 03:00 → 409 «Questo orario non è più
+  disponibile» (l'orario si controlla prima del codice, come previsto); le
+  stringhe nuove («Ricevi il codice su WhatsApp», «Nuova cliente», «Con
+  questo numero», «Puoi prenotare anche senza account») nel bundle servito.
+  **Non ancora provato dal vivo**: l'invio reale del codice WhatsApp e una
+  prenotazione completa da ospite in produzione.
 
 - [ ] **Chi prenota senza account non sa se è stata rifiutata** — il
   rifiuto (`POST /appointments/{id}/reject`) non manda niente a nessuno;

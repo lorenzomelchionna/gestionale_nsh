@@ -1823,6 +1823,66 @@ Non bloccano il go-live: il gestionale funziona senza. Stanno qui separate
 apposta, così le caselle aperte qui sotto non si confondono con quelle della
 roadmap sopra.
 
+### Richiesta — 2026-09-25: prenotare senza account
+
+«Prenotare, sia da admin sia dal portale, con nome, cognome e telefono, senza
+account; e chi poi si registra con lo stesso nome e numero dev'essere
+collegato a quegli appuntamenti.» Tre decisioni prese con Lorenzo prima di
+scrivere codice: dal portale **serve il codice WhatsApp** al numero;
+alla registrazione si collega per **numero + nome + cognome**; chi non ha
+account **disdice contattando il salone** (nessun link personale).
+
+- [x] **Portale** — `/booking/new` non chiede più l'accesso. Al passo
+  Conferma chi non è entrato vede «I tuoi dati»: nome, cognome, telefono →
+  «Ricevi il codice su WhatsApp» → codice → «Invia richiesta». La richiesta
+  nasce `pending` come tutte quelle online.
+  - `POST /api/public/guest/code` e `POST /api/public/guest/appointments`
+    (`app/api/public/guest.py`), pubbliche in `EXPECTED_GUARDS`: il
+    controllo è il codice.
+  - Codici in `guest_phone_codes` (migration `d7b2e5a91c30`), uno per
+    numero, hash come le password, 15 minuti, 5 tentativi. In più un tetto
+    che la registrazione non ha: **un codice al minuto e 5 al giorno per
+    numero**, oltre a 5/ora per IP — ogni codice è un WhatsApp a pagamento
+    sul telefono di chi il numero lo possiede.
+  - **Un codice vale una prenotazione**, e si spende solo se l'orario regge:
+    l'orario si controlla prima del codice, così uno appena preso da
+    un'altra non brucia il codice.
+  - La scheda: si riusa quella attiva con lo stesso numero **e** lo stesso
+    nome (ignorando maiuscole, accenti, spazi — `app/utils/nomi.py`),
+    preferendo quella con un account; altrimenti se ne crea una. Madre e
+    figlia col fisso di casa restano due schede.
+- [x] **Admin** — nel modale «Nuovo appuntamento», «Nuova cliente» in fondo
+  al menu clienti: nome, cognome, telefono facoltativo, precompilati da
+  quello che si era scritto nella ricerca. Se il numero c'è già avvisa
+  («Con questo numero c'è già: … — Usa questa») senza bloccare. Insieme,
+  la ricerca clienti del modale ora trova il telefono scritto con spazi o
+  senza +39 (prima confrontava la stringa: «333 555 5555» non trovava
+  `+393335555555`, e nasceva il doppione).
+- [x] **Collegamento alla registrazione** — `_collega_per_telefono` in
+  `auth.py`, **solo dopo il codice WhatsApp** della registrazione: prima il
+  numero è digitato, non dimostrato. Stesso numero + stesso nome, solo
+  schede attive e senza account; l'unione è quella di «Unisci»
+  (`client_merge`): sopravvive la scheda più vecchia, con storico e note,
+  e l'account ci si sposta sopra.
+- Test: `test_prenotazione_senza_account.py` (19),
+  `test_collegamento_per_telefono.py` (9); 798 in tutto. **Falsificati**:
+  16 rotture (niente cooldown, niente tetto, codice riusabile, codice
+  controllato prima dell'orario, niente filtro sul nome, schede con
+  account o disattivate collegabili, …) → ciascuna fa diventare rosso il
+  suo test. Una passava lo stesso (preferenza per la scheda con account:
+  nel test era anche la più vecchia) → test corretto, ora rosso.
+- Verificato nel browser in locale: prenotazione da ospite con codice
+  sbagliato («Tentativi rimasti: 4») e poi giusto → schermata finale con
+  numero del salone e «Crea un account»; nel DB scheda senza email né
+  account, richiesta `pending` `online`. Modale admin: avviso doppione,
+  cliente creata e selezionata, appuntamento salvato.
+
+- [ ] **Chi prenota senza account non sa se è stata rifiutata** — il
+  rifiuto (`POST /appointments/{id}/reject`) non manda niente a nessuno;
+  chi ha un account lo vede nella sua area, chi non ce l'ha no. Per ora il
+  salone la contatta (Chat o telefono). Il lavoro: un template WhatsApp
+  per il rifiuto, da far approvare a Meta.
+
 ### Segnalazione — 2026-09-24: «dice che il numero non ha WhatsApp»
 
 Alcune persone che provano a scrivere al salone su WhatsApp si sentono dire

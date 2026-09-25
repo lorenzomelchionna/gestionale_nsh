@@ -127,6 +127,23 @@ export const bookAppointment = (data: {
 }) =>
   publicApi.post<Appointment>('/appointments', data).then(r => r.data)
 
+export interface GuestIdentity {
+  first_name: string
+  last_name: string
+  phone: string
+}
+
+/** Senza account: il codice che la prenotazione chiederà, su WhatsApp.
+    `whatsapp_sent: false` vuol dire che il codice c'è ma non è partito. */
+export const requestGuestCode = (data: GuestIdentity) =>
+  publicApi.post<{ whatsapp_sent: boolean }>('/guest/code', data).then(r => r.data)
+
+/** Senza account: un codice, una prenotazione. La fine la calcola il server. */
+export const bookAsGuest = (data: GuestIdentity & {
+  code: string; collaborator_id: number; start_time: string; service_ids: number[]
+}) =>
+  publicApi.post<Appointment>('/guest/appointments', data).then(r => r.data)
+
 export const cancelMyAppointment = (id: number) =>
   publicApi.post(`/appointments/${id}/cancel`).then(r => r.data)
 

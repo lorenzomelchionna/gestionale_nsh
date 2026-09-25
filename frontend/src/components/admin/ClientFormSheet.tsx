@@ -4,7 +4,7 @@ import Sheet from '@/components/ui/Sheet'
 
 /** Only email and phone can be wrong here — the names are `required` in the
     form and the date comes from a date picker — so the message names them. */
-function errorText(err: unknown): string {
+export function errorText(err: unknown): string {
   const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail
   if (typeof detail === 'string') return detail
   if (Array.isArray(detail)) {

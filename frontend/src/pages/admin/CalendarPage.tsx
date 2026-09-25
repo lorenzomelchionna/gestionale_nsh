@@ -7,14 +7,16 @@ import {
 import { it } from 'date-fns/locale'
 import {
   ChevronLeft, ChevronRight, ChevronDown, Plus, Check, X,
-  Calendar as CalendarIcon,
+  Calendar as CalendarIcon, UserPlus,
 } from 'lucide-react'
 import {
   getAppointments, getCollaborators, confirmAppointment,
   rejectAppointment, completeAppointment, cancelAppointment,
-  createAppointment, getClients, getServices, updateAppointment, getAbsences, getBookingConfig
+  createAppointment, getClients, getServices, updateAppointment, getAbsences, getBookingConfig,
+  createClient,
 } from '@/services/api'
-import type { Appointment, Collaborator } from '@/types'
+import { errorText } from '@/components/admin/ClientFormSheet'
+import type { Appointment, Client, Collaborator } from '@/types'
 import Sheet from '@/components/ui/Sheet'
 import { EmptyState, Segmented } from '@/components/ui'
 import clsx from 'clsx'
@@ -1139,9 +1141,40 @@ function CreateAppointmentModal({ initialSlot, collaborators, closedWeekdays, on
   onClose: () => void
   onCreated: () => void
 }) {
+  const qc = useQueryClient()
   const [clientSearch, setClientSearch] = useState('')
   const [clientDropdownOpen, setClientDropdownOpen] = useState(false)
   const [selectedClientId, setSelectedClientId] = useState<number | null>(null)
+
+  // Cliente nuova, segnata qui senza passare dalla pagina Clienti: nome,
+  // cognome e — se c'è — il telefono. Nessun account: se un giorno si
+  // registra dal portale con lo stesso nome e numero, ritrova questa scheda.
+  const [newClient, setNewClient] = useState<{ first_name: string; last_name: string; phone: string } | null>(null)
+  // Finché l'elenco non si ricarica la cliente appena creata non c'è dentro:
+  // senza questa copia il campo tornerebbe a «Seleziona cliente…».
+  const [createdClient, setCreatedClient] = useState<Client | null>(null)
+  const createClientMut = useMutation({
+    mutationFn: createClient,
+    onSuccess: (c) => {
+      setCreatedClient(c)
+      setSelectedClientId(c.id)
+      setNewClient(null)
+      qc.invalidateQueries({ queryKey: ['clients-all'] })
+      qc.invalidateQueries({ queryKey: ['clients'] })
+    },
+  })
+
+  const openNewClient = () => {
+    // Quello che si è già scritto nella ricerca non va riscritto: se sono
+    // cifre è un numero, altrimenti nome e cognome.
+    const q = clientSearch.trim()
+    const isPhone = q !== '' && /^[+\d\s]+$/.test(q)
+    const [first, ...rest] = isPhone ? [''] : q.split(/\s+/)
+    setNewClient({ first_name: first ?? '', last_name: rest.join(' '), phone: isPhone ? q : '' })
+    createClientMut.reset()
+    setClientDropdownOpen(false)
+    setClientSearch('')
+  }
   const [selectedCollabId, setSelectedCollabId] = useState<number>(
     initialSlot?.collaboratorId ?? collaborators[0]?.id ?? 0
   )
@@ -1221,14 +1254,26 @@ function CreateAppointmentModal({ initialSlot, collaborators, closedWeekdays, on
   const filteredClients = clientSearch.trim().length > 0
     ? allClients.filter(c => {
         const q = clientSearch.toLowerCase()
+        // Il numero salvato è +39…, quello digitato di solito «333 123…»:
+        // si confrontano le sole cifre, o nessuno lo trova e nasce un doppione.
+        const cifre = q.replace(/\D/g, '')
         return (
           c.first_name.toLowerCase().includes(q) ||
           c.last_name.toLowerCase().includes(q) ||
-          (c.phone ?? '').includes(q)
+          `${c.first_name} ${c.last_name}`.toLowerCase().includes(q) ||
+          (cifre.length >= 3 && (c.phone ?? '').replace(/\D/g, '').includes(cifre))
         )
       })
     : allClients
-  const selectedClient = allClients.find(c => c.id === selectedClientId) ?? null
+  const selectedClient = allClients.find(c => c.id === selectedClientId)
+    ?? (createdClient?.id === selectedClientId ? createdClient : null)
+
+  // Le ultime nove cifre bastano a riconoscere lo stesso numero scritto con o
+  // senza +39, spazi o trattini.
+  const newClientDigits = (newClient?.phone ?? '').replace(/\D/g, '').slice(-9)
+  const samePhone = newClientDigits.length === 9
+    ? allClients.filter(c => (c.phone ?? '').replace(/\D/g, '').endsWith(newClientDigits))
+    : []
   const services = servicesData?.items ?? []
 
   // Closed-day logic for mini calendar
@@ -1334,9 +1379,100 @@ function CreateAppointmentModal({ initialSlot, collaborators, closedWeekdays, on
                     </li>
                   ))}
                 </ul>
+                <button
+                  type="button"
+                  onClick={openNewClient}
+                  className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-primary-dark border-t border-border hover:bg-foreground/[0.05]"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  Nuova cliente
+                </button>
               </div>
             )}
           </div>
+
+          {/* Non un <form>: siamo già dentro quello dell'appuntamento, e un
+              form annidato non è HTML valido. Invio col pulsante. */}
+          {newClient && (
+            <div className="border border-border p-3 space-y-3 bg-background">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-foreground">Nuova cliente</span>
+                <button type="button" onClick={() => setNewClient(null)} aria-label="Annulla">
+                  <X className="w-4 h-4 text-muted-foreground" />
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label htmlFor="nc_first" className="label block mb-1">Nome</label>
+                  <input
+                    id="nc_first"
+                    className="input"
+                    autoFocus
+                    value={newClient.first_name}
+                    onChange={e => setNewClient(n => n && ({ ...n, first_name: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="nc_last" className="label block mb-1">Cognome</label>
+                  <input
+                    id="nc_last"
+                    className="input"
+                    value={newClient.last_name}
+                    onChange={e => setNewClient(n => n && ({ ...n, last_name: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <div>
+                <label htmlFor="nc_phone" className="label block mb-1">Telefono</label>
+                <input
+                  id="nc_phone"
+                  className="input"
+                  type="tel"
+                  inputMode="tel"
+                  placeholder="Facoltativo — serve per conferme e promemoria"
+                  value={newClient.phone}
+                  onChange={e => setNewClient(n => n && ({ ...n, phone: e.target.value }))}
+                />
+              </div>
+
+              {/* Un doppione si evita qui o si unisce a mano dopo. Non si
+                  blocca: due sorelle possono avere lo stesso numero di casa. */}
+              {samePhone.length > 0 && (
+                <div className="text-[13px] text-foreground bg-primary/[0.08] border-l-2 border-primary px-3 py-2 space-y-1">
+                  <p>Con questo numero c'è già:</p>
+                  {samePhone.map(c => (
+                    <div key={c.id} className="flex items-center justify-between gap-2">
+                      <span>{c.first_name} {c.last_name}</span>
+                      <button
+                        type="button"
+                        className="text-primary-dark hover:underline"
+                        onClick={() => { setSelectedClientId(c.id); setNewClient(null) }}
+                      >
+                        Usa questa
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {createClientMut.isError && (
+                <p className="text-[13px] text-danger">{errorText(createClientMut.error)}</p>
+              )}
+
+              <button
+                type="button"
+                className="btn-secondary w-full disabled:opacity-50"
+                disabled={!newClient.first_name.trim() || !newClient.last_name.trim() || createClientMut.isPending}
+                onClick={() => createClientMut.mutate({
+                  first_name: newClient.first_name.trim(),
+                  last_name: newClient.last_name.trim(),
+                  phone: newClient.phone.trim() || null,
+                })}
+              >
+                {createClientMut.isPending ? 'Salvataggio…' : 'Aggiungi e seleziona'}
+              </button>
+            </div>
+          )}
 
           {/* Collaborator */}
           <div>

@@ -45,11 +45,12 @@ export default function BookingHomePage() {
           </Link>
         </div>
 
-        {/* Said up front, because "Prenota ora" leads to the sign-in screen and
-            an unexplained redirect reads as a dead end. */}
+        {/* Said up front, so nobody stops at "Area personale" thinking an
+            account comes first. */}
         {!token && (
           <p className="note">
-            Per prenotare serve un account: bastano nome, telefono ed email.
+            Puoi prenotare anche senza account: bastano nome, cognome e un codice
+            che ti mandiamo su WhatsApp.
           </p>
         )}
       </section>

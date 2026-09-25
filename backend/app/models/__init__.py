@@ -15,6 +15,7 @@ from app.models.chat import (
     ChatMessage, Conversation, MessageDirection, MessageStatus,
 )
 from app.models.gift_card import GiftCard, GiftCardRedemption, GiftCardStatus
+from app.models.guest_phone_code import GuestPhoneCode
 
 __all__ = [
     "User",
@@ -43,4 +44,5 @@ __all__ = [
     "GiftCard",
     "GiftCardRedemption",
     "GiftCardStatus",
+    "GuestPhoneCode",
 ]

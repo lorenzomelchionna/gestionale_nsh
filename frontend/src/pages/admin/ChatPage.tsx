@@ -4,13 +4,14 @@ import { format, parseISO, formatDistanceToNowStrict, isToday } from 'date-fns'
 import { it } from 'date-fns/locale'
 import {
   MessageSquare, Send, ChevronLeft, AlertTriangle, Archive, ArchiveRestore, Loader2, Clock, User,
+  Paperclip,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import {
   getConversations, getConversation, replyToConversation, setConversationArchived,
-  getChatStatus,
+  getChatStatus, getChatMedia,
 } from '@/services/api'
-import type { ChatChannelStatus, ChatMessage, Conversation } from '@/types'
+import type { ChatChannelStatus, ChatMedia, ChatMessage, Conversation } from '@/types'
 import { PageHeader, EmptyState, SkeletonList } from '@/components/ui'
 import clsx from 'clsx'
 
@@ -279,7 +280,17 @@ function Thread({ conversationId, onBack, onChanged }: {
         </button>
         <div className="min-w-0 flex-1">
           <p className="font-heading text-[18px] text-foreground truncate">{conv.display_name}</p>
-          <p className="text-[11px] text-ink-3 tabular-nums">{conv.phone}</p>
+          <p className="text-[11px] text-ink-3 tabular-nums">
+            {conv.phone}
+            {/* Il nome sopra è quello della scheda quando c'è; quello che la
+                persona si è data su WhatsApp resta visibile qui, perché è il
+                nome con cui lei si presenta — e aiuta a capire se la scheda
+                collegata è quella giusta. Senza scheda, il nome sopra è già questo. */}
+            {conv.client_id && conv.contact_name && conv.contact_name !== conv.display_name && (
+              <span> · su WhatsApp «{conv.contact_name}»</span>
+            )}
+            {!conv.client_id && conv.contact_name && <span> · nome dal profilo WhatsApp</span>}
+          </p>
         </div>
         {conv.client_id && (
           <Link
@@ -386,7 +397,10 @@ function Message({ message: m }: { message: ChatMessage }) {
             : 'bg-band border border-border text-foreground'
         )}
       >
-        <p className="text-sm whitespace-pre-wrap break-words">{m.body}</p>
+        {(m.media ?? []).map(a => (
+          <Attachment key={a.index} messageId={m.id} media={a} />
+        ))}
+        {m.body && <p className="text-sm whitespace-pre-wrap break-words">{m.body}</p>}
         <div
           className={clsx(
             'flex items-center gap-1.5 mt-1 text-[10px] tabular-nums',
@@ -402,5 +416,77 @@ function Message({ message: m }: { message: ChatMessage }) {
         </div>
       </div>
     </div>
+  )
+}
+
+/**
+ * Una foto, un vocale, un video o un documento arrivato su WhatsApp.
+ *
+ * Il file passa dal backend come blob e si mostra da un URL locale: un <img>
+ * che puntasse all'API non porterebbe il token, e quello di Twilio vuole le
+ * credenziali dell'account.
+ */
+function Attachment({ messageId, media }: { messageId: number; media: ChatMedia }) {
+  const { data: blob, isLoading, isError } = useQuery({
+    queryKey: ['chat-media', messageId, media.index],
+    queryFn: () => getChatMedia(messageId, media.index),
+    // Un allegato non cambia: una volta preso, non si richiede.
+    staleTime: Infinity,
+    retry: 1,
+  })
+  const [url, setUrl] = useState<string | null>(null)
+  useEffect(() => {
+    if (!blob) return
+    const u = URL.createObjectURL(blob)
+    setUrl(u)
+    return () => URL.revokeObjectURL(u)
+  }, [blob])
+
+  const tipo = media.content_type.split('/')[0]
+
+  if (isError) {
+    return (
+      <p className="text-[13px] italic text-ink-3 py-1 flex items-center gap-1.5">
+        <Paperclip className="w-3.5 h-3.5" /> Allegato non disponibile
+      </p>
+    )
+  }
+  if (isLoading || !url) {
+    return (
+      <p className="text-[13px] text-ink-3 py-1 flex items-center gap-1.5">
+        <Loader2 className="w-3.5 h-3.5 animate-spin" /> Caricamento allegato…
+      </p>
+    )
+  }
+  if (tipo === 'image') {
+    return (
+      <a href={url} target="_blank" rel="noreferrer" className="block my-1">
+        <img src={url} alt="Foto ricevuta su WhatsApp" className="max-h-72 max-w-full object-contain" />
+      </a>
+    )
+  }
+  if (tipo === 'audio') {
+    // Il link sotto non è ridondante: i vocali di WhatsApp sono .ogg, e non
+    // tutti i browser (Safari, prima della 18.4) li riproducono.
+    return (
+      <div className="my-1 flex flex-col gap-1">
+        <audio controls src={url} className="w-64 max-w-full" />
+        <a href={url} download={`vocale-${messageId}.ogg`} className="text-[12px] underline opacity-80">
+          Scarica il vocale
+        </a>
+      </div>
+    )
+  }
+  if (tipo === 'video') {
+    return <video controls src={url} className="my-1 max-h-72 max-w-full" />
+  }
+  return (
+    <a
+      href={url}
+      download={`allegato-${messageId}`}
+      className="my-1 inline-flex items-center gap-1.5 text-sm underline"
+    >
+      <Paperclip className="w-4 h-4" /> Apri l'allegato
+    </a>
   )
 }

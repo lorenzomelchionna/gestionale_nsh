@@ -6,25 +6,37 @@ day-to-day work that collaborators do too, and it exposes no financial data.
 """
 from typing import Annotated, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+import logging
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
 from app.dependencies import get_current_user
-from app.models.chat import Conversation, MessageDirection
+from app.models.chat import ChatMessage, Conversation, MessageDirection
 from app.models.user import User
 from app.schemas.chat import (
     ChatMessageOut, ConversationDetail, ConversationOut, ReplyRequest,
 )
 from app.config import settings
 from app.services.chat import (
-    REPLY_WINDOW_HOURS, can_reply_freely, mark_read, send_reply,
+    REPLY_WINDOW_HOURS, AllegatoNonDisponibile, can_reply_freely,
+    etichetta_allegato, mark_read, scarica_allegato, send_reply,
     whatsapp_mode, window_expires_at,
 )
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
+
+log = logging.getLogger("nsh.whatsapp")
+
+# Tipi che il browser mostra senza eseguire niente. Tutto il resto — un .html,
+# un .svg, un file con un tipo inventato — si scarica e basta: servito «inline»
+# dal dominio dell'API, un file mandato da chiunque su WhatsApp diventerebbe
+# una pagina di quel dominio.
+TIPI_DA_MOSTRARE = ("image/jpeg", "image/png", "image/webp", "image/gif", "application/pdf")
+FAMIGLIE_DA_MOSTRARE = ("audio/", "video/")
 
 
 def _decorate(conv: Conversation, include_messages: bool = False) -> ConversationOut:
@@ -45,7 +57,8 @@ def _decorate(conv: Conversation, include_messages: bool = False) -> Conversatio
     elif conv.messages:
         last = conv.messages[-1]
         prefix = "" if last.direction == MessageDirection.inbound else "Tu: "
-        out.last_message_preview = f"{prefix}{last.body[:80]}"
+        testo = last.body or (etichetta_allegato(last.media[0]["content_type"]) if last.media else "")
+        out.last_message_preview = f"{prefix}{testo[:80]}"
 
     return out
 
@@ -154,3 +167,42 @@ async def set_archived(
     conv.is_archived = archived
     await db.flush()
     return _decorate(conv)
+
+
+@router.get("/messages/{message_id}/media/{index}")
+async def message_media(
+    message_id: int,
+    index: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_user)],
+):
+    """Un allegato di un messaggio, preso da Twilio con le credenziali del salone.
+
+    Passa da qui perché l'URL di Twilio senza credenziali risponde 401: la
+    pagina non potrebbe mostrarlo, e dargli le credenziali vorrebbe dire
+    consegnare l'account Twilio a ogni browser dello staff.
+    """
+    msg = await db.get(ChatMessage, message_id)
+    allegati = (msg.media or []) if msg else []
+    if not 0 <= index < len(allegati):
+        raise HTTPException(status_code=404, detail="Allegato non trovato")
+
+    try:
+        contenuto, tipo = await scarica_allegato(allegati[index]["url"])
+    except AllegatoNonDisponibile:
+        log.exception("allegato WhatsApp non scaricato", extra={"id_messaggio": message_id})
+        raise HTTPException(status_code=502, detail="Allegato non disponibile al momento")
+
+    tipo = (tipo or allegati[index].get("content_type") or "").split(";")[0].strip().lower()
+    da_mostrare = tipo in TIPI_DA_MOSTRARE or tipo.startswith(FAMIGLIE_DA_MOSTRARE)
+    return Response(
+        content=contenuto,
+        media_type=tipo if da_mostrare else "application/octet-stream",
+        headers={
+            "Content-Disposition": "inline" if da_mostrare else "attachment",
+            "X-Content-Type-Options": "nosniff",
+            "Content-Security-Policy": "sandbox",
+            # Privata: è la foto di una cliente, nessuna cache condivisa deve tenerla.
+            "Cache-Control": "private, max-age=86400",
+        },
+    )

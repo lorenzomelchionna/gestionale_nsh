@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import List, Optional
 
 from sqlalchemy import (
-    Boolean, DateTime, Enum, ForeignKey, Index, String, Text, func,
+    JSON, Boolean, DateTime, Enum, ForeignKey, Index, String, Text, func,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -90,6 +90,14 @@ class ChatMessage(Base):
         String(64), unique=True, nullable=True
     )
     error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    # Allegati — foto, vocali, video, documenti — come Twilio li descrive:
+    # `[{"url": ..., "content_type": ...}]`, nell'ordine in cui sono arrivati.
+    # Il file resta su Twilio: l'URL vuole le credenziali dell'account, quindi
+    # il browser non lo può aprire da sé e lo chiede al backend
+    # (`GET /api/admin/chat/messages/{id}/media/{indice}`), che non lo espone
+    # mai. `NULL` per i messaggi di solo testo.
+    media: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
 
     # Which staff member sent an outbound message (null for inbound).
     sent_by_user_id: Mapped[Optional[int]] = mapped_column(

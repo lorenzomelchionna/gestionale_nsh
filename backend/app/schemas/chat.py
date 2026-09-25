@@ -1,9 +1,17 @@
 from datetime import datetime
 from typing import List, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.chat import MessageDirection, MessageStatus
+
+
+class ChatMediaOut(BaseModel):
+    """Un allegato come lo vede la pagina: il tipo e la posizione, per
+    chiederlo a `/chat/messages/{id}/media/{index}`. L'URL di Twilio no: con
+    le credenziali dell'account apre il file, ed è il backend a usarlo."""
+    index: int
+    content_type: str
 
 
 class ChatMessageOut(BaseModel):
@@ -16,6 +24,15 @@ class ChatMessageOut(BaseModel):
     error: Optional[str] = None
     sent_by_user_id: Optional[int] = None
     created_at: datetime
+    media: List[ChatMediaOut] = []
+
+    @field_validator("media", mode="before")
+    @classmethod
+    def solo_il_tipo(cls, value):
+        return [
+            {"index": i, "content_type": m.get("content_type") or "application/octet-stream"}
+            for i, m in enumerate(value or [])
+        ]
 
 
 class ConversationOut(BaseModel):

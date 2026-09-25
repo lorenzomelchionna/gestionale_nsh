@@ -1823,6 +1823,39 @@ Non bloccano il go-live: il gestionale funziona senza. Stanno qui separate
 apposta, così le caselle aperte qui sotto non si confondono con quelle della
 roadmap sopra.
 
+### Richiesta — 2026-09-25: le immagini in chat, e da dove vengono i nomi
+
+- [x] **Le immagini non si vedevano perché non venivano salvate.** Il
+  webhook registrava un messaggio solo se aveva testo (`if from_phone and
+  body`): una foto o un vocale senza didascalia sparivano per intero, senza
+  lasciare traccia. Su Twilio ne risultavano 3 — due foto di prova di
+  Lorenzo del 22/09 e **un vocale di una cliente del 25/09 alle 08:17**
+  (numero …3565), che nessuno ha sentito.
+  - `chat_messages.media` (migration `e3c9a1f47b82`): gli allegati dal
+    webhook, solo URL `https://api.twilio.com/`.
+  - I file restano su Twilio e **vogliono le credenziali dell'account**
+    (senza: 401, provato): la pagina li chiede a `GET
+    /api/admin/chat/messages/{id}/media/{indice}` (staff), che li scarica e
+    li serve senza mai mostrare l'URL. Un tipo che il browser eseguirebbe
+    (html, svg, …) si scarica invece di aprirsi.
+  - Nella chat: foto, vocali (con «Scarica il vocale»: i `.ogg` di WhatsApp
+    non si riproducono su Safari vecchi), video, altri file come download;
+    nell'elenco «📷 Foto», «🎤 Messaggio vocale».
+- [x] **I nomi.** Con una scheda cliente collegata si vede il nome della
+  scheda; senza, quello che la persona si è data **sul suo profilo
+  WhatsApp** (`ProfileName`, che Twilio manda con ogni messaggio). Due
+  difetti corretti: quel nome si fissava al primo messaggio e non si
+  aggiornava più; e la scheda si collegava **solo quando la conversazione
+  nasceva** — chi scriveva prima di avere una scheda restava col nome
+  WhatsApp per sempre. Ora si collega al primo messaggio utile, se c'è **una
+  sola** scheda attiva con quel numero (con due — il fisso di casa — resta il
+  nome WhatsApp, che almeno è di chi scrive). Nell'intestazione, se diverso
+  da quello della scheda, «su WhatsApp «…»».
+- [ ] **Recuperare i 3 messaggi persi in produzione** dopo il rilascio:
+  `scripts/recupera_allegati_chat.py` (dry-run, poi `--apply`), dal tunnel
+  Railway. Li rimette **con la loro data**: con quella di oggi riaprirebbe
+  per finta la finestra delle 24 ore. Provato sul DB locale coi 3 veri.
+
 ### Richiesta — 2026-09-25: prenotare senza account
 
 «Prenotare, sia da admin sia dal portale, con nome, cognome e telefono, senza
@@ -1876,6 +1909,28 @@ account **disdice contattando il salone** (nessun link personale).
   numero del salone e «Crea un account»; nel DB scheda senza email né
   account, richiesta `pending` `online`. Modale admin: avviso doppione,
   cliente creata e selezionata, appuntamento salvato.
+- [PR #137](https://github.com/lorenzomelchionna/gestionale_nsh/pull/137)
+  → `develop`, [PR #138](https://github.com/lorenzomelchionna/gestionale_nsh/pull/138)
+  → `main` (commit `8ed4dc1`), CI verde (8/8 su #138). **Deploy
+  confermato** il 2026-09-25 alle 07:36 UTC: backend, frontend e worker
+  `SUCCESS`; nei log `Running upgrade a1f3c8d27e64 -> d7b2e5a91c30, add
+  guest_phone_codes`, poi bootstrap completato. Dal vivo, senza mandare
+  codici né scrivere nulla: `/health` 200, `www` e `/booking/new` 200;
+  `POST /guest/code` con numero non valido → 422; `POST
+  /guest/appointments` alle 03:00 → 409 «Questo orario non è più
+  disponibile» (l'orario si controlla prima del codice, come previsto); le
+  stringhe nuove («Ricevi il codice su WhatsApp», «Nuova cliente», «Con
+  questo numero», «Puoi prenotare anche senza account») nel bundle servito.
+  ~~Non ancora provato dal vivo: l'invio reale del codice WhatsApp e una
+  prenotazione completa da ospite in produzione.~~ **Provato il 2026-09-25**
+  sul numero di Lorenzo: codice partito dal fisso alle 07:46 UTC,
+  `delivered` secondo Twilio; prenotazione «Prova Ospite», Taglio uomo con
+  Flavia, 1 ottobre 18:30 → 201, id 44, `pending`; lo stesso codice
+  riusato → 400 «Nessun codice per questo numero»; `notify_new_booking(44)`
+  eseguito dal worker senza errori (email di avviso a admin e Flavia).
+  - [x] ~~**Pulizia**~~ — fatta da Lorenzo il 2026-09-25: richiesta 44
+    rifiutata, scheda «Prova Ospite» eliminata. Verificato dal portale:
+    Flavia il 1 ottobre ha di nuovo 22 orari, 18:30 compreso.
 
 - [ ] **Chi prenota senza account non sa se è stata rifiutata** — il
   rifiuto (`POST /appointments/{id}/reject`) non manda niente a nessuno;

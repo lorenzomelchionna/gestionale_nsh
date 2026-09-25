@@ -71,6 +71,31 @@ async def _corpo_limitato(request: Request) -> Optional[bytes]:
     return b"".join(pezzi)
 
 
+# Twilio ne manda al più dieci per messaggio; WhatsApp di solito uno.
+MAX_ALLEGATI = 10
+# Solo URL dell'API di Twilio: sono gli unici che il backend andrà poi a
+# scaricare con le credenziali dell'account, e non devono poter puntare altrove.
+PREFISSO_MEDIA = "https://api.twilio.com/"
+
+
+def allegati_dal_webhook(params: dict[str, str]) -> list[dict[str, str]]:
+    """`MediaUrl0…N` e `MediaContentType0…N`, come elenco ordinato."""
+    try:
+        quanti = min(int(params.get("NumMedia") or 0), MAX_ALLEGATI)
+    except ValueError:
+        return []
+    allegati = []
+    for i in range(quanti):
+        url = params.get(f"MediaUrl{i}", "")
+        if not url.startswith(PREFISSO_MEDIA):
+            continue
+        allegati.append({
+            "url": url,
+            "content_type": params.get(f"MediaContentType{i}") or "application/octet-stream",
+        })
+    return allegati
+
+
 @router.post("/webhook")
 async def whatsapp_webhook(
     request: Request,
@@ -113,14 +138,19 @@ async def whatsapp_webhook(
     body = params.get("Body", "")
     sid = params.get("MessageSid") or params.get("SmsMessageSid")
     profile_name = params.get("ProfileName")
+    media = allegati_dal_webhook(params)
 
-    if from_phone and body:
+    # Una foto o un vocale arrivano con `Body` vuoto. Finché qui si chiedeva
+    # solo il testo, venivano scartati per intero: al salone non restava
+    # nemmeno la traccia che qualcuno avesse scritto.
+    if from_phone and (body or media):
         await record_inbound(
             db,
             from_phone=from_phone,
             body=body,
             provider_sid=sid,
             contact_name=profile_name,
+            media=media,
         )
 
     return Response(content=EMPTY_TWIML, media_type="application/xml")

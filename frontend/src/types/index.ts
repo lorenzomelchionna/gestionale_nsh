@@ -350,14 +350,22 @@ export interface WaitlistCreate {
 export type MessageDirection = 'inbound' | 'outbound'
 export type MessageStatus = 'received' | 'queued' | 'sent' | 'failed'
 
+/** Un allegato: il tipo e la posizione. Il file si chiede a `getChatMedia`. */
+export interface ChatMedia {
+  index: number
+  content_type: string
+}
+
 export interface ChatMessage {
   id: number
   direction: MessageDirection
+  /** Vuoto per una foto o un vocale mandati senza testo. */
   body: string
   status: MessageStatus
   error?: string | null
   sent_by_user_id?: number | null
   created_at: string
+  media?: ChatMedia[]
 }
 
 export interface Conversation {

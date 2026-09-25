@@ -1888,8 +1888,15 @@ account **disdice contattando il salone** (nessun link personale).
   disponibile» (l'orario si controlla prima del codice, come previsto); le
   stringhe nuove («Ricevi il codice su WhatsApp», «Nuova cliente», «Con
   questo numero», «Puoi prenotare anche senza account») nel bundle servito.
-  **Non ancora provato dal vivo**: l'invio reale del codice WhatsApp e una
-  prenotazione completa da ospite in produzione.
+  ~~Non ancora provato dal vivo: l'invio reale del codice WhatsApp e una
+  prenotazione completa da ospite in produzione.~~ **Provato il 2026-09-25**
+  sul numero di Lorenzo: codice partito dal fisso alle 07:46 UTC,
+  `delivered` secondo Twilio; prenotazione «Prova Ospite», Taglio uomo con
+  Flavia, 1 ottobre 18:30 → 201, id 44, `pending`; lo stesso codice
+  riusato → 400 «Nessun codice per questo numero»; `notify_new_booking(44)`
+  eseguito dal worker senza errori (email di avviso a admin e Flavia).
+  - [ ] **Pulizia**: rifiutare la richiesta 44 da «In attesa» ed eliminare
+    la scheda «Prova Ospite» dai Clienti.
 
 - [ ] **Chi prenota senza account non sa se è stata rifiutata** — il
   rifiuto (`POST /appointments/{id}/reject`) non manda niente a nessuno;

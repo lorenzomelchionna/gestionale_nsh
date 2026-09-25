@@ -248,6 +248,20 @@ ancora la Sandbox `+14155238886`), `TWILIO_TEMPLATE_CONFERMA`,
   non il colore, Elena il contrario), calendario e orari concordi (11 e
   11), ultimo orario 16:00 = fine giornata 19:00 meno 3 ore, riepilogo e
   prenotazione salvata «Taglio donna + Colore base», 16:00–19:00, €90.
+
+  [PR #135](https://github.com/lorenzomelchionna/gestionale_nsh/pull/135)
+  → `develop`, [PR #136](https://github.com/lorenzomelchionna/gestionale_nsh/pull/136)
+  → `main` (commit `1f3ec97`), CI verde su entrambe (8/8 su #136). 768
+  test. **Deploy confermato** il 2026-09-23: backend, frontend e worker
+  `SUCCESS` alle 18:31 UTC.
+
+  Verificato dal vivo sugli endpoint pubblici di produzione, con un
+  collaboratore e due servizi da 30 minuti che fa entrambi, il 25/09:
+  - un servizio: 22 orari, l'ultimo alle 18:30;
+  - due servizi: 21 orari, l'ultimo alle 18:00, cioè anticipato
+    **esattamente della durata del secondo**;
+  - formato vecchio `service_id`: 200, con gli stessi orari del nuovo;
+  - «Puoi sceglierne più di uno» presente nel bundle servito.
 - [ ] **Il seed crea la cliente demo senza verifiche** — trovato il
   2026-09-23. `seed.py` crea `giulia.marino@email.it` con
   `email_verified` e `phone_verified` a `false`, quindi le credenziali demo
@@ -1808,6 +1822,142 @@ password" — quella non invalida nessuna sessione.
 Non bloccano il go-live: il gestionale funziona senza. Stanno qui separate
 apposta, così le caselle aperte qui sotto non si confondono con quelle della
 roadmap sopra.
+
+### Richiesta — 2026-09-25: prenotare senza account
+
+«Prenotare, sia da admin sia dal portale, con nome, cognome e telefono, senza
+account; e chi poi si registra con lo stesso nome e numero dev'essere
+collegato a quegli appuntamenti.» Tre decisioni prese con Lorenzo prima di
+scrivere codice: dal portale **serve il codice WhatsApp** al numero;
+alla registrazione si collega per **numero + nome + cognome**; chi non ha
+account **disdice contattando il salone** (nessun link personale).
+
+- [x] **Portale** — `/booking/new` non chiede più l'accesso. Al passo
+  Conferma chi non è entrato vede «I tuoi dati»: nome, cognome, telefono →
+  «Ricevi il codice su WhatsApp» → codice → «Invia richiesta». La richiesta
+  nasce `pending` come tutte quelle online.
+  - `POST /api/public/guest/code` e `POST /api/public/guest/appointments`
+    (`app/api/public/guest.py`), pubbliche in `EXPECTED_GUARDS`: il
+    controllo è il codice.
+  - Codici in `guest_phone_codes` (migration `d7b2e5a91c30`), uno per
+    numero, hash come le password, 15 minuti, 5 tentativi. In più un tetto
+    che la registrazione non ha: **un codice al minuto e 5 al giorno per
+    numero**, oltre a 5/ora per IP — ogni codice è un WhatsApp a pagamento
+    sul telefono di chi il numero lo possiede.
+  - **Un codice vale una prenotazione**, e si spende solo se l'orario regge:
+    l'orario si controlla prima del codice, così uno appena preso da
+    un'altra non brucia il codice.
+  - La scheda: si riusa quella attiva con lo stesso numero **e** lo stesso
+    nome (ignorando maiuscole, accenti, spazi — `app/utils/nomi.py`),
+    preferendo quella con un account; altrimenti se ne crea una. Madre e
+    figlia col fisso di casa restano due schede.
+- [x] **Admin** — nel modale «Nuovo appuntamento», «Nuova cliente» in fondo
+  al menu clienti: nome, cognome, telefono facoltativo, precompilati da
+  quello che si era scritto nella ricerca. Se il numero c'è già avvisa
+  («Con questo numero c'è già: … — Usa questa») senza bloccare. Insieme,
+  la ricerca clienti del modale ora trova il telefono scritto con spazi o
+  senza +39 (prima confrontava la stringa: «333 555 5555» non trovava
+  `+393335555555`, e nasceva il doppione).
+- [x] **Collegamento alla registrazione** — `_collega_per_telefono` in
+  `auth.py`, **solo dopo il codice WhatsApp** della registrazione: prima il
+  numero è digitato, non dimostrato. Stesso numero + stesso nome, solo
+  schede attive e senza account; l'unione è quella di «Unisci»
+  (`client_merge`): sopravvive la scheda più vecchia, con storico e note,
+  e l'account ci si sposta sopra.
+- Test: `test_prenotazione_senza_account.py` (19),
+  `test_collegamento_per_telefono.py` (9); 798 in tutto. **Falsificati**:
+  16 rotture (niente cooldown, niente tetto, codice riusabile, codice
+  controllato prima dell'orario, niente filtro sul nome, schede con
+  account o disattivate collegabili, …) → ciascuna fa diventare rosso il
+  suo test. Una passava lo stesso (preferenza per la scheda con account:
+  nel test era anche la più vecchia) → test corretto, ora rosso.
+- Verificato nel browser in locale: prenotazione da ospite con codice
+  sbagliato («Tentativi rimasti: 4») e poi giusto → schermata finale con
+  numero del salone e «Crea un account»; nel DB scheda senza email né
+  account, richiesta `pending` `online`. Modale admin: avviso doppione,
+  cliente creata e selezionata, appuntamento salvato.
+
+- [ ] **Chi prenota senza account non sa se è stata rifiutata** — il
+  rifiuto (`POST /appointments/{id}/reject`) non manda niente a nessuno;
+  chi ha un account lo vede nella sua area, chi non ce l'ha no. Per ora il
+  salone la contatta (Chat o telefono). Il lavoro: un template WhatsApp
+  per il rifiuto, da far approvare a Meta.
+
+### Segnalazione — 2026-09-24: «dice che il numero non ha WhatsApp»
+
+Alcune persone che provano a scrivere al salone su WhatsApp si sentono dire
+che il numero non ha un account. **Il numero funziona**, controllato il
+2026-09-24 da Twilio: sender `whatsapp:+3908251728148` `ONLINE`, qualità
+`HIGH`, 11 messaggi in arrivo in tre giorni. E non solo risposte: **4 di
+quei mittenti hanno aperto la chat da soli**, senza aver mai ricevuto
+niente dal salone (3 il 24, 1 il 23; controllato incrociando ogni primo
+messaggio in arrivo con tutti i messaggi in uscita dell'account). Quindi
+il salone si trova anche partendo da zero: chi non ci riesce ha il numero
+**salvato o digitato male**, e WhatsApp gli propone «Invita».
+
+Cause, dalla più probabile (ricerca con fonti, 2026-09-24):
+1. **Salvato senza lo 0**, `+39 825 1728148`: numero che non esiste. È la
+   trappola delle istruzioni di WhatsApp stesse — la FAQ «formato
+   internazionale», anche in italiano, dice di **togliere gli 0 iniziali**
+   ed elenca eccezioni solo per Argentina e Messico
+   ([FAQ](https://faq.whatsapp.com/1294841057948784/?locale=it_IT)). Per i
+   fissi italiani è sbagliato: lo 0 resta anche col +39. Coi cellulari
+   (iniziano con 3) non c'è nessuno 0 da togliere, ed è per questo che il
+   problema tocca solo alcune persone.
+2. **Salvato come `0825 1728148`**, senza +39 — cioè esattamente come lo
+   mostra il sito. La FAQ dice che un numero nazionale salvato «come lo
+   chiameresti» funziona; un blog italiano sostiene di no. **Non
+   documentato**: lo decide solo una prova su un telefono (voce qui sotto).
+3. **Il telefono non ha ancora «visto» il contatto**: su iPhone con accesso
+   ai contatti limitato un contatto nuovo resta invisibile a WhatsApp
+   finché non lo si autorizza; su Android la rubrica si risincronizza
+   circa una volta al giorno (Nuova chat → ⋮ → Aggiorna la forza).
+4. **Il vecchio numero sbagliato** `095 441 220` (Catania), mostrato dal
+   portale fino al commit `b426a35` del 2026-09-02.
+
+**Escluso**: il nome «Vincenzo Romolo», il profilo vuoto, il fatto che sia
+un fisso, le chiamate WhatsApp disattivate. Nessuna fonte Meta o Twilio li
+collega a «non è su WhatsApp», e un problema lato piattaforma toccherebbe
+tutti, non alcune persone.
+
+- [ ] **Prova su un telefono** (2 minuti), su un numero che non ha mai
+  scritto al salone. Salvare tre contatti — `0825 1728148`,
+  `+39 0825 1728148`, `+39 825 1728148` — poi WhatsApp → Nuova chat → ⋮ →
+  Aggiorna, e annotare quali risultano su WhatsApp. Atteso: il secondo sì,
+  il terzo no. Il primo decide se sul sito serve mostrare il +39.
+  Meglio ancora: uno screenshot del contatto salvato da una delle clienti
+  che non ci sono riuscite.
+- [ ] **Dire alle clienti come salvarlo** — testo pronto: «Per scriverci
+  su WhatsApp salva il numero così: **+39 0825 1728148**. Lo 0 dopo il +39
+  va lasciato.» In alternativa: rispondere al messaggio di conferma
+  ricevuto dal salone, che la chat giusta la apre già.
+- [ ] **Pulsante «Scrivici su WhatsApp» sul sito** →
+  `https://wa.me/3908251728148`: apre la chat senza salvare niente, cioè
+  salta tutte e quattro le cause. Da ricavare da `TELEFONO.tel` in
+  `frontend/src/config/business.ts` **togliendo solo il `+`** — mai
+  togliere zeri: la FAQ italiana del click-to-chat dice «non includere
+  alcuno zero», e seguita alla lettera darebbe `wa.me/398251728148`, rotto.
+  Test unitario che `+3908251728148` dia `3908251728148`. Insieme, mostrare
+  il numero come `+39 0825 1728148` invece di `0825 1728148`; il link
+  `tel:` è già giusto. **Provare il link su un telefono vero prima del
+  rilascio**: da qui non si verifica, perché `wa.me` risponde 302 verso
+  `api.whatsapp.com` anche per numeri inesistenti (provato).
+- [ ] **QR in salone con lo stesso link**, sul bancone. Si lega alla voce
+  «Una pagina per chi arriva dal QR code» qui sotto: possono essere due QR
+  (prenota / scrivici) o una pagina che li offre entrambi. Alternativa
+  ufficiale: QR e short link di Meta (`wa.me/message/CODICE`, con testo
+  precompilato) — da vedere se l'account gestito da Twilio dà accesso a
+  WhatsApp Manager o se va chiesto a Twilio.
+- [ ] **Profilo WhatsApp del fisso vuoto** — letto dal Sender il
+  2026-09-24: nome «Vincenzo Romolo», nessuna descrizione, indirizzo, sito,
+  categoria, logo. Il vecchio numero ponte li aveva. Da compilare come
+  quello (descrizione, «Corso Italia, 32 — 83030 Melito Irpino (AV)»,
+  «Beauty, Spa and Salon», `https://www.newstylehair.it`), così chi apre
+  la chat vede che è il salone. **È pubblico: solo con l'ok di Lorenzo.**
+  Il nome resta al ticket del display name.
+- [ ] **Il vecchio `095 441 220` altrove** — il commit `b426a35` l'ha
+  corretto solo nel portale. Controllare scheda Google, Facebook,
+  Instagram, volantini e biglietti.
 
 ### Richieste di Flavia — 2026-09-23 (primo giorno col database vuoto)
 

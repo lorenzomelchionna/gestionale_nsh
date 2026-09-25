@@ -275,16 +275,22 @@ async def public_availability_calendar(
 
 # ── Authenticated client endpoints ────────────────────────────────
 
-@router.post("/appointments", response_model=PortalAppointmentOut, status_code=status.HTTP_201_CREATED)
-async def book_appointment(
-    payload: AppointmentCreate,
-    db: Annotated[AsyncSession, Depends(get_db)],
-    current_account: Annotated[ClientAccount, Depends(get_current_client)],
-):
-    client = await _cliente_del_portale(db, current_account)
-    if not client:
-        raise HTTPException(status_code=400, detail="Profilo cliente non trovato")
+async def valida_prenotazione(
+    db: AsyncSession,
+    collaborator_id: int,
+    start_time: datetime,
+    service_ids: List[int],
+) -> tuple[list[Service], datetime, datetime]:
+    """Tutto quello che una prenotazione dal portale deve rispettare, prima di
+    sapere chi la fa: servizi, collaboratore, orario libero.
 
+    Separata dalla scrittura perché chi prenota senza account ha un codice da
+    spendere, e il codice si spende solo se l'orario regge: altrimenti un
+    orario appena preso da un'altra cliente brucerebbe anche il codice, e
+    toccherebbe chiederne un altro per scegliere l'orario successivo.
+
+    Restituisce i servizi, l'inizio in UTC e la fine calcolata qui.
+    """
     # Validate booking config
     cfg_result = await db.execute(select(BookingConfig).limit(1))
     cfg = cfg_result.scalar_one_or_none()
@@ -293,14 +299,14 @@ async def book_appointment(
 
     # Validate services
     services = []
-    for sid in payload.service_ids:
+    for sid in service_ids:
         r = await db.execute(select(Service).where(Service.id == sid))
         svc = r.scalar_one_or_none()
         if not svc or not svc.bookable_online:
             raise HTTPException(status_code=400, detail=f"Servizio {sid} non prenotabile online")
         services.append(svc)
 
-    await _bookable_collaborator(db, payload.collaborator_id, payload.service_ids)
+    await _bookable_collaborator(db, collaborator_id, service_ids)
 
     # The times are the one part of the payload the browser computes for itself,
     # so until here nothing had ever checked them. Without this block a client
@@ -308,7 +314,7 @@ async def book_appointment(
     # 00:00–23:59 on every collaborator for the next two months — and since a
     # `pending` request already holds its slot, that last one empties the whole
     # public calendar until the salon deletes the rows by hand.
-    start = payload.start_time
+    start = start_time
     # Un valore senza fuso è l'ora di orologio di chi l'ha scritto, e chi
     # scrive qui è il salone: va letto come ora del salone, non come UTC.
     # Leggerlo come UTC lo spostava una o due ore avanti, e il confronto con
@@ -327,7 +333,7 @@ async def book_appointment(
     # carry several services ("taglio + barba" is two blocks, not one).
     duration_slots = sum(svc.duration_slots for svc in services)
     slots = await get_available_slots(
-        db, payload.collaborator_id, start.date(), duration_slots,
+        db, collaborator_id, start.date(), duration_slots,
         busy_offsets=busy_slot_offsets(services),
     )
     if start not in slots:
@@ -344,7 +350,11 @@ async def book_appointment(
     # claim a whole day.
     slot_minutes = cfg.slot_duration_minutes if cfg else 30
     end = start + timedelta(minutes=duration_slots * slot_minutes)
+    return services, start, end
 
+
+async def controlla_richieste_in_attesa(db: AsyncSession, client: Client) -> None:
+    """Il tetto alle richieste ancora senza risposta, per scheda."""
     pending_count = (await db.execute(
         select(func.count()).select_from(Appointment).where(
             Appointment.client_id == client.id,
@@ -360,12 +370,23 @@ async def book_appointment(
             ),
         )
 
+
+async def registra_prenotazione(
+    db: AsyncSession,
+    client: Client,
+    collaborator_id: int,
+    services: list[Service],
+    start: datetime,
+    end: datetime,
+    notes: Optional[str],
+) -> PortalAppointmentOut:
+    """Scrive la richiesta già validata, avvisa il salone, la restituisce."""
     appt = Appointment(
         client_id=client.id,
-        collaborator_id=payload.collaborator_id,
+        collaborator_id=collaborator_id,
         start_time=start,
         end_time=end,
-        notes=payload.notes,
+        notes=notes,
         status=AppointmentStatus.pending,  # Always pending from portal
         origin=AppointmentOrigin.online,
     )
@@ -398,6 +419,25 @@ async def book_appointment(
         .where(Appointment.id == appt.id)
     )
     return PortalAppointmentOut.from_appointment(reloaded.scalar_one())
+
+
+@router.post("/appointments", response_model=PortalAppointmentOut, status_code=status.HTTP_201_CREATED)
+async def book_appointment(
+    payload: AppointmentCreate,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_account: Annotated[ClientAccount, Depends(get_current_client)],
+):
+    client = await _cliente_del_portale(db, current_account)
+    if not client:
+        raise HTTPException(status_code=400, detail="Profilo cliente non trovato")
+
+    services, start, end = await valida_prenotazione(
+        db, payload.collaborator_id, payload.start_time, payload.service_ids,
+    )
+    await controlla_richieste_in_attesa(db, client)
+    return await registra_prenotazione(
+        db, client, payload.collaborator_id, services, start, end, payload.notes,
+    )
 
 
 @router.get("/appointments", response_model=List[PortalAppointmentOut])

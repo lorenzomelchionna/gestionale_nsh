@@ -37,11 +37,9 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * Booking and the account page need a portal login.
- *
- * The gate sits in front of the flow rather than at the confirm button: being
- * bounced to sign in after choosing a service, a stylist and a time meant
- * losing all three. `next` brings them back to where they were.
+ * The account page needs a portal login. Booking no longer does: without an
+ * account it asks for name, surname and a WhatsApp code at the confirm step.
+ * `next` brings someone who signs in back to where they were.
  */
 function RequireClient({ children }: { children: React.ReactNode }) {
   const token = useClientAuth(s => s.token)
@@ -92,7 +90,9 @@ export default function App() {
             visitor can see what the salon offers before creating anything. */}
         <Route path="/booking" element={<BookingLayout />}>
           <Route index element={<BookingHomePage />} />
-          <Route path="new" element={<RequireClient><BookingFlowPage /></RequireClient>} />
+          {/* Aperta anche senza account: chi non è entrato prenota con nome,
+              cognome e un codice WhatsApp al passo di conferma. */}
+          <Route path="new" element={<BookingFlowPage />} />
           <Route path="account" element={<RequireClient><BookingAccountPage /></RequireClient>} />
           {/* The portal used to have its own sign-in pages. */}
           <Route path="login" element={<Navigate to="/login" replace />} />

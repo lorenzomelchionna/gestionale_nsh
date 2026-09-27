@@ -1823,6 +1823,31 @@ Non bloccano il go-live: il gestionale funziona senza. Stanno qui separate
 apposta, così le caselle aperte qui sotto non si confondono con quelle della
 roadmap sopra.
 
+### Segnalazione — 2026-09-27: «promemoria a un'ora, arrivato 2 ore e mezza prima»
+
+**Non un difetto del calcolo: l'impostazione era ancora 24 ore.** Dal
+registro Twilio del 26/09: alle 15:30 sono partiti insieme i promemoria per
+gli appuntamenti delle 16:30, 17:30, 18:00, 18:30 **e del 27/09 alle 08:30**
+(17 ore prima) — cioè tutto ciò che cadeva nelle 24 ore e non era stato
+confermato nell'ultima ora (`DISTANZA_DALLA_CONFERMA`: le conferme erano
+partite fra le 14:15 e le 14:24). Nei log l'unico salvataggio delle
+impostazioni è `PUT /api/admin/settings/booking` di `admin:1` il **26/09 alle
+19:01**, dopo quei promemoria. Coerente col valore nuovo a 1 ora:
+l'appuntamento del 27/09 alle 16:30, prenotato il 26 alle 21:27, la sera
+non ha ricevuto nessun promemoria (con 24 ore sarebbe partito alle 22:30).
+Con 1 ora il promemoria arriva fra 60 e 45 minuti prima: il controllo gira
+ogni 15 minuti.
+- [ ] Verificare il primo promemoria vero a 1 ora: 27/09, appuntamento
+  delle 16:30 → atteso alle 15:30.
+
+**Trovato insieme: 4 clienti col numero che WhatsApp rifiuta.** Errore
+Twilio **63024** («destinatario non valido»: il numero non ha WhatsApp o è
+sbagliato) il 26/09 per i numeri che finiscono con …1317, …3177, …4030,
+…9600: niente conferme né promemoria. Un quinto (…2300) è fallito cinque
+volte alle 12:10 e poi è andato a buon fine alle 12:24, dopo che il numero
+è stato corretto. Il salone non lo vede da nessuna parte — è la voce
+«Vedere se un messaggio è arrivato» qui sotto, che diventa più urgente.
+
 ### Richieste di Flavia — 2026-09-25 (sei punti)
 
 - [x] **1. «Nei prodotti giacenza e prezzo si vedono spostati»** — due

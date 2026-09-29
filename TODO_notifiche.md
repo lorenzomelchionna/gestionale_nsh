@@ -1823,6 +1823,28 @@ Non bloccano il go-live: il gestionale funziona senza. Stanno qui separate
 apposta, così le caselle aperte qui sotto non si confondono con quelle della
 roadmap sopra.
 
+### Richiesta — 2026-09-29: «Incassa» dall'appuntamento, contanti o carta
+
+- [x] Dall'appuntamento si poteva solo «Segna completato», e l'incasso andava
+  rifatto a mano in Cassa (cliente, importo) — il secondo passo si
+  dimenticava. Ora nel modale c'è **«Incassa»**: importo proposto dal totale
+  dei servizi e modificabile (sconto, prodotto aggiunto), **Contanti** o
+  **Carta** da scegliere (nessun predefinito: un «contanti» lasciato lì per
+  distrazione sbaglierebbe la cassa), nota di visita facoltativa. Chiude la
+  visita e registra il pagamento già legato ad appuntamento e cliente, in
+  un passo (`POST /api/admin/appointments/{id}/checkout`).
+  - Solo admin, come tutta la cassa (`EXPECTED_GUARDS`); i collaboratori
+    continuano a chiudere con «Segna completato».
+  - Si incassa un appuntamento confermato (e si completa) o uno già
+    completato e non pagato; **mai due volte** (409, riga bloccata contro il
+    doppio clic). Pagato: nel modale «Incassato: €… · carta».
+  - Il misto resta nella Cassa, per i casi rari.
+  - Test in `test_incasso_appuntamento.py`; 861 in tutto. Falsificati:
+    doppio incasso, stati ammessi, guardia admin, chiusura della visita —
+    ognuno rompe il suo test. Verificato nel browser: incasso €20 con carta
+    → appuntamento completato, «Incassato» nel modale, riga in Cassa col
+    totale carta aggiornato.
+
 ### Richieste — 2026-09-29: spam, servizio e colori in calendario, caratteri
 
 - [x] **1. «A volte la mail arriva in spam: l'app dica di controllare»** —
@@ -1856,6 +1878,15 @@ roadmap sopra.
   modulo Servizi salvato, blocchi colorati per servizio, tratteggio del «da
   confermare» conservato. 845 test; validazione del colore e allineamento
   colori/servizi falsificati → rossi.
+- [PR #147](https://github.com/lorenzomelchionna/gestionale_nsh/pull/147)
+  → `develop`, [PR #148](https://github.com/lorenzomelchionna/gestionale_nsh/pull/148)
+  → `main` (commit `ec75803`), CI verde (8/8 su #148). **Deploy
+  confermato** il 2026-09-29 alle 07:38 UTC: backend, frontend e worker
+  `SUCCESS`, migration `e3c9a1f47b82 -> f5a8c2d64e19` applicata, bootstrap
+  completato. Dal vivo: `/health` 200, `www` 200, `/api/public/services`
+  espone `color` su tutti i 19 servizi; nel bundle servito «Colore in
+  calendario», la tavolozza e l'avviso «cartella Spam».
+  - [ ] Flavia sceglie i colori dei servizi (Servizi → modifica).
 
 ### Segnalazione — 2026-09-27: «promemoria a un'ora, arrivato 2 ore e mezza prima»
 

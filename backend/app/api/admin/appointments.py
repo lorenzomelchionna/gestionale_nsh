@@ -13,11 +13,12 @@ from app.models.client import Client
 from app.models.collaborator import Collaborator
 from app.models.user import User
 from app.schemas.appointment import (
-    AppointmentComplete, AppointmentCreate, AppointmentUpdate, AppointmentOut,
-    AppointmentOutWithNames, AppointmentReject, AppointmentReschedule,
+    AppointmentCheckout, AppointmentComplete, AppointmentCreate, AppointmentUpdate,
+    AppointmentOut, AppointmentOutWithNames, AppointmentReject, AppointmentReschedule,
 )
+from app.models.payment import Payment, PaymentMethod, PaymentType
 from app.schemas.common import PaginatedResponse
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, require_admin
 from app.utils.tempo import istante_da_ingresso
 
 router = APIRouter(prefix="/appointments", tags=["Appointments"])
@@ -281,6 +282,65 @@ async def reschedule_appointment(
     a = await _load_appointment(db, appointment_id)
     a.status = AppointmentStatus.rescheduled
     a.alternative_time = payload.alternative_time
+    await db.flush()
+    return _enrich(await _load_appointment(db, appointment_id))
+
+
+@router.post("/{appointment_id}/checkout", response_model=AppointmentOutWithNames)
+async def checkout_appointment(
+    appointment_id: int,
+    payload: AppointmentCheckout,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(require_admin)],
+):
+    """Incassa: chiude la visita e registra il pagamento, in un passo solo.
+
+    Prima erano due giri — «segna completato» dal calendario, poi la Cassa a
+    ricreare a mano un incasso con cliente e importo — e il secondo si
+    dimenticava. Qui il pagamento nasce già legato all'appuntamento e alla
+    cliente, con l'importo dei servizi proposto.
+
+    Solo admin, come tutta la cassa: i collaboratori chiudono la visita con
+    «segna completato» e basta.
+
+    Si incassa un appuntamento confermato (e così si completa) o uno già
+    completato ma non ancora pagato. Due volte no: un secondo clic, o un
+    secondo telefono sullo stesso appuntamento, raddoppierebbe l'incasso.
+    """
+    # La riga bloccata prima di guardare se è già pagato: due richieste
+    # insieme vedrebbero entrambe «non ancora» e incasserebbero entrambe.
+    await db.execute(
+        select(Appointment.id).where(Appointment.id == appointment_id).with_for_update()
+    )
+    a = await _load_appointment(db, appointment_id)
+    if a.status not in (AppointmentStatus.confirmed, AppointmentStatus.completed):
+        raise HTTPException(
+            status_code=400,
+            detail="Si incassano solo appuntamenti confermati o già completati",
+        )
+    gia = [p for p in a.payments if p.type == PaymentType.service]
+    if gia:
+        totale = sum(float(p.amount) for p in gia)
+        raise HTTPException(
+            status_code=409,
+            detail=f"Appuntamento già incassato (€{totale:.2f}).",
+        )
+
+    if a.status == AppointmentStatus.confirmed:
+        a.status = AppointmentStatus.completed
+        nota = (payload.visit_notes or "").strip()
+        if nota:
+            a.visit_notes = nota
+
+    # `appointment=a` lo mette anche in `a.payments`, che la risposta legge;
+    # `db.add` perché in SQLAlchemy 2 la relazione da sola non lo salva.
+    db.add(Payment(
+        client_id=a.client_id,
+        appointment=a,
+        amount=round(payload.amount, 2),
+        method=PaymentMethod(payload.method),
+        type=PaymentType.service,
+    ))
     await db.flush()
     return _enrich(await _load_appointment(db, appointment_id))
 

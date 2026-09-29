@@ -37,6 +37,8 @@ EXPECTED_GUARDS = {
     ("PUT", "/api/admin/appointments/{appointment_id}"): "staff",
     ("POST", "/api/admin/appointments/{appointment_id}/cancel"): "staff",
     ("POST", "/api/admin/appointments/{appointment_id}/complete"): "staff",
+    # Incassare è cassa: solo admin, come `POST /api/admin/payments`.
+    ("POST", "/api/admin/appointments/{appointment_id}/checkout"): "admin",
     ("POST", "/api/admin/appointments/{appointment_id}/confirm"): "staff",
     ("POST", "/api/admin/appointments/{appointment_id}/reject"): "staff",
     ("POST", "/api/admin/appointments/{appointment_id}/reschedule"): "staff",

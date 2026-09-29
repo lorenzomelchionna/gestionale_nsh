@@ -104,4 +104,6 @@ def appointment_detail_loads():
         selectinload(Appointment.client),
         selectinload(Appointment.collaborator),
         selectinload(Appointment.appointment_services).selectinload(AppointmentService.service),
+        # Per «incassato»: il calendario deve sapere se è già stato pagato.
+        selectinload(Appointment.payments),
     )

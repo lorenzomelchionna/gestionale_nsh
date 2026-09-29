@@ -7,11 +7,11 @@ import {
 import { it } from 'date-fns/locale'
 import {
   ChevronLeft, ChevronRight, ChevronDown, Plus, Check, X,
-  Calendar as CalendarIcon, UserPlus,
+  Calendar as CalendarIcon, UserPlus, Euro, Banknote, CreditCard,
 } from 'lucide-react'
 import {
   getAppointments, getCollaborators, confirmAppointment,
-  rejectAppointment, completeAppointment, cancelAppointment,
+  rejectAppointment, completeAppointment, cancelAppointment, checkoutAppointment,
   createAppointment, getClients, getServices, updateAppointment, getAbsences, getBookingConfig,
   createClient,
 } from '@/services/api'
@@ -21,6 +21,7 @@ import Sheet from '@/components/ui/Sheet'
 import { EmptyState, Segmented } from '@/components/ui'
 import clsx from 'clsx'
 import { serviceBlockStyle } from '@/utils/serviceColor'
+import { useAuthStore } from '@/store/authStore'
 
 interface DragState {
   id: number
@@ -287,6 +288,19 @@ export default function CalendarPage() {
       setSelectedAppointment(null)
     },
   })
+  // Incassa: chiude la visita e registra il pagamento. Oltre al calendario
+  // cambiano la Cassa e il cruscotto, che leggono i pagamenti.
+  const checkoutMut = useMutation({
+    mutationFn: ({ id, ...data }: { id: number; method: 'contanti' | 'carta'; amount: number; visit_notes?: string }) =>
+      checkoutAppointment(id, data),
+    onSuccess: () => {
+      invalidate()
+      qc.invalidateQueries({ queryKey: ['client-appointments'] })
+      qc.invalidateQueries({ queryKey: ['payments'] })
+      qc.invalidateQueries({ queryKey: ['dashboard-stats'] })
+      setSelectedAppointment(null)
+    },
+  })
   const cancelMut = useMutation({
     mutationFn: ({ id, reason }: { id: number; reason?: string }) => cancelAppointment(id, reason),
     onSuccess: () => { invalidate(); setSelectedAppointment(null) },
@@ -482,6 +496,9 @@ export default function CalendarPage() {
           onConfirm={() => confirmMut.mutate(selectedAppointment.id)}
           onReject={(reason) => rejectMut.mutate({ id: selectedAppointment.id, reason })}
           onComplete={(visitNotes) => completeMut.mutate({ id: selectedAppointment.id, visitNotes })}
+          onCheckout={(data) => checkoutMut.mutate({ id: selectedAppointment.id, ...data })}
+          checkoutPending={checkoutMut.isPending}
+          checkoutError={checkoutMut.isError ? errorText(checkoutMut.error) : ''}
           onCancel={(reason) => cancelMut.mutate({ id: selectedAppointment.id, reason })}
           onInvalidate={invalidate}
         />
@@ -859,16 +876,31 @@ function WeekDayColumn({ date, collaborators, appointments, timeToY, durationToH
 
 // ── Appointment modal ─────────────────────────────────────────────
 
-function AppointmentModal({ appointment, appointments, onClose, onConfirm, onReject, onComplete, onCancel, onInvalidate }: {
+function AppointmentModal({
+  appointment, appointments, onClose, onConfirm, onReject, onComplete, onCheckout,
+  checkoutPending, checkoutError, onCancel, onInvalidate,
+}: {
   appointment: Appointment
   appointments: Appointment[]
   onClose: () => void
   onConfirm: () => void
   onReject: (reason?: string) => void
   onComplete: (visitNotes?: string) => void
+  onCheckout: (data: { method: 'contanti' | 'carta'; amount: number; visit_notes?: string }) => void
+  checkoutPending: boolean
+  checkoutError: string
   onCancel: (reason?: string) => void
   onInvalidate: () => void
 }) {
+  // La cassa è dell'admin: i collaboratori chiudono la visita, non incassano.
+  const isAdmin = useAuthStore(s => s.user?.role === 'admin')
+  const [showCheckout, setShowCheckout] = useState(false)
+  const [payMethod, setPayMethod] = useState<'contanti' | 'carta' | null>(null)
+  const [payAmount, setPayAmount] = useState(String((appointment.total_price ?? 0).toFixed(2)))
+  const paid = appointment.paid_amount != null
+  const canCheckout = isAdmin && !paid &&
+    (appointment.status === 'confirmed' || appointment.status === 'completed')
+  const amountValue = Number(payAmount.replace(',', '.'))
   const [rejectReason, setRejectReason] = useState('')
   const [showRejectForm, setShowRejectForm] = useState(false)
   const [showCancelForm, setShowCancelForm] = useState(false)
@@ -963,6 +995,12 @@ function AppointmentModal({ appointment, appointments, onClose, onConfirm, onRej
         </div>
         {appointment.notes && <Row label="Note" value={appointment.notes} />}
         {appointment.visit_notes && <Row label="Nota visita" value={appointment.visit_notes} />}
+        {paid && (
+          <Row
+            label="Incassato"
+            value={`€${(appointment.paid_amount ?? 0).toFixed(2)} · ${appointment.paid_method ?? ''}`}
+          />
+        )}
       </div>
 
       {/* Actions */}
@@ -977,8 +1015,16 @@ function AppointmentModal({ appointment, appointments, onClose, onConfirm, onRej
             </button>
           </>
         )}
-        {appointment.status === 'confirmed' && !showCompleteForm && (
-          <button onClick={() => setShowCompleteForm(true)} className="btn-primary btn-sm">
+        {canCheckout && !showCheckout && !showCompleteForm && (
+          <button onClick={() => setShowCheckout(true)} className="btn-primary btn-sm">
+            <Euro className="w-4 h-4" /> Incassa
+          </button>
+        )}
+        {appointment.status === 'confirmed' && !showCompleteForm && !showCheckout && (
+          <button
+            onClick={() => setShowCompleteForm(true)}
+            className={isAdmin ? 'btn-secondary btn-sm' : 'btn-primary btn-sm'}
+          >
             <Check className="w-4 h-4" /> Segna completato
           </button>
         )}
@@ -1108,6 +1154,75 @@ function AppointmentModal({ appointment, appointments, onClose, onConfirm, onRej
               className="btn-primary btn-sm flex-1"
             >
               <Check className="w-4 h-4" /> Completa
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Incassa: l'importo è quello dei servizi ma si può cambiare (sconto,
+          prodotto aggiunto); il metodo va scelto, non c'è un predefinito —
+          un «contanti» lasciato lì per distrazione sbaglierebbe la cassa. */}
+      {showCheckout && (
+        <div className="mt-4 border-t border-rule pt-4 space-y-3">
+          <span className="kicker">Incassa</span>
+          <div>
+            <label htmlFor="pay_amount" className="label block mb-1">Importo (€)</label>
+            <input
+              id="pay_amount"
+              className="input text-lg tabular-nums"
+              inputMode="decimal"
+              value={payAmount}
+              onChange={e => setPayAmount(e.target.value)}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Metodo di pagamento">
+            {([
+              ['contanti', 'Contanti', Banknote],
+              ['carta', 'Carta', CreditCard],
+            ] as const).map(([value, label, Icon]) => (
+              <button
+                key={value}
+                type="button"
+                role="radio"
+                aria-checked={payMethod === value}
+                onClick={() => setPayMethod(value)}
+                className={clsx(
+                  'flex items-center justify-center gap-2 py-3 border text-sm transition-colors',
+                  payMethod === value
+                    ? 'border-primary bg-primary/10 text-foreground font-medium'
+                    : 'border-border text-ink-2 hover:border-primary/60',
+                )}
+              >
+                <Icon className="w-4 h-4" /> {label}
+              </button>
+            ))}
+          </div>
+          {appointment.status === 'confirmed' && (
+            <textarea
+              className="input text-sm" rows={2}
+              placeholder="Nota della visita (facoltativa): colore usato, tempi di posa…"
+              value={visitNotes}
+              onChange={e => setVisitNotes(e.target.value)}
+            />
+          )}
+          {checkoutError && <p className="text-xs text-danger">{checkoutError}</p>}
+          <div className="flex gap-2">
+            <button onClick={() => setShowCheckout(false)} className="btn-secondary btn-sm flex-1">
+              Indietro
+            </button>
+            <button
+              onClick={() => payMethod && onCheckout({
+                method: payMethod,
+                amount: amountValue,
+                visit_notes: visitNotes.trim() || undefined,
+              })}
+              disabled={!payMethod || !(amountValue > 0) || checkoutPending}
+              className="btn-primary btn-sm flex-1 disabled:opacity-50"
+            >
+              <Euro className="w-4 h-4" />
+              {checkoutPending
+                ? 'Incasso…'
+                : `Incassa €${(amountValue > 0 ? amountValue : 0).toFixed(2)}${payMethod ? ` · ${payMethod}` : ''}`}
             </button>
           </div>
         </div>

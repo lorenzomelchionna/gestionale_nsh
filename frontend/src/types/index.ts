@@ -140,6 +140,9 @@ export interface Appointment {
   client_name?: string
   collaborator_name?: string
   total_price?: number
+  /** Incassato per i servizi, e come ('contanti' | 'carta' | 'misto'); null se non ancora. */
+  paid_amount?: number | null
+  paid_method?: string | null
   service_names?: string[]
   /** Allineati a `service_names`; null per un servizio senza colore. */
   service_colors?: (string | null)[]

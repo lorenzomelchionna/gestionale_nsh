@@ -8,6 +8,12 @@ cambiamento incompatibile il primo.
 Le voci le scrive `scripts/release.py prepare` dai commit di ogni rilascio;
 vedi «CI e flusso di rilascio» in `CLAUDE.md`.
 
+## [1.1.0] — 2026-09-29
+
+### Novità
+
+- calendar: half-hour labels, grid 8–19, after-closing band 19–20 for the salon
+
 ## [1.0.0] — 2026-09-29
 
 Prima versione numerata: il gestionale com'è in produzione a questa data.

@@ -30,6 +30,10 @@ class Service(Base):
     slots_before_processing: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     category: Mapped[str] = mapped_column(String(100), nullable=False)
+    # Il colore del blocco in calendario, `#rrggbb`. Lo sceglie l'admin; senza,
+    # il blocco resta neutro come prima. Più servizi in un appuntamento: vale
+    # quello del primo, cioè di quello con cui si comincia.
+    color: Mapped[Optional[str]] = mapped_column(String(7), nullable=True)
     bookable_online: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 

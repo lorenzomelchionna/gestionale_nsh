@@ -20,6 +20,7 @@ import type { Appointment, Client, Collaborator } from '@/types'
 import Sheet from '@/components/ui/Sheet'
 import { EmptyState, Segmented } from '@/components/ui'
 import clsx from 'clsx'
+import { serviceBlockStyle } from '@/utils/serviceColor'
 
 interface DragState {
   id: number
@@ -124,6 +125,15 @@ const APPT_BLOCK: Record<string, string> = {
 }
 
 const apptBlock = (status: string) => APPT_BLOCK[status] ?? APPT_BLOCK.confirmed
+
+/** Il colore del servizio sopra la forma dello stato: tinta piena per quelli
+    in agenda, sbiadita per annullati e rifiutati, che restano leggibili ma
+    non devono sembrare lavoro da fare. */
+const apptColor = (appt: Appointment) =>
+  serviceBlockStyle(appt.service_colors, appt.status === 'cancelled' || appt.status === 'rejected')
+
+/** I servizi come si leggono in agenda: «Taglio donna + Piega». */
+const serviceLabel = (appt: Appointment) => (appt.service_names ?? []).join(' + ')
 
 const LEGEND: { status: string; label: string }[] = [
   { status: 'completed', label: 'Completato' },
@@ -409,7 +419,7 @@ export default function CalendarPage() {
               {Array.from({ length: END_HOUR - START_HOUR }, (_, i) => (
                 <div
                   key={i}
-                  className="absolute right-2 text-[10px] text-ink-3 tabular-nums -translate-y-2"
+                  className="absolute right-2 text-[12px] text-ink-3 tabular-nums -translate-y-2"
                   style={{ top: i * HOUR_HEIGHT }}
                 >
                   {String(START_HOUR + i).padStart(2, '0')}:00
@@ -611,11 +621,12 @@ function DayColumn({ collaborator, date, appointments, timeToY, durationToH, onS
               key={appt.id}
               draggable
               className={clsx(
-                'absolute left-1 right-1 px-1.5 py-0.5 overflow-hidden z-10',
+                'absolute left-1 right-1 px-2 py-1 overflow-hidden z-10',
                 'cursor-grab active:cursor-grabbing hover:border-primary transition-colors',
                 apptBlock(appt.status)
               )}
-              style={{ top, height }}
+              style={{ top, height, ...apptColor(appt) }}
+              title={[appt.client_name, serviceLabel(appt)].filter(Boolean).join(' · ')}
               onDragStart={() => {
                 didDrag.current = false
                 dragState.current = {
@@ -628,11 +639,14 @@ function DayColumn({ collaborator, date, appointments, timeToY, durationToH, onS
               onDrop={(e) => { e.preventDefault(); e.stopPropagation(); onDropOnAppointment(appt); didDrag.current = true }}
               onClick={(e) => { e.stopPropagation(); onAppointmentClick(appt) }}
             >
-              <p className="font-heading text-[13px] leading-tight tracking-[0.02em] truncate">
+              <p className="font-heading text-[16px] leading-tight tracking-[0.02em] truncate">
                 {appt.client_name}
               </p>
-              <p className="text-[10px] leading-tight truncate tabular-nums text-ink-3">
-                {format(start, 'HH:mm')}
+              {/* Orario e servizio sulla stessa riga: un appuntamento di mezz'ora
+                  è alto 48 px, e una terza riga non ci starebbe. */}
+              <p className="text-[13px] leading-tight truncate text-ink-2 mt-0.5">
+                <span className="tabular-nums">{format(start, 'HH:mm')}</span>
+                {serviceLabel(appt) && <span> · {serviceLabel(appt)}</span>}
               </p>
             </div>
           )
@@ -697,6 +711,7 @@ function AgendaView({
                   'w-full text-left p-3.5 flex items-stretch gap-3.5 transition-colors hover:border-primary',
                   apptBlock(appt.status)
                 )}
+                style={apptColor(appt)}
               >
                 {/* Time rail */}
                 <div className="flex flex-col items-end shrink-0 w-11">
@@ -711,9 +726,12 @@ function AgendaView({
                 <span className="w-px bg-rule shrink-0" aria-hidden="true" />
 
                 <div className="min-w-0 flex-1">
-                  <p className="font-heading text-[17px] leading-tight tracking-[0.02em] text-foreground truncate">
+                  <p className="font-heading text-[18px] leading-tight tracking-[0.02em] text-foreground truncate">
                     {appt.client_name || 'Cliente'}
                   </p>
+                  {serviceLabel(appt) && (
+                    <p className="text-[14px] text-ink-2 truncate mt-0.5">{serviceLabel(appt)}</p>
+                  )}
                   {collab && (
                     <p className="text-[13px] text-ink-3 truncate mt-0.5">
                       {collab.first_name} {collab.last_name}
@@ -809,7 +827,8 @@ function WeekDayColumn({ date, collaborators, appointments, timeToY, durationToH
                 'cursor-grab active:cursor-grabbing hover:border-primary transition-colors',
                 apptBlock(appt.status)
               )}
-              style={{ top, height }}
+              style={{ top, height, ...apptColor(appt) }}
+              title={[appt.client_name, serviceLabel(appt), collab?.first_name].filter(Boolean).join(' · ')}
               onDragStart={() => {
                 didDrag.current = false
                 dragState.current = {
@@ -823,9 +842,12 @@ function WeekDayColumn({ date, collaborators, appointments, timeToY, durationToH
               onClick={(e) => { e.stopPropagation(); onAppointmentClick(appt) }}
             >
               {/* The collaborator is named on the block, not signalled by a hue. */}
-              <p className="font-heading text-[12px] leading-tight tracking-[0.02em] truncate">{appt.client_name}</p>
+              <p className="font-heading text-[14px] leading-tight tracking-[0.02em] truncate">{appt.client_name}</p>
+              {serviceLabel(appt) && (
+                <p className="text-[11px] leading-tight truncate text-ink-2">{serviceLabel(appt)}</p>
+              )}
               {collab && (
-                <p className="text-[9px] leading-tight truncate text-ink-3">{collab.first_name}</p>
+                <p className="text-[11px] leading-tight truncate text-ink-3">{collab.first_name}</p>
               )}
             </div>
           )

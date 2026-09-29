@@ -319,6 +319,7 @@ export default function LoginPage() {
               onSubmit={mode === 'verify' ? handleVerify : handleVerifyPhone}
               onResend={mode === 'verify' ? handleResend : handleResendPhone}
               onBack={() => switchMode('signin')}
+              viaEmail={mode === 'verify'}
             />
           ) : (
             <>
@@ -485,7 +486,8 @@ export default function LoginPage() {
                 {mode === 'register' && (
                   <p className="text-xs text-ink-3">
                     Riceverai le comunicazioni sui tuoi appuntamenti via email e
-                    WhatsApp.
+                    WhatsApp. Se un'email non arriva, controlla anche la cartella
+                    Spam.
                   </p>
                 )}
 
@@ -558,6 +560,8 @@ interface VerifyProps {
   onSubmit: (e: React.FormEvent) => void
   onResend: () => void
   onBack: () => void
+  /** Il codice arriva per email: allora si ricorda di guardare lo spam. */
+  viaEmail?: boolean
 }
 
 /**
@@ -567,7 +571,7 @@ interface VerifyProps {
  * hand and their inbox in the other, and anything beyond the code is in the way.
  */
 function VerifyForm({
-  code, setCode, notice, error, loading, onSubmit, onResend, onBack,
+  code, setCode, notice, error, loading, onSubmit, onResend, onBack, viaEmail = false,
 }: VerifyProps) {
   return (
     <>
@@ -594,6 +598,13 @@ function VerifyForm({
             onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
           />
           <p className="text-xs text-ink-3 mt-1.5">Sei cifre, valido per 15 minuti.</p>
+          {/* Le email del salone a volte finiscono nello spam, soprattutto la
+              prima volta: chi non vede il codice pensa che non sia partito. */}
+          {viaEmail && (
+            <p className="text-xs text-ink-3 mt-1">
+              Se non la trovi, guarda anche nella cartella Spam o Posta indesiderata e segnala il messaggio come «non spam»: le prossime arriveranno nella posta in arrivo.
+            </p>
+          )}
         </div>
 
         <ErrorNote error={error} />

@@ -181,6 +181,11 @@ export default function BookingFlowPage() {
             Il salone confermerà il tuo appuntamento al più presto. Ti avvisiamo
             {bookedAsGuest ? ' su WhatsApp.' : ' via email e WhatsApp.'}
           </p>
+          {!bookedAsGuest && (
+            <p className="text-muted-foreground mt-2 max-w-xs mx-auto text-sm">
+              Se l'email non arriva, controlla anche la cartella Spam.
+            </p>
+          )}
           {/* Senza account non c'è un'area personale da cui disdire: si fa
               come per chi prenota al telefono. */}
           {bookedAsGuest && (
@@ -592,7 +597,7 @@ export default function BookingFlowPage() {
 
           <p className="note">
             {token
-              ? 'La prenotazione verrà confermata dal salone. Ti avvisiamo via email e WhatsApp.'
+              ? 'La prenotazione verrà confermata dal salone. Ti avvisiamo via email e WhatsApp (se l\'email non arriva, controlla lo spam).'
               : 'La prenotazione verrà confermata dal salone. Ti avvisiamo su WhatsApp; per disdire o spostarla contatti il salone.'}
           </p>
 

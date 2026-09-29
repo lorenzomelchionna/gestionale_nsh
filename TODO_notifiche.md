@@ -1879,6 +1879,19 @@ commit**, versione a piè di pagina in **gestionale e portale**, note in
   portale che sfora di un'ora → 2 rossi; controllo orari nel gestionale →
   1 rosso). Suite 872 verde, build ok, verificato nel browser (giorno,
   settimana, chiaro/scuro).
+  [PR #155](https://github.com/lorenzomelchionna/gestionale_nsh/pull/155)
+  → `develop`; **primo rilascio con `scripts/release.py prepare`**:
+  1.0.0 → **1.1.0** (minore, per il `feat`),
+  [PR #156](https://github.com/lorenzomelchionna/gestionale_nsh/pull/156)
+  «Release v1.1.0» → `main` (commit `a9135c4`), CI 10/10. Tag `v1.1.0` e
+  [Release](https://github.com/lorenzomelchionna/gestionale_nsh/releases/tag/v1.1.0)
+  creati da `release.yml` in 10 s. **Deploy confermato** il 2026-09-29 alle
+  15:35 UTC: backend, frontend e worker `SUCCESS`; `/health` →
+  `{"status":"ok","version":"1.1.0"}`; bundle servito con `1.1.0`,
+  «Dopo le 19» e «Oltre chiusura». Deploy lento per Railway, non per noi:
+  build in coda 10 minuti (15:11 → 15:21, poi 9 s di build tutta in
+  cache), backend in «DEPLOYING» fino alle 15:35 pur servendo già 1.1.0
+  dalle ~15:34.
 
 ### Aperte — 2026-09-29
 

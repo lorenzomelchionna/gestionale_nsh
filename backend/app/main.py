@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from slowapi.errors import RateLimitExceeded
 
+from app.version import __version__
 from app.audit import RegistroAccessi
 from app.config import settings
 from app.logging_config import setup_logging
@@ -65,7 +66,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="New Style Hair – Gestionale",
-    version="0.1.0",
+    version=__version__,
     description="API per il gestionale del salone New Style Hair",
     lifespan=lifespan,
 )
@@ -159,4 +160,6 @@ app.include_router(product_images_router, prefix=PUBLIC_PREFIX)
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "version": "0.1.0"}
+    # La versione qui è il modo più corto per sapere cosa gira davvero dopo
+    # un deploy: `curl …/health`.
+    return {"status": "ok", "version": __version__}

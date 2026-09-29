@@ -11,6 +11,7 @@ import { useAuthStore } from '@/store/authStore'
 import { useUIStore } from '@/store/uiStore'
 import { getPendingAppointments, getWaitlist } from '@/services/api'
 import { useChatAlerts } from '@/hooks/useChatAlerts'
+import { VERSIONE } from '@/config/version'
 import { INDIRIZZO } from '@/config/business'
 import Logo from '@/components/ui/Logo'
 import clsx from 'clsx'
@@ -283,8 +284,15 @@ export default function AdminLayout() {
 
           <div className="mt-auto border-t border-rule px-5 py-3.5 flex items-center gap-2">
             {sidebarOpen && (
-              <span className="text-[11px] leading-snug text-ink-3 capitalize">
-                {user?.role === 'admin' ? 'Amministratore' : 'Collaboratore'}
+              <span className="text-[11px] leading-snug text-ink-3">
+                <span className="capitalize">
+                  {user?.role === 'admin' ? 'Amministratore' : 'Collaboratore'}
+                </span>
+                {/* La versione a piè di pagina: è la prima cosa da sapere quando
+                    qualcosa non va — «che versione vedi?». */}
+                <span className="block tabular-nums" title="Versione del gestionale">
+                  {VERSIONE}
+                </span>
               </span>
             )}
             <button
@@ -433,6 +441,7 @@ export default function AdminLayout() {
               <span className="text-sm text-foreground truncate">{user?.email}</span>
               <span className="text-xs text-ink-3">
                 {user?.role === 'admin' ? 'Amministratore' : 'Collaboratore'}
+                <span className="tabular-nums"> · {VERSIONE}</span>
               </span>
               <button onClick={handleLogout} className="btn-danger-outline w-full mt-2.5">
                 <LogOut className="w-4 h-4" /> Esci

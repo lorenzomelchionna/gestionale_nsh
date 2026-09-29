@@ -7,6 +7,7 @@ import { useClientAuth } from '@/components/layout/BookingLayout'
 import { getMe, setTokens } from '@/services/api'
 import Logo from '@/components/ui/Logo'
 import { INDIRIZZO, TELEFONO } from '@/config/business'
+import { VERSIONE } from '@/config/version'
 import {
   signIn, clientRegister, verifyEmail, resendVerificationCode,
   verifyPhone, resendPhoneCode,
@@ -296,6 +297,7 @@ export default function LoginPage() {
 
         <span className="text-xs text-chrome-dim lg:mt-0 ml-auto lg:ml-0 text-right lg:text-left">
           Assistenza {TELEFONO.visibile}
+          <span className="tabular-nums"> · {VERSIONE}</span>
         </span>
       </div>
 

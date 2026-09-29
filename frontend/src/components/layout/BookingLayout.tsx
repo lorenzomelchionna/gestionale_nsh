@@ -4,6 +4,7 @@ import clsx from 'clsx'
 import WelcomeDialog from '@/components/booking/WelcomeDialog'
 import Logo from '@/components/ui/Logo'
 import { INDIRIZZO, PARTITA_IVA, RAGIONE_SOCIALE, TELEFONO } from '@/config/business'
+import { VERSIONE } from '@/config/version'
 
 // Simple client auth store (separate from admin)
 import { create } from 'zustand'
@@ -112,6 +113,9 @@ export default function BookingLayout() {
             <a href={`tel:${TELEFONO.tel}`} className="hover:text-foreground">
               {TELEFONO.visibile}
             </a>
+            {/* Piccola e in fondo: serve quando una cliente segnala un problema,
+                non a chi prenota. */}
+            <span className="tabular-nums" title="Versione"> · {VERSIONE}</span>
           </p>
         </div>
       </footer>

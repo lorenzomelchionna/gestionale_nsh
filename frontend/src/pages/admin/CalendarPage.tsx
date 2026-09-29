@@ -13,10 +13,10 @@ import {
   getAppointments, getCollaborators, confirmAppointment,
   rejectAppointment, completeAppointment, cancelAppointment, checkoutAppointment,
   createAppointment, getClients, getServices, updateAppointment, getAbsences, getBookingConfig,
-  createClient,
+  createClient, getAbsencesInRange,
 } from '@/services/api'
 import { errorText } from '@/components/admin/ClientFormSheet'
-import type { Appointment, Client, Collaborator } from '@/types'
+import type { Absence, Appointment, Client, Collaborator } from '@/types'
 import Sheet from '@/components/ui/Sheet'
 import { EmptyState, Segmented } from '@/components/ui'
 import clsx from 'clsx'
@@ -234,6 +234,15 @@ export default function CalendarPage() {
     ? collaborators.filter(c => c.id === selectedCollaboratorId)
     : collaborators
 
+  // Assenze e permessi dei giorni in vista. Prima la griglia non li chiedeva:
+  // un permesso bloccava le prenotazioni online ma qui l'ora sembrava libera.
+  const { data: absencesData } = useQuery({
+    queryKey: ['absences-range', dateFrom.slice(0, 10), dateTo.slice(0, 10)],
+    queryFn: () => getAbsencesInRange(dateFrom.slice(0, 10), dateTo.slice(0, 10)),
+  })
+  const visibleIds = new Set(visibleCollabs.map(c => c.id))
+  const absences = (absencesData ?? []).filter(a => visibleIds.has(a.collaborator_id))
+
   // Mutations
   const invalidate = () => qc.invalidateQueries({ queryKey: ['appointments'] })
 
@@ -418,6 +427,7 @@ export default function CalendarPage() {
       <AgendaView
         date={currentDate}
         appointments={appointments}
+        absences={absences}
         collaborators={visibleCollabs}
         onAppointmentClick={setSelectedAppointment}
         onCreate={openCreate}
@@ -452,6 +462,7 @@ export default function CalendarPage() {
                   collaborator={collab}
                   date={currentDate}
                   appointments={appointments.filter(a => a.collaborator_id === collab.id)}
+                  absences={absences.filter(a => a.collaborator_id === collab.id)}
                   timeToY={timeToY}
                   durationToH={durationToH}
                   onSlotClick={(d) => handleSlotClick(d, collab.id)}
@@ -472,6 +483,7 @@ export default function CalendarPage() {
                   date={day}
                   collaborators={visibleCollabs}
                   appointments={appointments.filter(a => isSameDay(parseISO(a.start_time), day))}
+                  absences={absences}
                   timeToY={timeToY}
                   durationToH={durationToH}
                   onSlotClick={(d) => handleSlotClick(d, visibleCollabs[0]?.id ?? 0)}
@@ -572,10 +584,11 @@ export default function CalendarPage() {
 
 // ── Day column ────────────────────────────────────────────────────
 
-function DayColumn({ collaborator, date, appointments, timeToY, durationToH, onSlotClick, onAppointmentClick, dragState, didDrag, onDrop, onDropOnAppointment }: {
+function DayColumn({ collaborator, date, appointments, absences, timeToY, durationToH, onSlotClick, onAppointmentClick, dragState, didDrag, onDrop, onDropOnAppointment }: {
   collaborator: Collaborator
   date: Date
   appointments: Appointment[]
+  absences: Absence[]
   timeToY: (d: Date) => number
   durationToH: (s: Date, e: Date) => number
   onSlotClick: (d: Date) => void
@@ -585,6 +598,7 @@ function DayColumn({ collaborator, date, appointments, timeToY, durationToH, onS
   onDrop: (relativeY: number) => void
   onDropOnAppointment: (target: Appointment) => void
 }) {
+  const fullDayAbsence = absencesOn(absences, date).find(isFullDay)
   return (
     <div className="flex-1 min-w-[120px] border-l border-rule">
       {/* Header — the band names the column; the rules separate it. */}
@@ -592,9 +606,17 @@ function DayColumn({ collaborator, date, appointments, timeToY, durationToH, onS
         <span className="font-heading text-[15px] leading-tight tracking-[0.03em] text-foreground truncate">
           {collaborator.first_name}
         </span>
-        <span className="text-[11px] leading-tight text-ink-3 truncate">
-          {collaborator.last_name}
-        </span>
+        {/* Una giornata intera d'assenza si dice qui, nella testata che resta
+            in vista: l'etichetta sul tratteggio sparisce appena si scorre. */}
+        {fullDayAbsence ? (
+          <span className="text-[11px] leading-tight text-ink-2 font-medium truncate">
+            {absenceLabel(fullDayAbsence)}
+          </span>
+        ) : (
+          <span className="text-[11px] leading-tight text-ink-3 truncate">
+            {collaborator.last_name}
+          </span>
+        )}
       </div>
       {/* Grid */}
       <div
@@ -627,6 +649,9 @@ function DayColumn({ collaborator, date, appointments, timeToY, durationToH, onS
           />
         ))}
         <NowRule date={date} timeToY={timeToY} />
+        {absencesOn(absences, date).map(a => (
+          <AbsenceBlock key={a.id} absence={a} date={date} timeToY={timeToY} />
+        ))}
         {/* Appointments */}
         {appointments.map(appt => {
           const start = parseISO(appt.start_time)
@@ -673,6 +698,98 @@ function DayColumn({ collaborator, date, appointments, timeToY, durationToH, onS
   )
 }
 
+// ── Absences ──────────────────────────────────────────────────────
+
+const ABSENCE_TYPE_LABEL: Record<string, string> = {
+  ferie: 'Ferie', permesso: 'Permesso', malattia: 'Malattia', altro: 'Assenza',
+}
+
+/** Il tratteggio che dice «qui non si lavora»: nessuna tinta, niente bordo
+    pieno, niente che somigli a un appuntamento. */
+const ABSENCE_STRIPES: React.CSSProperties = {
+  backgroundImage:
+    'repeating-linear-gradient(135deg, hsl(var(--ink-3) / 0.22) 0 6px, transparent 6px 12px)',
+}
+
+const isFullDay = (a: Absence) => a.start_time == null || a.end_time == null
+
+/** Le assenze che valgono in quel giorno. Un permesso su più giorni vale
+    quella fascia in ciascuno, come per le prenotazioni online. */
+function absencesOn(absences: Absence[], day: Date): Absence[] {
+  const d = format(day, 'yyyy-MM-dd')
+  return absences
+    .filter(a => a.start_date <= d && d <= a.end_date)
+    .sort((x, y) => Number(!isFullDay(x)) - Number(!isFullDay(y)) || (x.start_time ?? '').localeCompare(y.start_time ?? ''))
+}
+
+function absenceLabel(a: Absence): string {
+  const tipo = ABSENCE_TYPE_LABEL[a.type] ?? 'Assenza'
+  const quando = isFullDay(a)
+    ? 'tutto il giorno'
+    : `${a.start_time!.slice(0, 5)}–${a.end_time!.slice(0, 5)}`
+  return [`${tipo} ${quando}`, a.notes?.trim()].filter(Boolean).join(' · ')
+}
+
+/**
+ * Un'assenza nella griglia. Sotto gli appuntamenti (z-5 contro z-10): se
+ * qualcuno è prenotato dentro una pausa, l'appuntamento resta leggibile sopra
+ * il tratteggio, ed è proprio la cosa da notare.
+ *
+ * Un clic qui non apre «nuovo appuntamento»: prenotare dentro un permesso si
+ * può ancora dal pulsante «Nuovo», che lo segnala, ma non per sbaglio.
+ */
+function AbsenceBlock({ absence, date, timeToY, who, stackIndex = 0 }: {
+  absence: Absence
+  date: Date
+  timeToY: (d: Date) => number
+  /** Nome del collaboratore: serve nella settimana, dove la colonna è condivisa. */
+  who?: string
+  stackIndex?: number
+}) {
+  // Nella striscia della settimana «tutto il giorno» lo dice la striscia stessa,
+  // e in una riga sola non ci starebbe.
+  const striscia = isFullDay(absence) && who !== undefined
+  const label = striscia
+    ? [who, ABSENCE_TYPE_LABEL[absence.type] ?? 'Assenza', absence.notes?.trim()].filter(Boolean).join(' · ')
+    : [who, absenceLabel(absence)].filter(Boolean).join(' · ')
+  const gridHeight = (END_HOUR - START_HOUR) * HOUR_HEIGHT
+
+  let top: number
+  let height: number
+  if (isFullDay(absence)) {
+    if (who !== undefined) {
+      // Settimana: una striscia in cima, una sotto l'altra se sono più d'una.
+      top = stackIndex * 24
+      height = 22
+    } else {
+      top = 0
+      height = gridHeight
+    }
+  } else {
+    const [sh, sm] = absence.start_time!.split(':').map(Number)
+    const [eh, em] = absence.end_time!.split(':').map(Number)
+    const start = new Date(date); start.setHours(sh, sm, 0, 0)
+    const end = new Date(date); end.setHours(eh, em, 0, 0)
+    top = Math.max(0, timeToY(start))
+    height = Math.max(Math.min(timeToY(end), gridHeight) - top, 18)
+  }
+
+  return (
+    <div
+      className="absolute left-0.5 right-0.5 z-[5] overflow-hidden border border-dashed border-ink-3/60 bg-background/60 px-1.5 py-0.5 cursor-default"
+      style={{ top, height, ...ABSENCE_STRIPES }}
+      title={label}
+      onClick={e => e.stopPropagation()}
+    >
+      {/* A capo invece che troncata: nelle colonne strette della settimana
+          l'orario del permesso è proprio la parte che si perderebbe. */}
+      <p className="text-[12px] leading-tight text-ink-2 font-medium break-words">
+        {label}
+      </p>
+    </div>
+  )
+}
+
 // ── Mobile agenda ─────────────────────────────────────────────────
 
 /**
@@ -684,10 +801,11 @@ function DayColumn({ collaborator, date, appointments, timeToY, durationToH, onS
  * hours that actually have something in them instead of 12 hours of blank grid.
  */
 function AgendaView({
-  date, appointments, collaborators, onAppointmentClick, onCreate,
+  date, appointments, absences, collaborators, onAppointmentClick, onCreate,
 }: {
   date: Date
   appointments: Appointment[]
+  absences: Absence[]
   collaborators: Collaborator[]
   onAppointmentClick: (a: Appointment) => void
   onCreate: () => void
@@ -697,9 +815,28 @@ function AgendaView({
     .sort((a, b) => parseISO(a.start_time).getTime() - parseISO(b.start_time).getTime())
 
   const collabById = new Map(collaborators.map(c => [c.id, c]))
+  const dayAbsences = absencesOn(absences, date)
 
   return (
     <div className="lg:hidden flex-1">
+      {/* Assenze e permessi del giorno in cima: dicono chi manca e quando,
+          prima di leggere gli appuntamenti. */}
+      {dayAbsences.length > 0 && (
+        <div className="space-y-2 mb-2">
+          {dayAbsences.map(a => (
+            <div
+              key={a.id}
+              className="p-3 border border-dashed border-ink-3/60 text-ink-2 text-[14px]"
+              style={ABSENCE_STRIPES}
+            >
+              <span className="font-heading text-[16px] text-foreground">
+                {collabById.get(a.collaborator_id)?.first_name}
+              </span>
+              {' · '}{absenceLabel(a)}
+            </div>
+          ))}
+        </div>
+      )}
       {dayAppts.length === 0 ? (
         <div className="card">
           <EmptyState
@@ -776,10 +913,11 @@ function AgendaView({
 
 // ── Week day column ───────────────────────────────────────────────
 
-function WeekDayColumn({ date, collaborators, appointments, timeToY, durationToH, onSlotClick, onAppointmentClick, dragState, didDrag, onDrop, onDropOnAppointment }: {
+function WeekDayColumn({ date, collaborators, appointments, absences, timeToY, durationToH, onSlotClick, onAppointmentClick, dragState, didDrag, onDrop, onDropOnAppointment }: {
   date: Date
   collaborators: Collaborator[]
   appointments: Appointment[]
+  absences: Absence[]
   timeToY: (d: Date) => number
   durationToH: (s: Date, e: Date) => number
   onSlotClick: (d: Date) => void
@@ -829,6 +967,15 @@ function WeekDayColumn({ date, collaborators, appointments, timeToY, durationToH
           <div key={i} className={clsx('absolute left-0 right-0 border-t', i % 2 === 0 ? 'border-rule' : 'border-rule-soft')} style={{ top: i * SLOT_HEIGHT }} />
         ))}
         <NowRule date={date} timeToY={timeToY} />
+        {/* Nella settimana i collaboratori condividono la colonna: le giornate
+            intere diventano una striscia in cima, non un velo su tutto il giorno. */}
+        {absencesOn(absences, date).map((a, i) => (
+          <AbsenceBlock
+            key={a.id} absence={a} date={date} timeToY={timeToY}
+            who={collaborators.find(c => c.id === a.collaborator_id)?.first_name}
+            stackIndex={i}
+          />
+        ))}
         {appointments.map(appt => {
           const collab = collaborators.find(c => c.id === appt.collaborator_id)
           const start = parseISO(appt.start_time)

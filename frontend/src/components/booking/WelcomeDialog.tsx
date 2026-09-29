@@ -53,7 +53,13 @@ export default function WelcomeDialog() {
           </li>
           <li className="flex items-start gap-2.5">
             <Check className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-            Ricevi conferme e promemoria via email e WhatsApp
+            <span>
+              Ricevi conferme e promemoria via email e WhatsApp
+              <span className="block text-ink-3">
+                Se le email non arrivano, controlla la cartella Spam e segnale
+                come «non spam».
+              </span>
+            </span>
           </li>
           <li className="flex items-start gap-2.5">
             <Check className="w-4 h-4 text-primary shrink-0 mt-0.5" />

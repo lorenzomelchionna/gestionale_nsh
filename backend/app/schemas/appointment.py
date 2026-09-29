@@ -88,6 +88,9 @@ class AppointmentOutWithNames(AppointmentOut):
     client_name: str = ""
     collaborator_name: str = ""
     service_names: List[str] = []
+    # Allineati a `service_names`, `None` per un servizio senza colore: il
+    # calendario colora il blocco col primo.
+    service_colors: List[Optional[str]] = []
     total_price: float = 0.0
 
     @classmethod
@@ -100,9 +103,9 @@ class AppointmentOutWithNames(AppointmentOut):
             f"{a.collaborator.first_name} {a.collaborator.last_name}" if a.collaborator else ""
         )
         # Booked order, not alphabetical: "Taglio + barba" is how it was sold.
-        out.service_names = [
-            s.service.name for s in a.appointment_services if s.service is not None
-        ]
+        servizi = [s.service for s in a.appointment_services if s.service is not None]
+        out.service_names = [s.name for s in servizi]
+        out.service_colors = [s.color for s in servizi]
         out.total_price = sum(s.price_snapshot for s in a.appointment_services)
         return out
 

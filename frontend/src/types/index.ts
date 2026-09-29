@@ -98,6 +98,8 @@ export interface Service {
   category: string
   bookable_online: boolean
   is_active: boolean
+  /** `#rrggbb` del blocco in calendario; null = neutro. */
+  color?: string | null
   created_at: string
 }
 
@@ -139,6 +141,8 @@ export interface Appointment {
   collaborator_name?: string
   total_price?: number
   service_names?: string[]
+  /** Allineati a `service_names`; null per un servizio senza colore. */
+  service_colors?: (string | null)[]
 }
 
 // ── Product ───────────────────────────────────────────────────────

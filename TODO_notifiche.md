@@ -1823,6 +1823,40 @@ Non bloccano il go-live: il gestionale funziona senza. Stanno qui separate
 apposta, così le caselle aperte qui sotto non si confondono con quelle della
 roadmap sopra.
 
+### Richieste — 2026-09-29: spam, servizio e colori in calendario, caratteri
+
+- [x] **1. «A volte la mail arriva in spam: l'app dica di controllare»** —
+  nel portale, dove si aspetta un'email: il codice di verifica della
+  registrazione («Se non la trovi, guarda anche nella cartella Spam… e
+  segnala il messaggio come “non spam”»), la nota sotto il modulo di
+  registrazione, la schermata «Richiesta inviata» e il riepilogo prima di
+  inviarla, il benvenuto. La causa, controllata il 2026-09-29: il mittente è
+  `noreply@newstylehair.it` via Brevo, dominio **autenticato** (codice
+  Brevo, DKIM `brevo1/brevo2._domainkey`, DMARC `p=none`); manca solo un
+  record SPF, che per Brevo è facoltativo. È un dominio nuovo con pochi
+  invii: la reputazione presso Gmail/Outlook si fa col tempo, e ogni «non
+  spam» segnato dalle clienti aiuta.
+- [x] **2. Il servizio sotto il nome, accanto all'orario** — giorno:
+  «10:00 · Taglio uomo» (più servizi: «Taglio donna + Piega»); settimana e
+  telefono: una riga col servizio sotto il nome.
+- [x] **3. Un colore per ogni servizio** — `services.color` (migration
+  `f5a8c2d64e19`), solo `#rrggbb` (finisce in uno `style`: il test rifiuta
+  anche `#fff; background:url(…)`), scelto in Servizi da una tavolozza di
+  dieci tinte o «Altro», oppure «Nessuno». Il blocco prende il colore del
+  primo servizio: fondo al 38% e bordo sinistro pieno; lo **stato resta
+  disegnato** (tratteggio per «da confermare», sbiadito e barrato per
+  annullato). L'API degli appuntamenti restituisce `service_colors`
+  allineato a `service_names`. **Da fare dopo il rilascio: scegliere i
+  colori dei servizi veri** — finché nessuno li imposta, il calendario resta
+  com'è.
+- [x] **4. Caratteri più grandi** — giorno: nome 13→16 px, orario/servizio
+  10→13 px, ore a lato 10→12 px; settimana: nome 12→14, righe 9→11;
+  telefono: nome 17→18, servizio 14.
+- Verificato nel browser (1280 px chiaro e scuro, 375 px): colore scelto dal
+  modulo Servizi salvato, blocchi colorati per servizio, tratteggio del «da
+  confermare» conservato. 845 test; validazione del colore e allineamento
+  colori/servizi falsificati → rossi.
+
 ### Segnalazione — 2026-09-27: «promemoria a un'ora, arrivato 2 ore e mezza prima»
 
 **Non un difetto del calcolo: l'impostazione era ancora 24 ore.** Dal

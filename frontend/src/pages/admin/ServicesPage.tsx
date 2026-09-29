@@ -6,6 +6,7 @@ import type { Service } from '@/types'
 import Sheet from '@/components/ui/Sheet'
 import { PageHeader, EmptyState, SkeletonList } from '@/components/ui'
 import clsx from 'clsx'
+import { SERVICE_PALETTE } from '@/utils/serviceColor'
 
 const CATEGORIES = ['Taglio', 'Colore', 'Trattamenti', 'Styling', 'Altro']
 
@@ -99,6 +100,12 @@ export default function ServicesPage() {
                     >
                       <td>
                         <div className="flex items-baseline gap-2.5">
+                          <span
+                            className="w-3 h-3 shrink-0 self-center border border-rule"
+                            style={s.color ? { backgroundColor: s.color, borderColor: s.color } : undefined}
+                            title={s.color ? 'Colore in calendario' : 'Nessun colore'}
+                            aria-hidden="true"
+                          />
                           <span className={clsx(!s.is_active && 'text-ink-3 line-through')}>
                             {s.name}
                           </span>
@@ -175,6 +182,7 @@ function ServiceFormModal({ service, onClose, onSave, loading }: {
     category: service?.category ?? 'Taglio',
     bookable_online: service?.bookable_online ?? true,
     is_active: service?.is_active ?? true,
+    color: service?.color ?? null,
   })
 
   const posaAttiva = form.processing_slots > 0
@@ -337,6 +345,8 @@ function ServiceFormModal({ service, onClose, onSave, loading }: {
             </>
           )}
         </div>
+        <ColorField value={form.color} onChange={color => setForm({ ...form, color })} />
+
         <div>
           <label className="label">Categoria</label>
           <select
@@ -402,5 +412,59 @@ export function Toggle({ label, description, checked, onChange }: {
         />
       </span>
     </button>
+  )
+}
+
+/** Il colore del blocco in calendario: la tavolozza, un colore libero, o niente. */
+function ColorField({ value, onChange }: { value: string | null; onChange: (c: string | null) => void }) {
+  const inPalette = SERVICE_PALETTE.some(p => p.value === value)
+  return (
+    <div>
+      <span className="label">Colore in calendario</span>
+      <div className="flex flex-wrap items-center gap-2 mt-1">
+        <button
+          type="button"
+          onClick={() => onChange(null)}
+          className={clsx(
+            'h-8 px-2.5 border text-[12px]',
+            value === null ? 'border-primary text-foreground' : 'border-border text-ink-3',
+          )}
+          aria-pressed={value === null}
+        >
+          Nessuno
+        </button>
+        {SERVICE_PALETTE.map(p => (
+          <button
+            key={p.value}
+            type="button"
+            onClick={() => onChange(p.value)}
+            title={p.label}
+            aria-label={p.label}
+            aria-pressed={value === p.value}
+            className={clsx(
+              'w-8 h-8 border-2 transition-transform',
+              value === p.value ? 'border-foreground scale-110' : 'border-transparent',
+            )}
+            style={{ backgroundColor: p.value }}
+          />
+        ))}
+        {/* Un colore fuori tavolozza, per chi lo vuole preciso. */}
+        <label
+          className={clsx(
+            'h-8 px-2 border flex items-center gap-1.5 text-[12px] cursor-pointer',
+            value && !inPalette ? 'border-primary text-foreground' : 'border-border text-ink-3',
+          )}
+          title="Scegli un altro colore"
+        >
+          <input
+            type="color"
+            className="w-5 h-5 p-0 border-0 bg-transparent cursor-pointer"
+            value={value ?? '#c8a96e'}
+            onChange={e => onChange(e.target.value.toLowerCase())}
+          />
+          Altro
+        </label>
+      </div>
+    </div>
   )
 }

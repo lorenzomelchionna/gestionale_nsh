@@ -1823,6 +1823,65 @@ Non bloccano il go-live: il gestionale funziona senza. Stanno qui separate
 apposta, così le caselle aperte qui sotto non si confondono con quelle della
 roadmap sopra.
 
+### Richieste — 2026-09-29: spam, servizio e colori in calendario, caratteri
+
+- [x] **1. «A volte la mail arriva in spam: l'app dica di controllare»** —
+  nel portale, dove si aspetta un'email: il codice di verifica della
+  registrazione («Se non la trovi, guarda anche nella cartella Spam… e
+  segnala il messaggio come “non spam”»), la nota sotto il modulo di
+  registrazione, la schermata «Richiesta inviata» e il riepilogo prima di
+  inviarla, il benvenuto. La causa, controllata il 2026-09-29: il mittente è
+  `noreply@newstylehair.it` via Brevo, dominio **autenticato** (codice
+  Brevo, DKIM `brevo1/brevo2._domainkey`, DMARC `p=none`); manca solo un
+  record SPF, che per Brevo è facoltativo. È un dominio nuovo con pochi
+  invii: la reputazione presso Gmail/Outlook si fa col tempo, e ogni «non
+  spam» segnato dalle clienti aiuta.
+- [x] **2. Il servizio sotto il nome, accanto all'orario** — giorno:
+  «10:00 · Taglio uomo» (più servizi: «Taglio donna + Piega»); settimana e
+  telefono: una riga col servizio sotto il nome.
+- [x] **3. Un colore per ogni servizio** — `services.color` (migration
+  `f5a8c2d64e19`), solo `#rrggbb` (finisce in uno `style`: il test rifiuta
+  anche `#fff; background:url(…)`), scelto in Servizi da una tavolozza di
+  dieci tinte o «Altro», oppure «Nessuno». Il blocco prende il colore del
+  primo servizio: fondo al 38% e bordo sinistro pieno; lo **stato resta
+  disegnato** (tratteggio per «da confermare», sbiadito e barrato per
+  annullato). L'API degli appuntamenti restituisce `service_colors`
+  allineato a `service_names`. **Da fare dopo il rilascio: scegliere i
+  colori dei servizi veri** — finché nessuno li imposta, il calendario resta
+  com'è.
+- [x] **4. Caratteri più grandi** — giorno: nome 13→16 px, orario/servizio
+  10→13 px, ore a lato 10→12 px; settimana: nome 12→14, righe 9→11;
+  telefono: nome 17→18, servizio 14.
+- Verificato nel browser (1280 px chiaro e scuro, 375 px): colore scelto dal
+  modulo Servizi salvato, blocchi colorati per servizio, tratteggio del «da
+  confermare» conservato. 845 test; validazione del colore e allineamento
+  colori/servizi falsificati → rossi.
+
+### Segnalazione — 2026-09-27: «promemoria a un'ora, arrivato 2 ore e mezza prima»
+
+**Non un difetto del calcolo: l'impostazione era ancora 24 ore.** Dal
+registro Twilio del 26/09: alle 15:30 sono partiti insieme i promemoria per
+gli appuntamenti delle 16:30, 17:30, 18:00, 18:30 **e del 27/09 alle 08:30**
+(17 ore prima) — cioè tutto ciò che cadeva nelle 24 ore e non era stato
+confermato nell'ultima ora (`DISTANZA_DALLA_CONFERMA`: le conferme erano
+partite fra le 14:15 e le 14:24). Nei log l'unico salvataggio delle
+impostazioni è `PUT /api/admin/settings/booking` di `admin:1` il **26/09 alle
+19:01**, dopo quei promemoria. Coerente col valore nuovo a 1 ora:
+l'appuntamento del 27/09 alle 16:30, prenotato il 26 alle 21:27, la sera
+non ha ricevuto nessun promemoria (con 24 ore sarebbe partito alle 22:30).
+Con 1 ora il promemoria arriva fra 60 e 45 minuti prima: il controllo gira
+ogni 15 minuti.
+- [ ] Verificare il primo promemoria vero a 1 ora: 27/09, appuntamento
+  delle 16:30 → atteso alle 15:30.
+
+**Trovato insieme: 4 clienti col numero che WhatsApp rifiuta.** Errore
+Twilio **63024** («destinatario non valido»: il numero non ha WhatsApp o è
+sbagliato) il 26/09 per i numeri che finiscono con …1317, …3177, …4030,
+…9600: niente conferme né promemoria. Un quinto (…2300) è fallito cinque
+volte alle 12:10 e poi è andato a buon fine alle 12:24, dopo che il numero
+è stato corretto. Il salone non lo vede da nessuna parte — è la voce
+«Vedere se un messaggio è arrivato» qui sotto, che diventa più urgente.
+
 ### Richieste di Flavia — 2026-09-25 (sei punti)
 
 - [x] **1. «Nei prodotti giacenza e prezzo si vedono spostati»** — due
@@ -1850,7 +1909,19 @@ roadmap sopra.
     finché il permesso non è stato dato. Verificato nel browser con messaggi
     simulati: titolo «(1)», poi «(2)», notifica «WhatsApp · …» col testo o
     «📷 Foto», clic → conversazione aperta.
-  - [ ] **(b) push sul telefono** a gestionale chiuso — prossimo lavoro. — letti insieme, dicono la stessa cosa
+  - [ ] **(b) push sul telefono** a gestionale chiuso — prossimo lavoro.
+    Servono tre variabili nuove su Railway (chiavi VAPID): da chiedere a
+    Lorenzo prima di impostarle. Sull'iPhone Flavia dovrà aggiungere il
+    gestionale alla schermata Home (iOS 16.4+).
+- **Rilascio dei punti 1, 3 e 2/5(a)**: [PR #143](https://github.com/lorenzomelchionna/gestionale_nsh/pull/143)
+  e [PR #144](https://github.com/lorenzomelchionna/gestionale_nsh/pull/144)
+  → `develop`, [PR #145](https://github.com/lorenzomelchionna/gestionale_nsh/pull/145)
+  → `main` (commit `47fbf36`), CI verde (8/8 su #145). **Deploy
+  confermato** il 2026-09-25 alle 11:13 UTC: backend, frontend e worker
+  `SUCCESS`, nessuna migration. Dal vivo: `/health` 200, `www` 200,
+  `DELETE` di una conversazione senza token → 401; nel bundle servito
+  «Attiva notifiche», «Eliminare la conversazione?» e la chiave degli
+  avvisi; nel CSS servito `thead th.num{text-align:right}`. — letti insieme, dicono la stessa cosa
   (l'ipotesi già scritta sotto il 23/09): il messaggio arriva subito, è chi
   lavora che non se ne accorge. Oggi il gestionale non avvisa nessuno, la
   lista si aggiorna ogni 30 s e **non si aggiorna affatto** con la scheda in

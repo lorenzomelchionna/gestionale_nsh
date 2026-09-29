@@ -1,6 +1,8 @@
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel, Field, model_validator
+import re
+
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 def validate_processing(duration_slots: int, slots_before: int, processing: int) -> None:
@@ -39,6 +41,19 @@ class ServiceBase(BaseModel):
     category: str
     bookable_online: bool = True
     is_active: bool = True
+    # `#rrggbb` o niente. Solo quella forma: finisce in uno `style` della
+    # pagina, e una stringa qualunque lì dentro è CSS scritto da chi salva.
+    color: Optional[str] = None
+
+    @field_validator("color")
+    @classmethod
+    def _colore_esadecimale(cls, value: Optional[str]) -> Optional[str]:
+        if value is None or value.strip() == "":
+            return None
+        value = value.strip().lower()
+        if not re.fullmatch(r"#[0-9a-f]{6}", value):
+            raise ValueError("Colore non valido: usa il formato #rrggbb")
+        return value
 
     @model_validator(mode="after")
     def _posa_coerente(self):

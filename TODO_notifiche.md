@@ -1844,6 +1844,13 @@ roadmap sopra.
     ognuno rompe il suo test. Verificato nel browser: incasso €20 con carta
     → appuntamento completato, «Incassato» nel modale, riga in Cassa col
     totale carta aggiornato.
+  - [PR #149](https://github.com/lorenzomelchionna/gestionale_nsh/pull/149)
+    → `develop`, [PR #150](https://github.com/lorenzomelchionna/gestionale_nsh/pull/150)
+    → `main` (commit `d2f2ac7`), CI verde (8/8 su #150). **Deploy
+    confermato** il 2026-09-29 alle 07:57 UTC: backend, frontend e worker
+    `SUCCESS`, nessuna migration, bootstrap completato. Dal vivo: `/health`
+    200, `www` 200, `checkout` senza token → 401; nel bundle servito
+    «Metodo di pagamento», la chiamata `/checkout`, «Incassato».
 
 ### Richieste — 2026-09-29: spam, servizio e colori in calendario, caratteri
 

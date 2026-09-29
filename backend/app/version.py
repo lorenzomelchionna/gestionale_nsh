@@ -5,4 +5,4 @@ Non si cambia a mano: la scrive `scripts/release.py prepare`, insieme a
 non in un file alla radice perché su Railway il backend si costruisce dalla
 sua cartella, e la radice del repository non la vede.
 """
-__version__ = "1.0.0"
+__version__ = "1.1.0"

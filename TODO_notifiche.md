@@ -1823,6 +1823,28 @@ Non bloccano il go-live: il gestionale funziona senza. Stanno qui separate
 apposta, così le caselle aperte qui sotto non si confondono con quelle della
 roadmap sopra.
 
+### Richiesta — 2026-09-29: versioni del software, partendo da 1.0.0
+
+Decisioni di Lorenzo: `MAGGIORE.MINORE.CORREZIONE`, salto **automatico dai
+commit**, versione a piè di pagina in **gestionale e portale**, note in
+**CHANGELOG + Release su GitHub**.
+
+- [x] `frontend/package.json` (+ lock) e `backend/app/version.py` a 1.0.0;
+  Vite la inietta come `__APP_VERSION__`; visibile in fondo al menu del
+  gestionale (e nel menu su telefono), nel piè di pagina del portale
+  accanto alla P.IVA e nella pagina di accesso; `/health` e OpenAPI la
+  dicono. `scripts/release.py` (`prepare`, `check`, `version`, `notes`) con
+  i suoi test in `scripts/test_release.py`; job CI **Versione**;
+  `.github/workflows/release.yml` crea tag e Release al merge su main.
+  Flusso documentato in `CLAUDE.md` → «Versioni».
+- [ ] **Rendere «Versione» un check obbligatorio di `main`** — oggi i
+  check obbligatori sono 3; va aggiunto nella protezione del ramo
+  (impostazione del repository: con l'ok di Lorenzo).
+- [ ] **Pagina «Novità» nel gestionale** — cliccando la versione a piè di
+  pagina, l'elenco delle novità in italiano per Flavia. Richiede note
+  scritte per chi non è sviluppatore a ogni rilascio (il CHANGELOG usa gli
+  oggetti dei commit, in inglese tecnico).
+
 ### Aperte — 2026-09-29
 
 - [ ] **Dependabot: SQLAlchemy 2.0.51 → 2.1.0**
@@ -2346,7 +2368,14 @@ sotto come voce aperta.
   telefono in cima alla lista del giorno. Un clic sul box non apre «nuovo
   appuntamento». Verificato nel browser (permesso 13–14 «Pausa pranzo» e
   ferie di un giorno, giorno/settimana/telefono); 866 test, filtro e tetto
-  dell'intervallo falsificati → rossi. Testo originale: Flavia chiede un «servizio
+  dell'intervallo falsificati → rossi.
+  [PR #151](https://github.com/lorenzomelchionna/gestionale_nsh/pull/151)
+  → `develop`, [PR #152](https://github.com/lorenzomelchionna/gestionale_nsh/pull/152)
+  → `main` (commit `b31a1dd`), CI verde (8/8 su #152). **Deploy
+  confermato** il 2026-09-29 alle 08:50 UTC: backend, frontend e worker
+  `SUCCESS`, nessuna migration, bootstrap completato. Dal vivo: `/health`
+  200, `www` 200, assenze senza token → 401; nel bundle servito la query
+  delle assenze, «tutto il giorno» e il tratteggio. Testo originale: Flavia chiede un «servizio
   PAUSA solo per i collaboratori». È **la stessa richiesta del 4 agosto**,
   risolta allora coi **permessi a ore** (`tests/test_partial_absences.py`):
   un servizio avrebbe voluto un cliente finto per ogni pausa, perché

@@ -158,10 +158,10 @@ non una riga in quel file.
 
 ### CI e flusso di rilascio
 
-`.github/workflows/ci.yml` esegue tre job: test backend, typecheck + build
-frontend, e `alembic upgrade head` da database vuoto — l'ultimo perché il deploy
-lancia le migration all'avvio, quindi una migration che non applica manderebbe
-giù il servizio al rilascio.
+`.github/workflows/ci.yml` esegue quattro job: test backend, typecheck + build
+frontend, `alembic upgrade head` da database vuoto — perché il deploy lancia le
+migration all'avvio, quindi una migration che non applica manderebbe giù il
+servizio al rilascio — e **Versione** (vedi «Versioni» sotto).
 
 Trigger: push su `develop` (feedback immediato) e pull request verso `develop` o
 `main`.
@@ -187,14 +187,49 @@ git push origin develop      # la CI gira e segnala
 Rilascio, quando `develop` è verde:
 
 ```bash
-gh pr create --base main --head develop --fill
-gh pr merge --merge
+python3 scripts/release.py prepare --dry-run   # mostra versione nuova e note, non tocca niente
+python3 scripts/release.py prepare             # commit chore(release) su develop + PR verso main
+gh pr merge <numero> --merge                   # a CI verde: deploy, e la CI crea tag e Release
 git checkout develop && git merge --ff-only origin/main && git push
 ```
 
 L'ultima riga non è opzionale: il merge della PR crea un commit di merge che
 esiste **solo** su `main`, quindi senza allineamento `develop` risulta "N commit
 behind" anche a contenuto identico, e la distanza cresce a ogni rilascio.
+
+### Versioni
+
+`MAGGIORE.MINORE.CORREZIONE` (SemVer), partita da **1.0.0** il 2026-09-29.
+Si vede a piè di pagina: nel gestionale (menu laterale e menu su telefono),
+nel portale clienti (accanto alla P.IVA) e nella pagina di accesso; il
+backend la dice su `/health`, che è il modo più corto per sapere cosa gira
+dopo un deploy.
+
+Sta in **due file** perché su Railway frontend e backend si costruiscono
+ognuno dalla sua cartella e non vedono la radice: `frontend/package.json`
+(con `package-lock.json`; Vite la inietta nel build come `__APP_VERSION__`)
+e `backend/app/version.py`. **Non si cambiano a mano**: li scrive
+`scripts/release.py prepare`, insieme alla voce del `CHANGELOG.md`.
+
+Il salto lo decidono i commit dall'ultimo tag — per questo il prefisso dei
+messaggi (`feat:`, `fix:`, …) non è estetica:
+
+| Nei commit dall'ultimo rilascio | Salto |
+|---|---|
+| un `!` dopo il tipo (`feat!:`) o `BREAKING CHANGE` nel corpo | maggiore (2.0.0) |
+| almeno un `feat` | minore (1.1.0) |
+| solo `fix`, `docs`, `chore`, `test`, … | correzione (1.0.1) |
+
+`--bump major|minor|patch` lo forza. Nel CHANGELOG finiscono novità,
+correzioni e cambiamenti incompatibili; documentazione e manutenzione
+contano per il numero ma non per le note.
+
+Il job **Versione** controlla che i file dicano la stessa versione e che il
+CHANGELOG ne abbia la voce; sulla PR verso `main` anche che la versione
+**salga** rispetto a `main`: un rilascio preparato senza lo script non
+passa. Al merge su `main`, `.github/workflows/release.yml` crea il tag
+`vX.Y.Z` e la Release su GitHub con le note del CHANGELOG (se il tag c'è
+già non fa niente).
 
 La suite finisce anche su `main` (i file tracciati arrivano col merge), ma non
 pesa sul deploy: `.dockerignore` la esclude dall'immagine e le dipendenze di

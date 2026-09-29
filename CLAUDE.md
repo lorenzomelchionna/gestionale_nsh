@@ -171,7 +171,7 @@ Trigger: push su `develop` (feedback immediato) e pull request verso `develop` o
 | Branch | Protezione |
 |--------|-----------|
 | `develop` | nessuna — push diretto libero |
-| `main` | 3 check obbligatori, validi anche per gli admin. Push diretto impossibile, force push e cancellazione bloccati. Nessuna review richiesta (si può mergiare da soli). |
+| `main` | 4 check obbligatori (backend, frontend, migration, **Versione**), validi anche per gli admin. Push diretto impossibile, force push e cancellazione bloccati. Nessuna review richiesta (si può mergiare da soli). |
 
 Il gate sta su `main` perché è il branch che Railway deploya: se `develop` si
 rompe non va offline nulla.

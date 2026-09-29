@@ -1847,9 +1847,11 @@ commit**, versione a piè di pagina in **gestionale e portale**, note in
   `{"status":"ok","version":"1.0.0"}`, `v1.0.0` nel bundle servito.
   `release.py prepare --dry-run` subito dopo → «Nessun commit da v1.0.0»,
   come deve.
-- [ ] **Rendere «Versione» un check obbligatorio di `main`** — oggi i
-  check obbligatori sono 3; va aggiunto nella protezione del ramo
-  (impostazione del repository: con l'ok di Lorenzo).
+- [x] ~~**Rendere «Versione» un check obbligatorio di `main`**~~ — fatto il
+  2026-09-29 con l'ok di Lorenzo: protezione di `main` con 4 check
+  obbligatori (Backend, Frontend, Alembic, **Versione**, tutti di GitHub
+  Actions), il resto invariato (valida anche per gli admin, niente force
+  push né cancellazione, nessuna review).
 - [ ] **Pagina «Novità» nel gestionale** — cliccando la versione a piè di
   pagina, l'elenco delle novità in italiano per Flavia. Richiede note
   scritte per chi non è sviluppatore a ogni rilascio (il CHANGELOG usa gli

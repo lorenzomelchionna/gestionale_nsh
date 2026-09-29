@@ -1856,6 +1856,15 @@ roadmap sopra.
   modulo Servizi salvato, blocchi colorati per servizio, tratteggio del «da
   confermare» conservato. 845 test; validazione del colore e allineamento
   colori/servizi falsificati → rossi.
+- [PR #147](https://github.com/lorenzomelchionna/gestionale_nsh/pull/147)
+  → `develop`, [PR #148](https://github.com/lorenzomelchionna/gestionale_nsh/pull/148)
+  → `main` (commit `ec75803`), CI verde (8/8 su #148). **Deploy
+  confermato** il 2026-09-29 alle 07:38 UTC: backend, frontend e worker
+  `SUCCESS`, migration `e3c9a1f47b82 -> f5a8c2d64e19` applicata, bootstrap
+  completato. Dal vivo: `/health` 200, `www` 200, `/api/public/services`
+  espone `color` su tutti i 19 servizi; nel bundle servito «Colore in
+  calendario», la tavolozza e l'avviso «cartella Spam».
+  - [ ] Flavia sceglie i colori dei servizi (Servizi → modifica).
 
 ### Segnalazione — 2026-09-27: «promemoria a un'ora, arrivato 2 ore e mezza prima»
 

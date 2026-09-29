@@ -316,6 +316,10 @@ export const deleteExpense = (id: number) =>
 
 // ── Absences ──────────────────────────────────────────────────────
 
+/** Le assenze di tutti i collaboratori che toccano l'intervallo, per il calendario. */
+export const getAbsencesInRange = (start_date: string, end_date: string) =>
+  api.get<Absence[]>('/admin/absences', { params: { start_date, end_date } }).then(r => r.data)
+
 export const getAbsences = (collaborator_id: number) =>
   api.get<Absence[]>(`/admin/absences/${collaborator_id}`).then(r => r.data)
 

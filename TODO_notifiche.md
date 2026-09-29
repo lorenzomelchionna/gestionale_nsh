@@ -2335,7 +2335,18 @@ sotto come voce aperta.
   cima: «la richiesta va a buon fine, la consegna fallisce, e il registro
   di Twilio non lo guardava nessuno».
 
-- [ ] **La PAUSA non si vede nel calendario** — Flavia chiede un «servizio
+- [x] **La PAUSA non si vede nel calendario** — **risolto il 2026-09-29**:
+  il calendario ora carica le assenze di tutti per i giorni in vista
+  (`GET /api/admin/absences?start_date&end_date`, staff) e le disegna come
+  box **tratteggiati grigi con bordo a trattini**, niente colore di
+  servizio, sotto gli appuntamenti (così un appuntamento dentro una pausa
+  resta visibile sopra): nel giorno nella colonna del collaboratore, una
+  giornata intera copre la colonna e si legge anche nella testata; nella
+  settimana box col nome, e le giornate intere come striscia in cima; sul
+  telefono in cima alla lista del giorno. Un clic sul box non apre «nuovo
+  appuntamento». Verificato nel browser (permesso 13–14 «Pausa pranzo» e
+  ferie di un giorno, giorno/settimana/telefono); 866 test, filtro e tetto
+  dell'intervallo falsificati → rossi. Testo originale: Flavia chiede un «servizio
   PAUSA solo per i collaboratori». È **la stessa richiesta del 4 agosto**,
   risolta allora coi **permessi a ore** (`tests/test_partial_absences.py`):
   un servizio avrebbe voluto un cliente finto per ogni pausa, perché

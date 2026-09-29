@@ -29,6 +29,7 @@ EXPECTED_GUARDS = {
     ("POST", "/api/admin/absences"): "admin",
     ("DELETE", "/api/admin/absences/{absence_id}"): "admin",
     ("GET", "/api/admin/absences/{collaborator_id}"): "staff",
+    ("GET", "/api/admin/absences"): "staff",
     ("GET", "/api/admin/appointments"): "staff",
     ("POST", "/api/admin/appointments"): "staff",
     ("GET", "/api/admin/appointments/pending"): "staff",

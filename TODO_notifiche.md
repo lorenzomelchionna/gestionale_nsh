@@ -2346,7 +2346,14 @@ sotto come voce aperta.
   telefono in cima alla lista del giorno. Un clic sul box non apre «nuovo
   appuntamento». Verificato nel browser (permesso 13–14 «Pausa pranzo» e
   ferie di un giorno, giorno/settimana/telefono); 866 test, filtro e tetto
-  dell'intervallo falsificati → rossi. Testo originale: Flavia chiede un «servizio
+  dell'intervallo falsificati → rossi.
+  [PR #151](https://github.com/lorenzomelchionna/gestionale_nsh/pull/151)
+  → `develop`, [PR #152](https://github.com/lorenzomelchionna/gestionale_nsh/pull/152)
+  → `main` (commit `b31a1dd`), CI verde (8/8 su #152). **Deploy
+  confermato** il 2026-09-29 alle 08:50 UTC: backend, frontend e worker
+  `SUCCESS`, nessuna migration, bootstrap completato. Dal vivo: `/health`
+  200, `www` 200, assenze senza token → 401; nel bundle servito la query
+  delle assenze, «tutto il giorno» e il tratteggio. Testo originale: Flavia chiede un «servizio
   PAUSA solo per i collaboratori». È **la stessa richiesta del 4 agosto**,
   risolta allora coi **permessi a ore** (`tests/test_partial_absences.py`):
   un servizio avrebbe voluto un cliente finto per ogni pausa, perché

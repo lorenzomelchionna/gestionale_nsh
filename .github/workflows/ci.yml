@@ -135,3 +135,33 @@ jobs:
       # that fails to apply from empty takes the service down on release.
       - name: Upgrade to head
         run: alembic upgrade head
+
+  version:
+    name: Versione
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # La PR verso main confronta la sua versione con quella di main.
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Test dello strumento di rilascio
+        run: |
+          pip install pytest
+          python -m pytest -q scripts
+
+      # frontend/package.json, package-lock.json e backend/app/version.py
+      # dicono la stessa versione, e il CHANGELOG ha la sua voce.
+      - name: Versioni coerenti
+        run: python scripts/release.py check
+
+      # Un rilascio che non alza la versione non arriva in produzione: il
+      # numero a piè di pagina deve sempre dire cosa gira.
+      - name: La versione sale rispetto a main
+        if: github.event_name == 'pull_request' && github.base_ref == 'main'
+        run: python scripts/release.py check --base origin/main

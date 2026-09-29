@@ -1,0 +1,35 @@
+name: Release
+
+# Ogni merge su main (cioè ogni deploy) porta con sé un tag `vX.Y.Z` e una
+# Release su GitHub con le note del CHANGELOG. A mano si dimenticherebbe;
+# qui non si può: se il tag della versione esiste già non fa niente, quindi
+# un merge che non cambia versione non ne crea uno doppio.
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    name: Tag e Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Crea tag e Release se mancano
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V=$(python3 scripts/release.py version)
+          if git rev-parse -q --verify "refs/tags/v$V" >/dev/null; then
+            echo "v$V esiste già: niente da fare"
+            exit 0
+          fi
+          python3 scripts/release.py notes "$V" > note.md
+          gh release create "v$V" --target "$GITHUB_SHA" --title "v$V" --notes-file note.md

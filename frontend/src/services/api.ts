@@ -236,6 +236,12 @@ export const cancelAppointment = (id: number, reason?: string) =>
 
 /** Chiude la visita, con la nota se è stata scritta. Il corpo è facoltativo:
  *  senza nota resta un clic solo, che è come si usa a salone pieno. */
+/** Chiude la visita e registra l'incasso, in un passo. Solo admin. */
+export const checkoutAppointment = (id: number, data: {
+  method: 'contanti' | 'carta'; amount: number; visit_notes?: string
+}) =>
+  api.post<Appointment>(`/admin/appointments/${id}/checkout`, data).then(r => r.data)
+
 export const completeAppointment = (id: number, visit_notes?: string) =>
   api.post<Appointment>(
     `/admin/appointments/${id}/complete`,

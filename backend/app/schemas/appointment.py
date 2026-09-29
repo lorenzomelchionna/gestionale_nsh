@@ -1,7 +1,8 @@
 from datetime import datetime
-from typing import Optional, List
-from pydantic import BaseModel
+from typing import Literal, Optional, List
+from pydantic import BaseModel, Field
 from app.models.appointment import AppointmentStatus, AppointmentOrigin
+from app.models.payment import PaymentMethod, PaymentType
 
 
 class AppointmentServiceOut(BaseModel):
@@ -44,6 +45,19 @@ class AppointmentComplete(BaseModel):
     quella di tre mesi fa.
     """
 
+    visit_notes: Optional[str] = None
+
+
+class AppointmentCheckout(BaseModel):
+    """Corpo di `POST /appointments/{id}/checkout`: chiudere la visita e incassarla.
+
+    Contanti o carta, come ha chiesto il salone. Il misto esiste nella Cassa
+    per i casi rari; qui resta fuori per tenere l'incasso a un tocco.
+    """
+    method: Literal["contanti", "carta"]
+    # Precompilato col totale dei servizi, ma modificabile: sconto, un
+    # prodotto aggiunto, un servizio cambiato all'ultimo.
+    amount: float = Field(gt=0, le=10000)
     visit_notes: Optional[str] = None
 
 
@@ -92,6 +106,10 @@ class AppointmentOutWithNames(AppointmentOut):
     # calendario colora il blocco col primo.
     service_colors: List[Optional[str]] = []
     total_price: float = 0.0
+    # Quanto è stato incassato per i servizi di questo appuntamento, e come;
+    # `None` se non ancora. `misto` anche quando sono due incassi diversi.
+    paid_amount: Optional[float] = None
+    paid_method: Optional[str] = None
 
     @classmethod
     def from_appointment(cls, a) -> "AppointmentOutWithNames":
@@ -107,6 +125,11 @@ class AppointmentOutWithNames(AppointmentOut):
         out.service_names = [s.name for s in servizi]
         out.service_colors = [s.color for s in servizi]
         out.total_price = sum(s.price_snapshot for s in a.appointment_services)
+        incassi = [p for p in (a.payments or []) if p.type == PaymentType.service]
+        if incassi:
+            out.paid_amount = round(sum(float(p.amount) for p in incassi), 2)
+            metodi = {p.method.value for p in incassi}
+            out.paid_method = metodi.pop() if len(metodi) == 1 else PaymentMethod.mixed.value
         return out
 
 

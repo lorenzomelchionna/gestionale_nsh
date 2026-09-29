@@ -1823,6 +1823,28 @@ Non bloccano il go-live: il gestionale funziona senza. Stanno qui separate
 apposta, così le caselle aperte qui sotto non si confondono con quelle della
 roadmap sopra.
 
+### Richiesta — 2026-09-29: «Incassa» dall'appuntamento, contanti o carta
+
+- [x] Dall'appuntamento si poteva solo «Segna completato», e l'incasso andava
+  rifatto a mano in Cassa (cliente, importo) — il secondo passo si
+  dimenticava. Ora nel modale c'è **«Incassa»**: importo proposto dal totale
+  dei servizi e modificabile (sconto, prodotto aggiunto), **Contanti** o
+  **Carta** da scegliere (nessun predefinito: un «contanti» lasciato lì per
+  distrazione sbaglierebbe la cassa), nota di visita facoltativa. Chiude la
+  visita e registra il pagamento già legato ad appuntamento e cliente, in
+  un passo (`POST /api/admin/appointments/{id}/checkout`).
+  - Solo admin, come tutta la cassa (`EXPECTED_GUARDS`); i collaboratori
+    continuano a chiudere con «Segna completato».
+  - Si incassa un appuntamento confermato (e si completa) o uno già
+    completato e non pagato; **mai due volte** (409, riga bloccata contro il
+    doppio clic). Pagato: nel modale «Incassato: €… · carta».
+  - Il misto resta nella Cassa, per i casi rari.
+  - Test in `test_incasso_appuntamento.py`; 861 in tutto. Falsificati:
+    doppio incasso, stati ammessi, guardia admin, chiusura della visita —
+    ognuno rompe il suo test. Verificato nel browser: incasso €20 con carta
+    → appuntamento completato, «Incassato» nel modale, riga in Cassa col
+    totale carta aggiornato.
+
 ### Richieste — 2026-09-29: spam, servizio e colori in calendario, caratteri
 
 - [x] **1. «A volte la mail arriva in spam: l'app dica di controllare»** —

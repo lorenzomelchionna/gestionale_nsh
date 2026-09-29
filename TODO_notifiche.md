@@ -1823,6 +1823,20 @@ Non bloccano il go-live: il gestionale funziona senza. Stanno qui separate
 apposta, così le caselle aperte qui sotto non si confondono con quelle della
 roadmap sopra.
 
+### Aperte — 2026-09-29
+
+- [ ] **Dependabot: SQLAlchemy 2.0.51 → 2.1.0**
+  ([PR #146](https://github.com/lorenzomelchionna/gestionale_nsh/pull/146)).
+  Salto di versione minore di una libreria su cui poggia tutto il backend:
+  da provare a parte (suite completa + migrazioni + un giro nel browser)
+  prima di unirla, non da unire perché la CI è verde.
+- [ ] **24 ore di WhatsApp e i due giorni di chiusura** (domanda di Lorenzo
+  del 2026-09-25): la finestra non si allunga, è di Meta. Proposte in
+  attesa di decisione: (1) template «riprendi la conversazione» + pulsante
+  in chat a finestra chiusa — è lo stesso lavoro del punto 6 del 25/09;
+  (2) risposta automatica nei giorni di chiusura («siamo chiusi lunedì e
+  martedì, ti rispondiamo mercoledì»), gratuita perché dentro le 24 ore.
+
 ### Richiesta — 2026-09-29: «Incassa» dall'appuntamento, contanti o carta
 
 - [x] Dall'appuntamento si poteva solo «Segna completato», e l'incasso andava
@@ -1844,6 +1858,13 @@ roadmap sopra.
     ognuno rompe il suo test. Verificato nel browser: incasso €20 con carta
     → appuntamento completato, «Incassato» nel modale, riga in Cassa col
     totale carta aggiornato.
+  - [PR #149](https://github.com/lorenzomelchionna/gestionale_nsh/pull/149)
+    → `develop`, [PR #150](https://github.com/lorenzomelchionna/gestionale_nsh/pull/150)
+    → `main` (commit `d2f2ac7`), CI verde (8/8 su #150). **Deploy
+    confermato** il 2026-09-29 alle 07:57 UTC: backend, frontend e worker
+    `SUCCESS`, nessuna migration, bootstrap completato. Dal vivo: `/health`
+    200, `www` 200, `checkout` senza token → 401; nel bundle servito
+    «Metodo di pagamento», la chiamata `/checkout`, «Incassato».
 
 ### Richieste — 2026-09-29: spam, servizio e colori in calendario, caratteri
 
@@ -1902,8 +1923,19 @@ l'appuntamento del 27/09 alle 16:30, prenotato il 26 alle 21:27, la sera
 non ha ricevuto nessun promemoria (con 24 ore sarebbe partito alle 22:30).
 Con 1 ora il promemoria arriva fra 60 e 45 minuti prima: il controllo gira
 ogni 15 minuti.
-- [ ] Verificare il primo promemoria vero a 1 ora: 27/09, appuntamento
-  delle 16:30 → atteso alle 15:30.
+- [x] ~~Verificare il primo promemoria vero a 1 ora~~ — verificato il
+  2026-09-29 dal registro Twilio: 07:00 per le 08:00, 09:30 per le 10:30 (e
+  09:15 per le 09:30, confermato da meno di un'ora: la regola della
+  distanza dalla conferma). Per il 27/09 alle 16:30 nessun promemoria: la
+  cliente (…2786) è stata spostata al 02/10 in chat, quindi l'appuntamento
+  non era più in agenda — non verificabile senza DB, nessun errore nei log
+  del worker.
+- [ ] **Numeri che WhatsApp rifiuta (63024) — Flavia li corregge**:
+  Antonio 339 386 3177 (29/09 08:00, promemoria non arrivato), Euplio
+  339 4030 (**incompleto**, 06/10 18:00), Carmine 333 396 1317 (9 e 23/10
+  17:30), Raffaele 377 343 9600, e dal 29/09 **Claudio 339 800 5361** (29/09
+  09:30: né conferma né promemoria arrivati). Segnalati a Lorenzo il
+  2026-09-27 e 29.
 
 **Trovato insieme: 4 clienti col numero che WhatsApp rifiuta.** Errore
 Twilio **63024** («destinatario non valido»: il numero non ha WhatsApp o è
@@ -2303,7 +2335,18 @@ sotto come voce aperta.
   cima: «la richiesta va a buon fine, la consegna fallisce, e il registro
   di Twilio non lo guardava nessuno».
 
-- [ ] **La PAUSA non si vede nel calendario** — Flavia chiede un «servizio
+- [x] **La PAUSA non si vede nel calendario** — **risolto il 2026-09-29**:
+  il calendario ora carica le assenze di tutti per i giorni in vista
+  (`GET /api/admin/absences?start_date&end_date`, staff) e le disegna come
+  box **tratteggiati grigi con bordo a trattini**, niente colore di
+  servizio, sotto gli appuntamenti (così un appuntamento dentro una pausa
+  resta visibile sopra): nel giorno nella colonna del collaboratore, una
+  giornata intera copre la colonna e si legge anche nella testata; nella
+  settimana box col nome, e le giornate intere come striscia in cima; sul
+  telefono in cima alla lista del giorno. Un clic sul box non apre «nuovo
+  appuntamento». Verificato nel browser (permesso 13–14 «Pausa pranzo» e
+  ferie di un giorno, giorno/settimana/telefono); 866 test, filtro e tetto
+  dell'intervallo falsificati → rossi. Testo originale: Flavia chiede un «servizio
   PAUSA solo per i collaboratori». È **la stessa richiesta del 4 agosto**,
   risolta allora coi **permessi a ore** (`tests/test_partial_absences.py`):
   un servizio avrebbe voluto un cliente finto per ogni pausa, perché
@@ -2383,7 +2426,10 @@ sotto come voce aperta.
   cancellare assenze è solo admin (`EXPECTED_GUARDS`: `POST` e `DELETE`
   su `/api/admin/absences` → `admin`).
 
-- [ ] **«Rivedere il tempo di risposta ai messaggi WhatsApp»** — richiesta
+- [x] ~~**«Rivedere il tempo di risposta ai messaggi WhatsApp»**~~ —
+  **superata** dalle richieste del 25/09 (punti 2 e 5): era la stessa
+  cosa, «non mi accorgo quando arrivano»; parte (a) rilasciata, (b) push
+  aperta lì. Testo originale: richiesta
   ambigua, **da chiarire con Flavia prima di toccare codice**. La lettura
   più probabile, e quella che il codice rende plausibile: non è che i
   messaggi arrivino tardi, è che **ci si accorge tardi che sono

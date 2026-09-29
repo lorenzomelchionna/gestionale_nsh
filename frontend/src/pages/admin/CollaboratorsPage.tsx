@@ -377,7 +377,11 @@ function VacationsTab({ collaboratorId }: { collaboratorId: number }) {
     queryFn: () => getAbsences(collaboratorId),
   })
 
-  const inv = () => qc.invalidateQueries({ queryKey: ['absences', collaboratorId] })
+  // Anche il calendario, che disegna assenze e permessi di tutti.
+  const inv = () => {
+    qc.invalidateQueries({ queryKey: ['absences', collaboratorId] })
+    qc.invalidateQueries({ queryKey: ['absences-range'] })
+  }
 
   const createMut = useMutation({
     mutationFn: () => createAbsence({

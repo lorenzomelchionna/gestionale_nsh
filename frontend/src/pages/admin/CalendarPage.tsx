@@ -32,7 +32,19 @@ interface DragState {
 const SLOT_HEIGHT = 48  // px per 30-min slot
 const HOUR_HEIGHT = SLOT_HEIGHT * 2
 const START_HOUR = 8
-const END_HOUR = 20
+/** Chiusura del salone: fin qui prenotano le clienti (lo decidono gli orari
+    dei collaboratori, 08:00–19:00) e fin qui arriva di base la griglia. */
+const CLOSE_HOUR = 19
+/** Dopo la chiusura il salone tiene ancora qualche cliente: la fascia fino
+    alle 20 si prenota solo da qui, e nella griglia compare quando serve. */
+const LATE_HOUR = 20
+
+const minutiDelGiorno = (d: Date) => d.getHours() * 60 + d.getMinutes()
+
+/** Un appuntamento che sfora la chiusura, anche solo di mezz'ora. */
+const oltreChiusura = (a: Appointment) =>
+  minutiDelGiorno(parseISO(a.end_time)) > CLOSE_HOUR * 60 ||
+  minutiDelGiorno(parseISO(a.start_time)) >= CLOSE_HOUR * 60
 
 const TERMINAL_STATUSES = ['completed', 'cancelled', 'rejected']
 
@@ -59,7 +71,8 @@ function roundUpToSlot(d: Date, slotMin = 30): Date {
  * Find the first free slot for a collaborator, starting from `from`.
  * Skips appointments in non-terminal status. Honors working hours.
  * If the candidate slot overlaps an existing appt, jumps to its end + round up.
- * Wraps to next day's START_HOUR if past END_HOUR.
+ * Wraps to next day's START_HOUR at closing time (CLOSE_HOUR): the
+ * suggestion stays inside opening hours, the late band is chosen by hand.
  */
 function computeFirstAvailableSlot(
   appointments: Appointment[],
@@ -78,7 +91,7 @@ function computeFirstAvailableSlot(
   if (candidate.getHours() < START_HOUR) {
     candidate.setHours(START_HOUR, 0, 0, 0)
   }
-  while (candidate.getHours() >= END_HOUR) {
+  while (candidate.getHours() >= CLOSE_HOUR) {
     candidate = addDays(candidate, 1)
     candidate.setHours(START_HOUR, 0, 0, 0)
   }
@@ -95,7 +108,7 @@ function computeFirstAvailableSlot(
       // Overlap test
       if (candidate < aEnd && slotEnd > aStart) {
         candidate = roundUpToSlot(aEnd, slotMin)
-        if (candidate.getHours() >= END_HOUR) {
+        if (candidate.getHours() >= CLOSE_HOUR) {
           candidate = addDays(candidate, 1)
           candidate.setHours(START_HOUR, 0, 0, 0)
         }
@@ -165,11 +178,13 @@ function StatusLegend() {
  * side. Read at render: the grid already re-renders on every refetch, and a
  * dedicated timer would add a moving part for a line nobody reads to the minute.
  */
-function NowRule({ date, timeToY }: { date: Date; timeToY: (d: Date) => number }) {
+function NowRule({ date, timeToY, gridHeight }: {
+  date: Date; timeToY: (d: Date) => number; gridHeight: number
+}) {
   const now = new Date()
   if (!isSameDay(date, now)) return null
   const y = timeToY(now)
-  if (y < 0 || y > (END_HOUR - START_HOUR) * HOUR_HEIGHT) return null
+  if (y < 0 || y > gridHeight) return null
   return (
     <div
       className="absolute left-0 right-0 z-20 pointer-events-none"
@@ -243,6 +258,14 @@ export default function CalendarPage() {
   const visibleIds = new Set(visibleCollabs.map(c => c.id))
   const absences = (absencesData ?? []).filter(a => visibleIds.has(a.collaborator_id))
 
+  // La griglia finisce alla chiusura. La fascia 19–20 si apre a mano per
+  // prenotarci, e da sola quando c'è già qualcuno: un appuntamento non può
+  // sparire perché cade in un'ora che di solito non si guarda.
+  const [lateOpen, setLateOpen] = useState(false)
+  const hasLate = appointments.some(oltreChiusura)
+  const endHour = lateOpen || hasLate ? LATE_HOUR : CLOSE_HOUR
+  const gridHeight = (endHour - START_HOUR) * HOUR_HEIGHT
+
   // Mutations
   const invalidate = () => qc.invalidateQueries({ queryKey: ['appointments'] })
 
@@ -257,13 +280,13 @@ export default function CalendarPage() {
     const ds = dragState.current
     if (!ds) return
     const snappedMin = Math.floor(relativeY / SLOT_HEIGHT) * 30
-    const clampedMin = Math.max(0, Math.min(snappedMin, (END_HOUR - START_HOUR) * 60 - ds.durationMin))
+    const clampedMin = Math.max(0, Math.min(snappedMin, (endHour - START_HOUR) * 60 - ds.durationMin))
     const start = new Date(dropDate)
     start.setHours(START_HOUR + Math.floor(clampedMin / 60), clampedMin % 60, 0, 0)
     const end = addMinutes(start, ds.durationMin)
     setPendingMove({ id: ds.id, start, end, collaboratorId, originalCollaboratorId: ds.collaboratorId })
     dragState.current = null
-  }, [])
+  }, [endHour])
 
   // Drop on top of another appointment → start exactly at its end (no snap)
   const handleDropOnAppointment = useCallback((targetAppt: Appointment) => {
@@ -402,6 +425,23 @@ export default function CalendarPage() {
             ]}
           />
 
+          {/* La fascia dopo la chiusura, per prenotarci dal salone. Resta
+              aperta da sola se dentro c'è già un appuntamento. */}
+          <div className="segmented hidden lg:flex">
+            <button
+              type="button"
+              onClick={() => setLateOpen(v => !v)}
+              disabled={hasLate}
+              aria-pressed={endHour === LATE_HOUR}
+              className={clsx('segmented-item', endHour === LATE_HOUR && 'segmented-item-active')}
+              title={hasLate
+                ? "C'è un appuntamento dopo le 19: la fascia resta visibile"
+                : 'Mostra la fascia 19–20, prenotabile solo dal salone'}
+            >
+              Dopo le 19
+            </button>
+          </div>
+
           <select
             className="input !min-h-[2.5rem] h-10 text-[13px] py-1.5 flex-1 lg:flex-none lg:w-48"
             value={selectedCollaboratorId ?? ''}
@@ -435,20 +475,29 @@ export default function CalendarPage() {
 
       {/* Desktop: full time grid with drag & drop. */}
       <div className="card flex-1 overflow-auto hidden lg:block">
-        <div className="flex">
+        <div className="flex pb-2">
           {/* Time gutter — the band runs across it so the header reads as one strip. */}
           <div className="w-14 flex-shrink-0">
             <div className="h-14 band" /> {/* header spacer */}
-            <div className="relative" style={{ height: (END_HOUR - START_HOUR) * HOUR_HEIGHT }}>
-              {Array.from({ length: END_HOUR - START_HOUR }, (_, i) => (
-                <div
-                  key={i}
-                  className="absolute right-2 text-[12px] text-ink-3 tabular-nums -translate-y-2"
-                  style={{ top: i * HOUR_HEIGHT }}
-                >
-                  {String(START_HOUR + i).padStart(2, '0')}:00
-                </div>
-              ))}
+            {/* Ogni mezz'ora ha la sua etichetta, più piccola di quella
+                dell'ora; l'ultima è il bordo della griglia, cioè la chiusura
+                (o le 20 con la fascia aperta). */}
+            <div className="relative" style={{ height: gridHeight }}>
+              {Array.from({ length: (endHour - START_HOUR) * 2 + 1 }, (_, i) => {
+                const mezza = i % 2 === 1
+                return (
+                  <div
+                    key={i}
+                    className={clsx(
+                      'absolute right-2 tabular-nums -translate-y-1/2 leading-none',
+                      mezza ? 'text-[10.5px] text-ink-3/80' : 'text-[12px] text-ink-2',
+                    )}
+                    style={{ top: i * SLOT_HEIGHT }}
+                  >
+                    {String(START_HOUR + Math.floor(i / 2)).padStart(2, '0')}:{mezza ? '30' : '00'}
+                  </div>
+                )
+              })}
             </div>
           </div>
 
@@ -463,6 +512,7 @@ export default function CalendarPage() {
                   date={currentDate}
                   appointments={appointments.filter(a => a.collaborator_id === collab.id)}
                   absences={absences.filter(a => a.collaborator_id === collab.id)}
+                  gridHeight={gridHeight}
                   timeToY={timeToY}
                   durationToH={durationToH}
                   onSlotClick={(d) => handleSlotClick(d, collab.id)}
@@ -484,6 +534,7 @@ export default function CalendarPage() {
                   collaborators={visibleCollabs}
                   appointments={appointments.filter(a => isSameDay(parseISO(a.start_time), day))}
                   absences={absences}
+                  gridHeight={gridHeight}
                   timeToY={timeToY}
                   durationToH={durationToH}
                   onSlotClick={(d) => handleSlotClick(d, visibleCollabs[0]?.id ?? 0)}
@@ -584,11 +635,12 @@ export default function CalendarPage() {
 
 // ── Day column ────────────────────────────────────────────────────
 
-function DayColumn({ collaborator, date, appointments, absences, timeToY, durationToH, onSlotClick, onAppointmentClick, dragState, didDrag, onDrop, onDropOnAppointment }: {
+function DayColumn({ collaborator, date, appointments, absences, gridHeight, timeToY, durationToH, onSlotClick, onAppointmentClick, dragState, didDrag, onDrop, onDropOnAppointment }: {
   collaborator: Collaborator
   date: Date
   appointments: Appointment[]
   absences: Absence[]
+  gridHeight: number
   timeToY: (d: Date) => number
   durationToH: (s: Date, e: Date) => number
   onSlotClick: (d: Date) => void
@@ -621,7 +673,7 @@ function DayColumn({ collaborator, date, appointments, absences, timeToY, durati
       {/* Grid */}
       <div
         className="relative"
-        style={{ height: (END_HOUR - START_HOUR) * HOUR_HEIGHT }}
+        style={{ height: gridHeight }}
         onClick={(e) => {
           if (didDrag.current) { didDrag.current = false; return }
           const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
@@ -641,16 +693,17 @@ function DayColumn({ collaborator, date, appointments, absences, timeToY, durati
         }}
       >
         {/* Hour lines — full rule on the hour, soft one on the half. */}
-        {Array.from({ length: (END_HOUR - START_HOUR) * 2 }, (_, i) => (
+        {Array.from({ length: gridHeight / SLOT_HEIGHT }, (_, i) => (
           <div
             key={i}
             className={clsx('absolute left-0 right-0 border-t', i % 2 === 0 ? 'border-rule' : 'border-rule-soft')}
             style={{ top: i * SLOT_HEIGHT }}
           />
         ))}
-        <NowRule date={date} timeToY={timeToY} />
+        <AfterClosingBand gridHeight={gridHeight} />
+        <NowRule date={date} timeToY={timeToY} gridHeight={gridHeight} />
         {absencesOn(absences, date).map(a => (
-          <AbsenceBlock key={a.id} absence={a} date={date} timeToY={timeToY} />
+          <AbsenceBlock key={a.id} absence={a} date={date} gridHeight={gridHeight} timeToY={timeToY} />
         ))}
         {/* Appointments */}
         {appointments.map(appt => {
@@ -698,6 +751,31 @@ function DayColumn({ collaborator, date, appointments, absences, timeToY, durati
   )
 }
 
+// ── After closing ─────────────────────────────────────────────────
+
+/**
+ * L'ora dopo la chiusura, quando la griglia la mostra. Una tinta piatta, non
+ * il tratteggio delle assenze: lì non si lavora, qui sì, ma solo su
+ * prenotazione del salone. Non intercetta i clic, così un clic nella fascia
+ * apre «nuovo appuntamento» come ovunque.
+ */
+function AfterClosingBand({ gridHeight }: { gridHeight: number }) {
+  const top = (CLOSE_HOUR - START_HOUR) * HOUR_HEIGHT
+  if (gridHeight <= top) return null
+  return (
+    <div
+      className="absolute left-0 right-0 bottom-0 bg-ink-3/[0.12] border-t-2 border-ink-3/50 pointer-events-none"
+      style={{ top }}
+      aria-hidden="true"
+    >
+      {/* A capo invece che troncata: nella settimana la colonna è stretta. */}
+      <span className="block px-1.5 pt-0.5 text-[11px] leading-tight italic text-ink-3 break-words">
+        Oltre chiusura
+      </span>
+    </div>
+  )
+}
+
 // ── Absences ──────────────────────────────────────────────────────
 
 const ABSENCE_TYPE_LABEL: Record<string, string> = {
@@ -738,9 +816,10 @@ function absenceLabel(a: Absence): string {
  * Un clic qui non apre «nuovo appuntamento»: prenotare dentro un permesso si
  * può ancora dal pulsante «Nuovo», che lo segnala, ma non per sbaglio.
  */
-function AbsenceBlock({ absence, date, timeToY, who, stackIndex = 0 }: {
+function AbsenceBlock({ absence, date, gridHeight, timeToY, who, stackIndex = 0 }: {
   absence: Absence
   date: Date
+  gridHeight: number
   timeToY: (d: Date) => number
   /** Nome del collaboratore: serve nella settimana, dove la colonna è condivisa. */
   who?: string
@@ -752,8 +831,6 @@ function AbsenceBlock({ absence, date, timeToY, who, stackIndex = 0 }: {
   const label = striscia
     ? [who, ABSENCE_TYPE_LABEL[absence.type] ?? 'Assenza', absence.notes?.trim()].filter(Boolean).join(' · ')
     : [who, absenceLabel(absence)].filter(Boolean).join(' · ')
-  const gridHeight = (END_HOUR - START_HOUR) * HOUR_HEIGHT
-
   let top: number
   let height: number
   if (isFullDay(absence)) {
@@ -913,11 +990,12 @@ function AgendaView({
 
 // ── Week day column ───────────────────────────────────────────────
 
-function WeekDayColumn({ date, collaborators, appointments, absences, timeToY, durationToH, onSlotClick, onAppointmentClick, dragState, didDrag, onDrop, onDropOnAppointment }: {
+function WeekDayColumn({ date, collaborators, appointments, absences, gridHeight, timeToY, durationToH, onSlotClick, onAppointmentClick, dragState, didDrag, onDrop, onDropOnAppointment }: {
   date: Date
   collaborators: Collaborator[]
   appointments: Appointment[]
   absences: Absence[]
+  gridHeight: number
   timeToY: (d: Date) => number
   durationToH: (s: Date, e: Date) => number
   onSlotClick: (d: Date) => void
@@ -943,7 +1021,7 @@ function WeekDayColumn({ date, collaborators, appointments, absences, timeToY, d
       </div>
       <div
         className="relative"
-        style={{ height: (END_HOUR - START_HOUR) * HOUR_HEIGHT }}
+        style={{ height: gridHeight }}
         onClick={(e) => {
           if (didDrag.current) { didDrag.current = false; return }
           const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
@@ -963,15 +1041,16 @@ function WeekDayColumn({ date, collaborators, appointments, absences, timeToY, d
           didDrag.current = true
         }}
       >
-        {Array.from({ length: (END_HOUR - START_HOUR) * 2 }, (_, i) => (
+        {Array.from({ length: gridHeight / SLOT_HEIGHT }, (_, i) => (
           <div key={i} className={clsx('absolute left-0 right-0 border-t', i % 2 === 0 ? 'border-rule' : 'border-rule-soft')} style={{ top: i * SLOT_HEIGHT }} />
         ))}
-        <NowRule date={date} timeToY={timeToY} />
+        <AfterClosingBand gridHeight={gridHeight} />
+        <NowRule date={date} timeToY={timeToY} gridHeight={gridHeight} />
         {/* Nella settimana i collaboratori condividono la colonna: le giornate
             intere diventano una striscia in cima, non un velo su tutto il giorno. */}
         {absencesOn(absences, date).map((a, i) => (
           <AbsenceBlock
-            key={a.id} absence={a} date={date} timeToY={timeToY}
+            key={a.id} absence={a} date={date} gridHeight={gridHeight} timeToY={timeToY}
             who={collaborators.find(c => c.id === a.collaborator_id)?.first_name}
             stackIndex={i}
           />
@@ -1513,6 +1592,12 @@ function CreateAppointmentModal({ initialSlot, collaborators, closedWeekdays, on
     return format(addMinutes(start, totalSlots * 30), "yyyy-MM-dd'T'HH:mm")
   }, [startTime, totalSlots])
 
+  // Stringhe «HH:mm» dello stesso giorno: il confronto testuale le ordina.
+  const chiusura = `${CLOSE_HOUR}:00`
+  const afterClosing = startTime.slice(11, 16) >= chiusura
+    || (computedEnd !== '' && computedEnd.slice(11, 16) > chiusura)
+  const afterLate = computedEnd !== '' && computedEnd.slice(11, 16) > `${LATE_HOUR}:00`
+
   const doCreate = () => {
     createMut.mutate({
       client_id: selectedClientId!,
@@ -1852,11 +1937,12 @@ function CreateAppointmentModal({ initialSlot, collaborators, closedWeekdays, on
                   })()}
                 </svg>
                 {/* Hour buttons */}
-                {Array.from({ length: END_HOUR - START_HOUR }, (_, i) => i + START_HOUR).map((h, i) => {
+                {Array.from({ length: LATE_HOUR - START_HOUR }, (_, i) => i + START_HOUR).map((h, i) => {
                   const angle = (i * 30 - 90) * (Math.PI / 180)
                   const x = 96 + 72 * Math.cos(angle)
                   const y = 96 + 72 * Math.sin(angle)
                   const sel = Number(hours) === h
+                  const tardi = h >= CLOSE_HOUR
                   return (
                     <button
                       key={h}
@@ -1864,9 +1950,12 @@ function CreateAppointmentModal({ initialSlot, collaborators, closedWeekdays, on
                       onClick={() => setHours(String(h))}
                       className={clsx(
                         'absolute w-8 h-8  text-xs font-medium transition-colors flex items-center justify-center',
-                        sel ? 'bg-primary text-white shadow-sm' : 'hover:bg-foreground/[0.05] text-foreground'
+                        sel ? 'bg-primary text-white shadow-sm'
+                          : tardi ? 'hover:bg-foreground/[0.05] text-ink-3 border border-dashed border-ink-3/60'
+                          : 'hover:bg-foreground/[0.05] text-foreground'
                       )}
                       style={{ left: x - 16, top: y - 16 }}
+                      title={tardi ? 'Oltre chiusura: solo su prenotazione del salone' : undefined}
                     >
                       {String(h).padStart(2,'0')}
                     </button>
@@ -1915,6 +2004,15 @@ function CreateAppointmentModal({ initialSlot, collaborators, closedWeekdays, on
               <p className="text-xs text-muted-foreground mt-1">
                 Durata totale: {totalSlots * 30} min
                 {computedEnd && ` → Fine: ${format(new Date(computedEnd), 'HH:mm')}`}
+              </p>
+            )}
+            {/* Non blocca: la fascia dopo le 19 è proprio quella che il salone
+                si tiene. Lo dice perché online non sarebbe stato possibile. */}
+            {afterClosing && (
+              <p className={clsx('text-xs mt-1', afterLate ? 'text-danger' : 'text-ink-2')}>
+                {afterLate
+                  ? `Finisce alle ${computedEnd.slice(11, 16)}, dopo le ${LATE_HOUR}:00: oltre anche la fascia del salone, nel calendario non si vedrebbe per intero.`
+                  : `Oltre la chiusura delle ${CLOSE_HOUR}:00 — fascia prenotabile solo dal salone.`}
               </p>
             )}
           </div>

@@ -188,7 +188,7 @@ function CollaboratorCard({ collaborator: c, services, onEdit, onUpdateSchedule,
       DAYS.map((_, i) => {
         const s = c.schedules.find(s => s.day_of_week === i)
         return [i, {
-          start: s?.start_time?.slice(0, 5) ?? '09:00',
+          start: s?.start_time?.slice(0, 5) ?? '08:00',
           end: s?.end_time?.slice(0, 5) ?? '19:00',
           working: s?.is_working ?? (i < 6),
         }]

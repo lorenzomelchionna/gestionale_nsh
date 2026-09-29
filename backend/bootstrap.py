@@ -118,12 +118,12 @@ async def seed_demo(db):
     await db.flush()
     collaborators[0].user_id = sofia_user.id
 
-    # Schedules Mon–Sat 9–19
+    # Schedules Mon–Sat 8–19, come il salone
     for collab in collaborators:
         for day in range(6):
             db.add(CollaboratorSchedule(
                 collaborator_id=collab.id, day_of_week=day,
-                start_time=time(9, 0), end_time=time(19, 0), is_working=True,
+                start_time=time(8, 0), end_time=time(19, 0), is_working=True,
             ))
         db.add(CollaboratorSchedule(
             collaborator_id=collab.id, day_of_week=6, is_working=False,

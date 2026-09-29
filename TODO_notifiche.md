@@ -1857,6 +1857,29 @@ commit**, versione a piè di pagina in **gestionale e portale**, note in
   scritte per chi non è sviluppatore a ogni rilascio (il CHANGELOG usa gli
   oggetti dei commit, in inglese tecnico).
 
+### Richiesta — 2026-09-29: mezz'ore in calendario, orario 8–19, fascia 19–20 del salone
+
+- [x] Colonna degli orari con **ogni mezz'ora**: «17:30» fra le 17 e le 18,
+  più piccola e più chiara dell'ora piena.
+- [x] **Apertura 8–19**: gli orari dei tre collaboratori in produzione erano
+  già 08:00–19:00 (letti dall'API pubblica), quindi il portale chiudeva già
+  alle 19 — era la griglia del calendario ad arrivare alle 20. Ora la
+  griglia finisce alle **19:00**. Default per i nuovi orari (pagina
+  Collaboratori, `seed.py`, `bootstrap.py` demo) portati da 09:00 a 08:00.
+- [x] **Fascia 19–20 solo per il salone**: nascosta di base; il pulsante
+  **«Dopo le 19»** la apre per prenotarci con un clic, e si apre **da sola**
+  se nel giorno/settimana in vista c'è già un appuntamento dopo le 19 (non
+  può sparire un appuntamento). Quando si vede è una tinta piatta con
+  «Oltre chiusura», diversa dal tratteggio delle assenze. Nel modale
+  «Nuovo» l'ora 19 è tratteggiata e sotto la durata compare «Oltre la
+  chiusura delle 19:00 — fascia prenotabile solo dal salone»; in rosso se
+  l'appuntamento finisce dopo le 20. Il portale non la offre perché cade
+  fuori dagli orari di lavoro; il gestionale non controlla gli orari, di
+  proposito. `tests/test_oltre_chiusura.py` fissa le due metà (falsificato:
+  portale che sfora di un'ora → 2 rossi; controllo orari nel gestionale →
+  1 rosso). Suite 872 verde, build ok, verificato nel browser (giorno,
+  settimana, chiaro/scuro).
+
 ### Aperte — 2026-09-29
 
 - [ ] **Dependabot: SQLAlchemy 2.0.51 → 2.1.0**

@@ -1837,6 +1837,16 @@ commit**, versione a piè di pagina in **gestionale e portale**, note in
   i suoi test in `scripts/test_release.py`; job CI **Versione**;
   `.github/workflows/release.yml` crea tag e Release al merge su main.
   Flusso documentato in `CLAUDE.md` → «Versioni».
+  [PR #153](https://github.com/lorenzomelchionna/gestionale_nsh/pull/153)
+  → `develop`, [PR #154](https://github.com/lorenzomelchionna/gestionale_nsh/pull/154)
+  «Release v1.0.0» → `main` (commit `dc29c29`), CI verde (10/10, con
+  «Versione»: 0.1.0 → 1.0.0). `release.yml` al primo colpo: tag **`v1.0.0`**
+  e [Release](https://github.com/lorenzomelchionna/gestionale_nsh/releases/tag/v1.0.0)
+  create in automatico. **Deploy confermato** il 2026-09-29 alle 13:10 UTC:
+  backend, frontend e worker `SUCCESS`; `/health` →
+  `{"status":"ok","version":"1.0.0"}`, `v1.0.0` nel bundle servito.
+  `release.py prepare --dry-run` subito dopo → «Nessun commit da v1.0.0»,
+  come deve.
 - [ ] **Rendere «Versione» un check obbligatorio di `main`** — oggi i
   check obbligatori sono 3; va aggiunto nella protezione del ramo
   (impostazione del repository: con l'ok di Lorenzo).

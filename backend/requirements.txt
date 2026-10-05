@@ -7,7 +7,7 @@
 # rotte in `app.routes`: le avvolge in `_IncludedRouter`, e la matrice dei
 # permessi in `tests/test_permissions_matrix.py` smetteva di vederle. È stata
 # riscritta prima, e regge entrambe le versioni.
-fastapi==0.141.1
+fastapi==0.142.2
 uvicorn[standard]==0.52.1
 
 # Database

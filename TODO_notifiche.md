@@ -1888,6 +1888,16 @@ gira i giorni del calendario.
   il collaboratore scelto quel giorno comincia prima (cambiando
   collaboratore l'ora rientra). Verificato nel browser (giorno con due
   straordinari diversi, clic bloccati e consentiti, orologio, settimana).
+  [PR #164](https://github.com/lorenzomelchionna/gestionale_nsh/pull/164)
+  → `develop`; rilascio **1.2.2**
+  ([PR #165](https://github.com/lorenzomelchionna/gestionale_nsh/pull/165),
+  commit `18319c7`, CI 10/10); tag e
+  [Release](https://github.com/lorenzomelchionna/gestionale_nsh/releases/tag/v1.2.2)
+  automatici. **Deploy confermato** il 2026-10-06 alle 16:07 UTC: backend,
+  frontend e worker `SUCCESS`, `/health` → 1.2.2, bundle con «Fuori
+  orario». L'impostazione «Allow auto-merge» del repository l'ha bloccata
+  il controllo di sicurezza automatico: se la si vuole, va accesa a mano da
+  GitHub → Settings → General.
 - [x] **Il portale offriva la fascia 19–20 nei giorni straordinari** — le
   19:00 e le 19:30 di quel sabato, contro la decisione del 29/09. Ora il
   portale non va oltre le 19 qualunque cosa dicano gli orari

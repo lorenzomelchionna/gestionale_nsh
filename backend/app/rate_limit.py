@@ -9,7 +9,17 @@ provavano password a raffica.
 
 È l'unica misura che *ferma* qualcuno invece di limitarsi a renderlo più
 lento.
+
+**Per persona, non solo per IP.** Le rotte della registrazione contano due
+volte: per indirizzo email (`per_email`, il tetto stretto) e per IP (un
+tetto largo, contro chi prova in ciclo). Contavano solo per IP, e il salone
+ha **un** IP per tutto il Wi-Fi: il 3 ottobre una cliente che non riusciva a
+confermare l'email ha consumato il budget di tutte, e un'altra, sullo stesso
+Wi-Fi, è stata respinta alla registrazione con «Troppi tentativi».
 """
+import hashlib
+import hmac
+import json
 import logging
 
 from fastapi import Request
@@ -62,6 +72,53 @@ def client_ip(request: Request) -> str:
     return request.client.host if request.client else "sconosciuto"
 
 
+def email_della_richiesta(request: Request) -> str:
+    """L'indirizzo scritto nel corpo JSON, minuscolo e senza spazi; vuoto se manca.
+
+    Si legge quello che FastAPI ha già letto: il limitatore controlla dentro
+    l'endpoint, cioè dopo che il corpo è stato validato contro lo schema, e
+    Starlette tiene il risultato in `_json`. Minuscolo perché le caselle di
+    posta non distinguono: `Mario@…` e `mario@…` sono la stessa persona, e
+    contarle a parte raddoppierebbe il budget di chi scrive alla stessa
+    casella.
+    """
+    corpo = getattr(request, "_json", None)
+    if corpo is None:
+        grezzo = getattr(request, "_body", None)
+        if grezzo:
+            try:
+                corpo = json.loads(grezzo)
+            except ValueError:
+                corpo = None
+    if not isinstance(corpo, dict):
+        return ""
+    email = corpo.get("email")
+    return email.strip().lower() if isinstance(email, str) else ""
+
+
+def per_email(request: Request) -> str:
+    """Chiave dei limiti per persona: l'indirizzo della richiesta, non l'IP.
+
+    Nella chiave finisce un'impronta (HMAC con `SECRET_KEY`), non l'indirizzo:
+    slowapi scrive la chiave in chiaro nel log quando un limite scatta, e lo
+    storage è Redis. Con l'indirizzo dentro, entrambi diventerebbero un
+    elenco di email non mascherate — esattamente quello che `maschera_email`
+    esiste per evitare.
+
+    Vuota se il corpo non ha un indirizzo: slowapi allora salta questo limite
+    e resta quello per IP. Sulle rotte che lo usano non succede, perché lo
+    schema rende l'indirizzo obbligatorio e una richiesta senza viene
+    respinta con 422 prima di arrivare qui.
+    """
+    email = email_della_richiesta(request)
+    if not email:
+        return ""
+    impronta = hmac.new(
+        settings.SECRET_KEY.encode(), email.encode(), hashlib.sha256
+    ).hexdigest()[:24]
+    return f"email:{impronta}"
+
+
 limiter = Limiter(
     key_func=client_ip,
     # Redis c'è già per Celery. Serve perché i contatori sopravvivano ai
@@ -101,13 +158,21 @@ async def rate_limit_handler(request: Request, exc: RateLimitExceeded) -> JSONRe
     # Import qui e non in cima: `audit` importa questo modulo per leggere l'IP
     # con la stessa logica, e in cima sarebbe un ciclo.
     from app.audit import LIMITE_SUPERATO, evento
+    from app.logging_config import maschera_email
 
+    # Quale dei due tetti ha fermato la richiesta: «una persona che insiste»
+    # e «un IP che prova in ciclo» sono fatti diversi, e senza questo campo
+    # nel log sarebbero indistinguibili quando hanno lo stesso valore.
+    per_persona = getattr(getattr(exc, "limit", None), "key_func", None) is per_email
+    campi = {"chiave": "email", "email": maschera_email(email_della_richiesta(request))} \
+        if per_persona else {"chiave": "ip"}
     evento(
         LIMITE_SUPERATO,
         logging.WARNING,
         percorso=request.url.path,
         ip=client_ip(request),
         limite=str(getattr(exc, "detail", "")),
+        **campi,
     )
     return JSONResponse(
         status_code=429,

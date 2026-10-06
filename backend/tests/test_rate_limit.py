@@ -44,29 +44,33 @@ def _registrazione(n: int) -> dict:
 
 
 class TestRegistrazione:
-    async def test_la_sesta_in_un_ora_viene_fermata(self, client):
-        """Cinque all'ora: un salone non registra di più, un ciclo automatico sì."""
-        for n in range(5):
-            resp = await client.post("/api/public/auth/register", json=_registrazione(n))
-            assert resp.status_code in (201, 400), resp.text
+    """Cinque all'ora **per indirizzo**: una persona non si registra di più, un
+    ciclo automatico sì. Era «cinque all'ora per IP», e il Wi-Fi del salone è
+    un IP solo per tutte — vedi `test_limiti_per_persona.py`."""
 
-        bloccata = await client.post("/api/public/auth/register", json=_registrazione(99))
+    async def _cinque_volte(self, client):
+        for _ in range(5):
+            resp = await client.post("/api/public/auth/register", json=_registrazione(0))
+            assert resp.status_code == 201, resp.text
+
+    async def test_la_sesta_in_un_ora_viene_fermata(self, client):
+        await self._cinque_volte(client)
+
+        bloccata = await client.post("/api/public/auth/register", json=_registrazione(0))
         assert bloccata.status_code == 429
         assert "Troppi tentativi" in bloccata.json()["detail"]
 
     async def test_la_risposta_dice_quando_riprovare(self, client):
-        for n in range(5):
-            await client.post("/api/public/auth/register", json=_registrazione(n))
-        bloccata = await client.post("/api/public/auth/register", json=_registrazione(99))
+        await self._cinque_volte(client)
+        bloccata = await client.post("/api/public/auth/register", json=_registrazione(0))
         assert bloccata.headers.get("Retry-After") is not None
 
     async def test_non_rivela_il_limite(self, client):
         """A chi lavora non serve sapere quale tetto ha toccato; a chi prova
         password servirebbe per tarare i tempi."""
-        for n in range(5):
-            await client.post("/api/public/auth/register", json=_registrazione(n))
+        await self._cinque_volte(client)
         corpo = (await client.post(
-            "/api/public/auth/register", json=_registrazione(99)
+            "/api/public/auth/register", json=_registrazione(0)
         )).json()
         assert "5" not in corpo["detail"] and "hour" not in corpo["detail"]
 

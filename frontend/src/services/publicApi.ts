@@ -82,6 +82,9 @@ export const clientRegister = (data: {
 export interface PhoneVerificationRequired {
   phone_verification_required: true
   whatsapp_sent: boolean
+  /** Il numero a cui è partito il codice, da scrivere sulla schermata;
+      `null` se l'account non ne ha uno. */
+  phone: string | null
 }
 
 /** La sessione arriva solo dopo *entrambi* i codici: un account che aveva
@@ -111,6 +114,19 @@ export interface PhoneResendResult {
 
 export const resendPhoneCode = (email: string) =>
   publicApi.post<PhoneResendResult>('/auth/resend-phone-code', { email }).then(r => r.data)
+
+export interface PhoneChangeResult {
+  whatsapp_sent: boolean
+  phone: string
+}
+
+/** «Numero sbagliato? Correggilo»: manda il codice al numero nuovo, che
+    passa sulla scheda solo quando il codice torna indietro. Chiede la
+    password perché la sessione, a questo punto, non c'è ancora. */
+export const changePhone = (email: string, password: string, phone: string) =>
+  publicApi
+    .post<PhoneChangeResult>('/auth/change-phone', { email, password, phone })
+    .then(r => r.data)
 
 export const clientLogin = (email: string, password: string) =>
   publicApi.post<TokenResponse>('/auth/login', { email, password }).then(r => r.data)

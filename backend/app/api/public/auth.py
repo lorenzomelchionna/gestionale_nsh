@@ -1,25 +1,26 @@
-from typing import Annotated
+from typing import Annotated, Optional
 from datetime import datetime, timedelta, timezone
 import logging
 import secrets
 from fastapi import Request, APIRouter, Depends, HTTPException, status
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func, select
 from typing import Union
 from app.audit import (
-    EMAIL_VERIFICATA, LOGIN_BLOCCATO, REGISTRAZIONE, RESET_CHIESTO,
-    RESET_ESEGUITO, TELEFONO_VERIFICATO, VERIFICA_FALLITA,
+    EMAIL_VERIFICATA, LOGIN_BLOCCATO, LOGIN_KO, NUMERO_CORRETTO, REGISTRAZIONE,
+    RESET_CHIESTO, RESET_ESEGUITO, TELEFONO_VERIFICATO, VERIFICA_FALLITA,
     evento, login_fallito, login_riuscito,
 )
 from app.database import get_db
 from app.logging_config import maschera_email, maschera_telefono
-from app.rate_limit import limiter
+from app.rate_limit import limiter, per_email
 from app.models.client import Client, ClientAccount
 from app.models.user import User
 from app.schemas.client import (
     ClientRegister, ClientLoginRequest, PasswordResetRequest, PasswordReset,
-    EmailVerification, PhoneVerification, PhoneVerificationRequired,
-    PhoneResendResult, ResendResult, VerificationRequired,
+    EmailVerification, PhoneChange, PhoneChangeResult, PhoneVerification,
+    PhoneVerificationRequired, PhoneResendResult, ResendResult, VerificationRequired,
 )
 from app.schemas.common import TokenResponse, MessageResponse
 from app.services.email_verification import (
@@ -64,36 +65,45 @@ async def _send_code(db: AsyncSession, account: ClientAccount, first_name: str) 
         return False
 
 
-async def _send_phone_code(db: AsyncSession, account: ClientAccount) -> bool:
+async def _send_phone_code(db: AsyncSession, account: ClientAccount) -> tuple[bool, Optional[str]]:
     """Stessa cosa di `_send_code`, un canale dopo: emette un codice fresco e
-    lo manda su WhatsApp al numero che risulta sulla scheda cliente collegata.
+    lo manda su WhatsApp. Risponde se è partito e **a quale numero**, perché
+    la schermata del codice lo scrive: chi ha sbagliato una cifra se ne
+    accorge solo vedendolo.
 
-    `client=None` (nessuna scheda ancora collegata) non dovrebbe succedere per
-    la via normale — la registrazione ne crea una insieme all'account — ma
-    resta possibile su una riga più vecchia della funzionalità stessa, quindi
-    si risponde `False` invece di sollevare.
+    Il numero è quello corretto dalla schermata stessa (`phone_pending`) se
+    c'è, altrimenti quello della scheda collegata — che dopo la verifica
+    dell'email può essere la scheda del salone, col numero che aveva il
+    salone e non quello scritto alla registrazione.
+
+    Nessun numero (nessuna scheda collegata, o una scheda senza telefono)
+    non dovrebbe succedere per la via normale — la registrazione ne crea una
+    insieme all'account — ma resta possibile su una riga più vecchia della
+    funzionalità stessa, quindi si risponde `False` invece di sollevare.
     """
-    client = (await db.execute(
-        select(Client).where(Client.account_id == account.id)
-    )).scalar_one_or_none()
-    if not client or not client.phone:
-        return False
+    numero = await phone_verification.numero_in_verifica(db, account)
+    if not numero:
+        return False, None
 
     code = await phone_verification.issue_code(account)
     await db.flush()
     try:
-        await send_verification_code_whatsapp(client.phone, code)
-        return True
+        await send_verification_code_whatsapp(numero, code)
+        return True, numero
     except Exception:
         log.exception(
             "invio del codice di verifica telefono fallito",
             extra={"id_account": account.id},
         )
-        return False
+        return False, numero
 
 
 @router.post("/register", response_model=VerificationRequired, status_code=status.HTTP_201_CREATED)
-@limiter.limit("5/hour")
+# Due tetti, come su tutte le rotte della registrazione (vedi `rate_limit`):
+# stretto per indirizzo, largo per IP. Era solo «5 all'ora per IP», e il Wi-Fi
+# del salone è un IP solo per tutte le clienti.
+@limiter.limit("5/hour", key_func=per_email)
+@limiter.limit("20/hour")
 async def register(
     request: Request, payload: ClientRegister, db: Annotated[AsyncSession, Depends(get_db)]
 ):
@@ -308,7 +318,8 @@ async def _collega_per_telefono(db: AsyncSession, account: ClientAccount) -> Non
 
 
 @router.post("/verify-email", response_model=Union[TokenResponse, PhoneVerificationRequired])
-@limiter.limit("10/minute")
+@limiter.limit("10/minute", key_func=per_email)
+@limiter.limit("30/minute")
 async def verify_email(
     request: Request, payload: EmailVerification, db: Annotated[AsyncSession, Depends(get_db)]
 ):
@@ -361,12 +372,13 @@ async def verify_email(
         refresh = create_refresh_token(account.id, {"type": "client"})
         return TokenResponse(access_token=access, refresh_token=refresh)
 
-    sent = await _send_phone_code(db, account)
-    return PhoneVerificationRequired(whatsapp_sent=sent)
+    sent, numero = await _send_phone_code(db, account)
+    return PhoneVerificationRequired(whatsapp_sent=sent, phone=numero)
 
 
 @router.post("/verify-phone", response_model=TokenResponse)
-@limiter.limit("10/minute")
+@limiter.limit("10/minute", key_func=per_email)
+@limiter.limit("30/minute")
 async def verify_phone(
     request: Request, payload: PhoneVerification, db: Annotated[AsyncSession, Depends(get_db)]
 ):
@@ -403,6 +415,18 @@ async def verify_phone(
         )
         raise HTTPException(status_code=400, detail=e.detail)
 
+    # Il numero corretto dalla schermata del codice è dimostrato adesso, e
+    # solo adesso passa sulla scheda. Prima del collegamento qui sotto,
+    # perché quello cerca per numero, e deve cercare quello appena provato.
+    if account.phone_pending:
+        propria = (await db.execute(
+            select(Client).where(Client.account_id == account.id)
+        )).scalar_one_or_none()
+        if propria is not None:
+            propria.phone = account.phone_pending
+        account.phone_pending = None
+        await db.flush()
+
     # Il numero è dimostrato da qui in poi: è il momento in cui si può
     # cercare, per numero, quello che il salone aveva già di questa persona.
     await _collega_per_telefono(db, account)
@@ -424,7 +448,8 @@ async def verify_phone(
 
 
 @router.post("/resend-code", response_model=ResendResult)
-@limiter.limit("3/hour")
+@limiter.limit("3/hour", key_func=per_email)
+@limiter.limit("20/hour")
 async def resend_code(
     request: Request, payload: PasswordResetRequest, db: Annotated[AsyncSession, Depends(get_db)]
 ):
@@ -449,7 +474,10 @@ async def resend_code(
 
 
 @router.post("/resend-phone-code", response_model=PhoneResendResult)
-@limiter.limit("3/hour")
+# Il tetto per IP è più basso che per l'email: ogni invio è un WhatsApp, che
+# costa e che, mandato a raffica, rovina la reputazione del numero del salone.
+@limiter.limit("3/hour", key_func=per_email)
+@limiter.limit("10/hour")
 async def resend_phone_code(
     request: Request, payload: PasswordResetRequest, db: Annotated[AsyncSession, Depends(get_db)]
 ):
@@ -460,12 +488,79 @@ async def resend_phone_code(
 
     sent = True
     if account and account.email_verified and not account.phone_verified:
-        sent = await _send_phone_code(db, account)
+        # Il numero non torna indietro: per chiedere un rinvio basta
+        # conoscere un indirizzo, e la risposta direbbe il cellulare di chi.
+        sent, _ = await _send_phone_code(db, account)
 
     return PhoneResendResult(
         message="Se il numero è in attesa di verifica, riceverai un nuovo codice",
         whatsapp_sent=sent,
     )
+
+
+@router.post("/change-phone", response_model=PhoneChangeResult)
+# Come il rinvio, ogni chiamata è un WhatsApp. In più qui si controlla una
+# password: i tetti stretti sono anche ciò che impedisce di usare questa
+# rotta per provarne a raffica al posto del login.
+@limiter.limit("3/hour", key_func=per_email)
+@limiter.limit("10/hour")
+async def change_phone(
+    request: Request, payload: PhoneChange, db: Annotated[AsyncSession, Depends(get_db)]
+):
+    """«Numero sbagliato? Correggilo», dalla schermata del codice WhatsApp.
+
+    Nasce da un caso vero, il 2 ottobre: una cliente scrive male il proprio
+    numero, il codice arriva a un estraneo — che lo legge — e lei, che non lo
+    vede arrivare, non ha altra strada che registrarsi da capo con un'altra
+    email, lasciando dietro di sé un account a metà.
+
+    Il numero nuovo non va sulla scheda: aspetta in `phone_pending` finché
+    il codice non torna (vedi `verify_phone`), perché la scheda può essere
+    quella del salone e un numero mai provato non deve sostituire quello
+    che il salone aveva.
+
+    Solo prima della conferma del numero. Cambiare un numero già dimostrato
+    è un'altra cosa — vorrebbe dire spostare conferme e promemoria su un
+    telefono nuovo con la sola password — e la fa il salone, dalla scheda.
+    """
+    account = (await db.execute(
+        select(ClientAccount).where(ClientAccount.email == payload.email)
+    )).scalar_one_or_none()
+    if not account or not await verify_password(payload.password, account.password_hash):
+        # Un controllo di password come quello del login, quindi scritto
+        # come un login fallito — con `via` per sapere da dove è arrivato.
+        evento(
+            LOGIN_KO, logging.WARNING, email=maschera_email(payload.email),
+            motivo="password_errata" if account else "account_inesistente",
+            via="cambio_numero",
+        )
+        raise HTTPException(status_code=401, detail="Credenziali non valide")
+    if not account.is_active:
+        raise HTTPException(status_code=403, detail="Account disabilitato")
+    if not account.email_verified:
+        raise HTTPException(status_code=400, detail="Verifica prima il tuo indirizzo email")
+    if account.phone_verified:
+        raise HTTPException(
+            status_code=409,
+            detail="Il tuo numero è già confermato. Per cambiarlo contatta il salone.",
+        )
+    scheda = (await db.execute(
+        select(Client.id).where(Client.account_id == account.id)
+    )).scalar_one_or_none()
+    if scheda is None:
+        # Senza scheda il numero non avrebbe dove andare, nemmeno dopo il codice.
+        raise HTTPException(
+            status_code=409, detail="Non troviamo la tua scheda. Contatta il salone.",
+        )
+
+    prima = await phone_verification.numero_in_verifica(db, account)
+    account.phone_pending = payload.phone
+    sent, numero = await _send_phone_code(db, account)
+    evento(
+        NUMERO_CORRETTO, id_account=account.id, email=maschera_email(account.email),
+        prima=maschera_telefono(prima), dopo=maschera_telefono(payload.phone),
+    )
+    return PhoneChangeResult(whatsapp_sent=sent, phone=numero or payload.phone)
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -506,10 +601,13 @@ async def login(
             LOGIN_BLOCCATO, logging.INFO, tipo="client", id_account=account.id,
             email=maschera_email(account.email), motivo="telefono_non_verificato",
         )
-        raise HTTPException(
-            status_code=403,
-            detail="Numero di telefono non ancora verificato. Inserisci il codice che ti abbiamo inviato su WhatsApp.",
-        )
+        # Una risposta e non un'eccezione, per avere un campo accanto a
+        # `detail`: il numero da scrivere sulla schermata del codice. Si può
+        # dire perché la password è giusta, cioè chi chiama è chi l'ha messo.
+        return JSONResponse(status_code=403, content={
+            "detail": "Numero di telefono non ancora verificato. Inserisci il codice che ti abbiamo inviato su WhatsApp.",
+            "phone": await phone_verification.numero_in_verifica(db, account),
+        })
 
     login_riuscito(tipo="client", id_account=account.id, email=account.email)
     access = create_access_token(account.id, {"type": "client"})
@@ -518,7 +616,8 @@ async def login(
 
 
 @router.post("/forgot-password", response_model=MessageResponse)
-@limiter.limit("3/hour")
+@limiter.limit("3/hour", key_func=per_email)
+@limiter.limit("10/hour")
 async def forgot_password(
     request: Request, payload: PasswordResetRequest, db: Annotated[AsyncSession, Depends(get_db)]
 ):

@@ -1875,6 +1875,19 @@ gira i giorni del calendario.
   «Nuovo» comprende le 7 quando la griglia parte alle 7 (13 ore invece di 12).
   Pagina Collaboratori: aggiungere o togliere uno straordinario aggiorna il
   calendario senza ricaricare.
+- [x] **Uno straordinario cambiava la griglia di tutti** (osservazione di
+  Lorenzo, stesso giorno, dopo la 1.2.1). Le righe in comune non si possono
+  togliere — le colonne devono restare allineate — ma ora valgono solo per
+  chi lavora: nelle colonne degli altri le ore aggiunte prima delle 8 sono
+  «Fuori orario» (tinta piatta, non cliccabili); nella colonna di chi ha lo
+  straordinario è fuori orario quello che sta fuori dalle sue fasce, fino
+  alla chiusura (es. 09:00–13:00 → oscurati 8–9 e 13–19). Dopo le 19 resta
+  la fascia del salone, uguale per tutti come deciso il 29/09. In settimana
+  le righe prima delle 8 si aprono solo nel giorno dello straordinario, da
+  quando comincia. L'orologio di «Nuovo» offre le ore prima delle 8 solo se
+  il collaboratore scelto quel giorno comincia prima (cambiando
+  collaboratore l'ora rientra). Verificato nel browser (giorno con due
+  straordinari diversi, clic bloccati e consentiti, orologio, settimana).
 - [x] **Il portale offriva la fascia 19–20 nei giorni straordinari** — le
   19:00 e le 19:30 di quel sabato, contro la decisione del 29/09. Ora il
   portale non va oltre le 19 qualunque cosa dicano gli orari
@@ -1885,6 +1898,17 @@ gira i giorni del calendario.
   tutte prese. Suite 919 verde, build ok, verificato nel browser con uno
   straordinario 07:30–20:00 (giorno, settimana, telefono; prenotazione alle
   07:30 dal gestionale; giorno normale ancora 08:00–19:00).
+  [PR #162](https://github.com/lorenzomelchionna/gestionale_nsh/pull/162)
+  → `develop`; rilascio **1.2.1**
+  ([PR #163](https://github.com/lorenzomelchionna/gestionale_nsh/pull/163),
+  commit `b75bfa1`, CI 10/10 con l'audit Python di nuovo verde grazie
+  all'esclusione di python-jose ora su `main`); tag e
+  [Release](https://github.com/lorenzomelchionna/gestionale_nsh/releases/tag/v1.2.1)
+  automatici. **Deploy confermato** il 2026-10-06 alle 14:51 UTC: backend,
+  frontend e worker `SUCCESS`; `/health` → 1.2.1; portale per Flavia
+  sabato 10/10 dalle 07:30 alle 18:30 (prima arrivava alle 19:30), sabato
+  17/10 invariato 08:00–18:30; nuova rotta presente; bundle con
+  «Straordinario». Flavia deve ricaricare la pagina del calendario.
 
 ### Controllo errori 30/09–06/10 — fatto il 2026-10-06
 
@@ -1916,10 +1940,9 @@ Le due correzioni nate da qui sono nella 1.2.0 (sezione sotto); restano:
   `apple-touch-icon*.png` rispondono 404 (si vede nel log di nginx a ogni
   visita da iPhone): chi salva il portale sulla schermata Home non ha
   l'icona del salone.
-- [ ] **L'audit del lunedì resterà rosso fino al prossimo rilascio** —
-  l'esclusione di python-jose (#161) è su `develop`, e l'audit programmato
-  controlla `main`: il 12/10 fallirà per quella. Si risolve da solo col
-  prossimo rilascio (o con una 1.2.1 di sola manutenzione, se dà fastidio).
+- [x] ~~**L'audit del lunedì resterà rosso fino al prossimo rilascio**~~ —
+  risolto con la 1.2.1 il 2026-10-06: l'esclusione di python-jose è su
+  `main`, e l'audit della PR di rilascio è già passato.
 - [ ] **Il TODO ha avuto dati personali per intero in un repository
   pubblico** — i numeri di cinque clienti con nomi e date degli
   appuntamenti (dal 27/09) e gli indirizzi email personali di Flavia,

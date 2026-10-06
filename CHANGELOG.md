@@ -8,6 +8,12 @@ cambiamento incompatibile il primo.
 Le voci le scrive `scripts/release.py prepare` dai commit di ogni rilascio;
 vedi «CI e flusso di rilascio» in `CLAUDE.md`.
 
+## [1.2.2] — 2026-10-06
+
+### Correzioni
+
+- calendar: an extra working day only changes its own collaborator's column
+
 ## [1.2.1] — 2026-10-06
 
 ### Correzioni

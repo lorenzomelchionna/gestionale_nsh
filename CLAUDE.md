@@ -189,13 +189,19 @@ Rilascio, quando `develop` è verde:
 ```bash
 python3 scripts/release.py prepare --dry-run   # mostra versione nuova e note, non tocca niente
 python3 scripts/release.py prepare             # commit chore(release) su develop + PR verso main
-gh pr merge <numero> --merge                   # a CI verde: deploy, e la CI crea tag e Release
-git checkout develop && git merge --ff-only origin/main && git push
+gh pr merge <numero> --merge --auto            # si unisce da sola a CI verde: deploy, tag e Release
+git checkout develop && git merge --ff-only origin/main && git push   # dopo il merge
 ```
 
 L'ultima riga non è opzionale: il merge della PR crea un commit di merge che
 esiste **solo** su `main`, quindi senza allineamento `develop` risulta "N commit
 behind" anche a contenuto identico, e la distanza cresce a ogni rilascio.
+
+`--auto` c'è dal 2026-10-06, quando sul repository è stata accesa «Allow
+auto-merge»: la PR resta in attesa dei 4 check obbligatori e si unisce da
+sola, invece di dover tornare a lanciare il merge. Il metodo resta `--merge`,
+**mai squash**: l'allineamento qui sopra avanza `develop` su `main`, e con uno
+squash i due rami divergerebbero.
 
 ### Versioni
 

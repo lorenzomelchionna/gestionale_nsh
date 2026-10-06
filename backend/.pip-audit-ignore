@@ -22,3 +22,21 @@
 # non c'è modo di far scegliere al chiamante un algoritmo diverso.
 # Da rivedere se un giorno si passasse a RS256/ES256.
 PYSEC-2026-1325
+
+# ── python-jose 3.5.0 ────────────────────────────────────────────────
+# GHSA-3qf3-8w2g-rqmx — chiavi asimmetriche accettate come segreto HMAC:
+# chi conosce la chiave **pubblica** di un servizio può firmare token HS256
+# che quel servizio accetta, se la verifica non fissa gli algoritmi.
+# Correzione incompleta di CVE-2024-33663. Segnalata il 2026-10-06.
+#
+# **Non esiste una versione corretta** (3.5.0 è l'ultima, «through 3.5.0»).
+#
+# E non ci riguarda: qui non c'è nessuna chiave pubblica da conoscere. I
+# token sono firmati HS256 con `SECRET_KEY`, un segreto simmetrico che non
+# esce dal server, e `jwt.decode` in `app/utils/auth.py` fissa
+# `algorithms=[settings.ALGORITHM]` — l'unico punto del codice che verifica
+# un token. Le due condizioni che il difetto richiede mancano entrambe.
+# Da rivedere insieme a `ecdsa` qui sopra se si passasse a RS256/ES256, o
+# alla prima versione di python-jose che lo corregge (allora: aggiornare e
+# togliere questa riga). L'alternativa a lungo termine è PyJWT, mantenuta.
+GHSA-3qf3-8w2g-rqmx

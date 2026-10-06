@@ -36,6 +36,16 @@ from app.models.appointment import Appointment, AppointmentService, AppointmentS
 from app.models.booking_config import BookingConfig
 from app.utils.tempo import istante, minuti_salone
 
+#: Fin dove prenotano le clienti, qualunque cosa dicano gli orari.
+#:
+#: Deciso il 2026-09-29: il salone chiude alle 19, e la fascia 19–20 la
+#: prenota solo il salone, dal gestionale. Bastava finché ogni orario finiva
+#: alle 19; il 6 ottobre un giorno straordinario fino alle 20:00 faceva
+#: offrire al portale le 19:00 e le 19:30 di quel sabato. Il gestionale non
+#: passa questo tetto (vedi `get_available_slots`), il portale sì. Deve
+#: restare uguale a `CLOSE_HOUR` del calendario (`CalendarPage.tsx`).
+CHIUSURA_PORTALE = time(19, 0)
+
 
 def busy_slot_offsets(services: Sequence) -> List[int]:
     """Gli slot, contati dall'inizio dell'appuntamento, in cui il collaboratore
@@ -76,12 +86,16 @@ async def get_available_slots(
     duration_slots: int,
     exclude_appointment_id: Optional[int] = None,
     busy_offsets: Optional[Sequence[int]] = None,
+    chiusura: Optional[time] = None,
 ) -> List[datetime]:
     """Gli orari di inizio disponibili per una data e una durata.
 
     `duration_slots` è la durata totale (quanto dura per la cliente).
     `busy_offsets` dice quali di quegli slot impegnano il collaboratore: se
     non viene passato valgono tutti, cioè il comportamento di sempre.
+    `chiusura`, se c'è, è l'ora entro cui ogni appuntamento deve finire anche
+    quando l'orario di lavoro va oltre: è `CHIUSURA_PORTALE` per il portale,
+    niente per il gestionale.
     """
 
     # 1. Load booking config
@@ -242,6 +256,8 @@ async def get_available_slots(
     for inizio_fascia, fine_fascia in finestre:
         work_start = inizio_fascia.hour * 60 + inizio_fascia.minute
         work_end = fine_fascia.hour * 60 + fine_fascia.minute
+        if chiusura is not None:
+            work_end = min(work_end, chiusura.hour * 60 + chiusura.minute)
 
         slot_start = work_start
         # L'appuntamento deve stare **dentro** una fascia, non a cavallo di

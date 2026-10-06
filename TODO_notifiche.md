@@ -453,7 +453,7 @@ ancora la Sandbox `+14155238886`), `TWILIO_TEMPLATE_CONFERMA`,
   della visura, copiati lettera per lettera: ragione sociale, sede legale,
   telefono (il **fisso**, non il numero Twilio), sito.
 
-  **Secondo amministratore**: Flavia Romolo (`flaviaromolo400@gmail.com`)
+  **Secondo amministratore**: Flavia Romolo (`f***0@gmail.com`)
   invitata il 2026-09-18 con accesso completo su tutto. **Risulta ancora
   «Non attivo/a»**, cioè l'invito non è stato accettato: finché resta così
   Pagina, account WhatsApp e verifica dipendono ancora da un solo profilo
@@ -1159,9 +1159,9 @@ quella che si legge non è mai quella aggiornata — quindi ne resta una.
 
   | Collaboratore | Profilo agenda | Account |
   |---|---|---|
-  | Flavia Romolo | id 4 | ✅ `flaviaromolo400@gmail.com` |
-  | Raffaella Bozza | id 5 | ✅ `raff8541@gmail.com` |
-  | Vincenzo Romolo | id 6 | ✅ `vincenzoromolo75@gmail.com` |
+  | Flavia Romolo | id 4 | ✅ `f***0@gmail.com` |
+  | Raffaella Bozza | id 5 | ✅ `r***1@gmail.com` |
+  | Vincenzo Romolo | id 6 | ✅ `v***5@gmail.com` |
 
   Password temporanee generate e comunicate a voce, da cambiare al primo accesso
   da Team e accessi. Permessi verificati in produzione per tutti: calendario,
@@ -1857,6 +1857,77 @@ commit**, versione a piè di pagina in **gestionale e portale**, note in
   scritte per chi non è sviluppatore a ogni rilascio (il CHANGELOG usa gli
   oggetti dei commit, in inglese tecnico).
 
+### Segnalazione — 2026-10-06: «nei giorni straordinari non va»
+
+Flavia: per sabato 10/10 un giorno straordinario dalle 07:30 alle 20:00, ma
+«non mi fa fare». Dal log: alle 13:13 apre lo straordinario, dalle 13:15
+gira i giorni del calendario.
+
+- [x] **Il calendario ignorava i giorni straordinari.** La griglia partiva
+  sempre alle 08:00: le 07:30 non si vedevano né si prenotavano, e una
+  cliente presa online alle 07:30 (il portale le offriva già) sarebbe finita
+  sopra il bordo, invisibile. Ora il calendario chiede i giorni straordinari
+  della settimana (`GET /api/admin/extra-days?start_date&end_date`, staff) e
+  la griglia parte dall'ora intera del primo inizio in vista — straordinario
+  o appuntamento — e arriva fin dove finisce l'ultimo (la fascia dopo le 19
+  si apre da sola). In testata alla colonna «Straordinario 07:30–20:00»,
+  nell'agenda su telefono una riga per chi ha orari diversi. L'orologio di
+  «Nuovo» comprende le 7 quando la griglia parte alle 7 (13 ore invece di 12).
+  Pagina Collaboratori: aggiungere o togliere uno straordinario aggiorna il
+  calendario senza ricaricare.
+- [x] **Il portale offriva la fascia 19–20 nei giorni straordinari** — le
+  19:00 e le 19:30 di quel sabato, contro la decisione del 29/09. Ora il
+  portale non va oltre le 19 qualunque cosa dicano gli orari
+  (`CHIUSURA_PORTALE` in `availability.py`, su elenco orari, conteggio del
+  calendario e prenotazione); il gestionale resta senza tetto. Le 07:30 il
+  portale continua a offrirle: lo straordinario dice che Flavia lavora.
+  `tests/test_giorni_straordinari.py` (12); falsificato con 7 mutazioni,
+  tutte prese. Suite 919 verde, build ok, verificato nel browser con uno
+  straordinario 07:30–20:00 (giorno, settimana, telefono; prenotazione alle
+  07:30 dal gestionale; giorno normale ancora 08:00–19:00).
+
+### Controllo errori 30/09–06/10 — fatto il 2026-10-06
+
+Sistema sano: 25.999 richieste al backend e **zero** 5xx, worker senza un
+solo avviso, promemoria ogni 15 minuti (4 giri su 576 assenti dal log, a
+salone chiuso e recuperati al giro dopo), 62/62 email consegnate, database
+e Redis puliti, memoria stabile (backend ≤150 MB, worker ≤194 MB). Il
+rallentamento del 30/09 alle 09:44 era la rete del salone, non il server.
+Le due correzioni nate da qui sono nella 1.2.0 (sezione sotto); restano:
+
+- [ ] **Cliente con indirizzo outlook.it bloccata dal 3/10** —
+  `a***7@outlook.it` (account 44), registrata in salone alle 12:51: sei
+  codici email sbagliati, tre nuove registrazioni, mai confermata. L'account
+  è ancora lì, non verificato. Flavia può riconoscerla dall'ora e
+  ricontattarla: rifare la registrazione funziona (ora i limiti sono per
+  persona), oppure la si segna dal gestionale.
+- [ ] **Account doppione del 2/10** — `p***1@gmail.com` (account 40):
+  email confermata, numero mai confermato perché scritto male (…403, il
+  codice l'ha letto un estraneo). La stessa persona si è rifatta due minuti
+  dopo come account 41 con il numero giusto, che è quello vero. Il 40 è da
+  disattivare.
+- [ ] **«Archivia» invece di «Elimina» nella chat** — Flavia ha cancellato
+  22 conversazioni in una settimana (dalla 20 alla 41), quasi tutte poco
+  dopo averle gestite: sembra usarlo come «fatto». Così però perde lo
+  storico con quella cliente, e il messaggio dopo apre una conversazione
+  vuota. Un «Archivia» che le toglie dalla lista senza cancellarle risponde
+  a quello che fa davvero.
+- [ ] **Icone del portale mancanti** — `favicon.ico` e
+  `apple-touch-icon*.png` rispondono 404 (si vede nel log di nginx a ogni
+  visita da iPhone): chi salva il portale sulla schermata Home non ha
+  l'icona del salone.
+- [ ] **L'audit del lunedì resterà rosso fino al prossimo rilascio** —
+  l'esclusione di python-jose (#161) è su `develop`, e l'audit programmato
+  controlla `main`: il 12/10 fallirà per quella. Si risolve da solo col
+  prossimo rilascio (o con una 1.2.1 di sola manutenzione, se dà fastidio).
+- [ ] **Il TODO ha avuto dati personali per intero in un repository
+  pubblico** — i numeri di cinque clienti con nomi e date degli
+  appuntamenti (dal 27/09) e gli indirizzi email personali di Flavia,
+  Raffaella e Vincenzo, che sono anche i loro accessi al gestionale (dal
+  29/07). Mascherati il 6/10, ma restano nella storia di git. Da
+  decidere con Lorenzo: rendere il repository privato, e/o riscrivere la
+  storia (distruttivo: `main` blocca il force push di proposito).
+
 ### Richiesta — 2026-10-06: limiti per persona e numero sulla schermata del codice
 
 Dal controllo errori 30/09–06/10 (nessun guasto di sistema: 0 risposte 5xx
@@ -1894,6 +1965,33 @@ ancora valido».
   ok, migration su/giù/su da vuoto, verificato nel browser (registrazione →
   email → numero → correzione → codice → dentro; login bloccato su
   telefono a 375 px).
+  [PR #159](https://github.com/lorenzomelchionna/gestionale_nsh/pull/159)
+  → `develop`, insieme a
+  [PR #96](https://github.com/lorenzomelchionna/gestionale_nsh/pull/96)
+  di Dependabot (axios 1.19 → **1.20**, chiude le 12 segnalazioni «high»
+  dell'audit del 5/10; più react-query 5.104, react-hook-form 7.89 — non
+  usata da nessuna pagina —, react-router-dom 7.18.4, zustand 5.0.15).
+  Prova in locale della combinazione prima del rilascio: rinnovo della
+  sessione con axios 1.20 (7 × 401 → 7 rinnovi → 7 richieste ripetute, come
+  in produzione), calendario, clienti, chat e prenotazione senza errori.
+  Rilascio **1.2.0** con `release.py prepare`
+  ([PR #160](https://github.com/lorenzomelchionna/gestionale_nsh/pull/160),
+  commit `7669296`); tag e
+  [Release](https://github.com/lorenzomelchionna/gestionale_nsh/releases/tag/v1.2.0)
+  automatici. **Deploy confermato** il 2026-10-06 alle 10:15 UTC: backend,
+  frontend e worker `SUCCESS`; migration `a7d3c9e15f42` applicata
+  all'avvio; `/health` → 1.2.0; bundle con «Numero sbagliato? Correggilo»;
+  `GET /api/public/auth/change-phone` → 405 (la rotta c'è, solo POST).
+  L'unione automatica delle PR è spenta nelle impostazioni del repository
+  (lasciata così).
+- [x] **Audit Python: python-jose 3.5.0 GHSA-3qf3-8w2g-rqmx** (uscita il
+  6/10, nessuna versione corretta). Non raggiungibile: firme HS256 con
+  segreto simmetrico e `algorithms` fissato in `jwt.decode`. Esclusione
+  motivata in `backend/.pip-audit-ignore`,
+  [PR #161](https://github.com/lorenzomelchionna/gestionale_nsh/pull/161)
+  → `develop`, unita il 2026-10-06 (`606d7d4`); arriva su `main` col
+  prossimo rilascio, e l'audit completo gira su quella PR. A lungo termine:
+  passare a PyJWT, mantenuta.
 
 ### Richiesta — 2026-09-29: mezz'ore in calendario, orario 8–19, fascia 19–20 del salone
 
@@ -1933,8 +2031,9 @@ ancora valido».
 
 ### Aperte — 2026-09-29
 
-- [ ] **Dependabot: SQLAlchemy 2.0.51 → 2.1.0**
-  ([PR #146](https://github.com/lorenzomelchionna/gestionale_nsh/pull/146)).
+- [ ] **Dependabot: SQLAlchemy 2.0.51 → 2.1.2**
+  ([PR #158](https://github.com/lorenzomelchionna/gestionale_nsh/pull/158),
+  che dal 5/10 sostituisce la #146 chiusa).
   Salto di versione minore di una libreria su cui poggia tutto il backend:
   da provare a parte (suite completa + migrazioni + un giro nel browser)
   prima di unirla, non da unire perché la CI è verde.
@@ -2039,11 +2138,19 @@ ogni 15 minuti.
   non era più in agenda — non verificabile senza DB, nessun errore nei log
   del worker.
 - [ ] **Numeri che WhatsApp rifiuta (63024) — Flavia li corregge**:
-  Antonio 339 386 3177 (29/09 08:00, promemoria non arrivato), Euplio
-  339 4030 (**incompleto**, 06/10 18:00), Carmine 333 396 1317 (9 e 23/10
-  17:30), Raffaele 377 343 9600, e dal 29/09 **Claudio 339 800 5361** (29/09
-  09:30: né conferma né promemoria arrivati). Segnalati a Lorenzo il
-  2026-09-27 e 29.
+  Antonio (…3177, 29/09 08:00, promemoria non arrivato), Euplio (…4030,
+  **incompleto**: appuntamento il 06/10 alle 18:00, promemoria non
+  arriverà), Carmine (…1317, 9 e 23/10 17:30), Raffaele (…9600), e dal
+  29/09 **Claudio** (…5361, 29/09 09:30: né conferma né promemoria
+  arrivati). Segnalati a Lorenzo il 2026-09-27 e 29. **Dal controllo del
+  6/10, tre in più**: Emilio (…389: conferma e promemoria del 30/09),
+  Liberato (…252: conferma del 02/10), Marilena (…713: conferma e
+  promemoria del 03/10). E Mirella (…035): due messaggi del 03/10 accettati
+  da WhatsApp ma mai consegnati al telefono (stato «sent» da giorni —
+  telefono spento o WhatsApp non più attivo su quel numero).
+  Qui solo nome e ultime cifre: **il repository è pubblico** — i numeri
+  per intero stanno nelle schede del gestionale, ed è da lì che Flavia li
+  corregge.
 
 **Trovato insieme: 4 clienti col numero che WhatsApp rifiuta.** Errore
 Twilio **63024** («destinatario non valido»: il numero non ha WhatsApp o è

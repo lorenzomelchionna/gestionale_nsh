@@ -1875,6 +1875,19 @@ gira i giorni del calendario.
   «Nuovo» comprende le 7 quando la griglia parte alle 7 (13 ore invece di 12).
   Pagina Collaboratori: aggiungere o togliere uno straordinario aggiorna il
   calendario senza ricaricare.
+- [x] **Uno straordinario cambiava la griglia di tutti** (osservazione di
+  Lorenzo, stesso giorno, dopo la 1.2.1). Le righe in comune non si possono
+  togliere — le colonne devono restare allineate — ma ora valgono solo per
+  chi lavora: nelle colonne degli altri le ore aggiunte prima delle 8 sono
+  «Fuori orario» (tinta piatta, non cliccabili); nella colonna di chi ha lo
+  straordinario è fuori orario quello che sta fuori dalle sue fasce, fino
+  alla chiusura (es. 09:00–13:00 → oscurati 8–9 e 13–19). Dopo le 19 resta
+  la fascia del salone, uguale per tutti come deciso il 29/09. In settimana
+  le righe prima delle 8 si aprono solo nel giorno dello straordinario, da
+  quando comincia. L'orologio di «Nuovo» offre le ore prima delle 8 solo se
+  il collaboratore scelto quel giorno comincia prima (cambiando
+  collaboratore l'ora rientra). Verificato nel browser (giorno con due
+  straordinari diversi, clic bloccati e consentiti, orologio, settimana).
 - [x] **Il portale offriva la fascia 19–20 nei giorni straordinari** — le
   19:00 e le 19:30 di quel sabato, contro la decisione del 29/09. Ora il
   portale non va oltre le 19 qualunque cosa dicano gli orari

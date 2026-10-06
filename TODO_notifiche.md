@@ -453,7 +453,7 @@ ancora la Sandbox `+14155238886`), `TWILIO_TEMPLATE_CONFERMA`,
   della visura, copiati lettera per lettera: ragione sociale, sede legale,
   telefono (il **fisso**, non il numero Twilio), sito.
 
-  **Secondo amministratore**: Flavia Romolo (`flaviaromolo400@gmail.com`)
+  **Secondo amministratore**: Flavia Romolo (`f***0@gmail.com`)
   invitata il 2026-09-18 con accesso completo su tutto. **Risulta ancora
   «Non attivo/a»**, cioè l'invito non è stato accettato: finché resta così
   Pagina, account WhatsApp e verifica dipendono ancora da un solo profilo
@@ -1159,9 +1159,9 @@ quella che si legge non è mai quella aggiornata — quindi ne resta una.
 
   | Collaboratore | Profilo agenda | Account |
   |---|---|---|
-  | Flavia Romolo | id 4 | ✅ `flaviaromolo400@gmail.com` |
-  | Raffaella Bozza | id 5 | ✅ `raff8541@gmail.com` |
-  | Vincenzo Romolo | id 6 | ✅ `vincenzoromolo75@gmail.com` |
+  | Flavia Romolo | id 4 | ✅ `f***0@gmail.com` |
+  | Raffaella Bozza | id 5 | ✅ `r***1@gmail.com` |
+  | Vincenzo Romolo | id 6 | ✅ `v***5@gmail.com` |
 
   Password temporanee generate e comunicate a voce, da cambiare al primo accesso
   da Team e accessi. Permessi verificati in produzione per tutti: calendario,
@@ -1857,6 +1857,48 @@ commit**, versione a piè di pagina in **gestionale e portale**, note in
   scritte per chi non è sviluppatore a ogni rilascio (il CHANGELOG usa gli
   oggetti dei commit, in inglese tecnico).
 
+### Controllo errori 30/09–06/10 — fatto il 2026-10-06
+
+Sistema sano: 25.999 richieste al backend e **zero** 5xx, worker senza un
+solo avviso, promemoria ogni 15 minuti (4 giri su 576 assenti dal log, a
+salone chiuso e recuperati al giro dopo), 62/62 email consegnate, database
+e Redis puliti, memoria stabile (backend ≤150 MB, worker ≤194 MB). Il
+rallentamento del 30/09 alle 09:44 era la rete del salone, non il server.
+Le due correzioni nate da qui sono nella 1.2.0 (sezione sotto); restano:
+
+- [ ] **Cliente con indirizzo outlook.it bloccata dal 3/10** —
+  `a***7@outlook.it` (account 44), registrata in salone alle 12:51: sei
+  codici email sbagliati, tre nuove registrazioni, mai confermata. L'account
+  è ancora lì, non verificato. Flavia può riconoscerla dall'ora e
+  ricontattarla: rifare la registrazione funziona (ora i limiti sono per
+  persona), oppure la si segna dal gestionale.
+- [ ] **Account doppione del 2/10** — `p***1@gmail.com` (account 40):
+  email confermata, numero mai confermato perché scritto male (…403, il
+  codice l'ha letto un estraneo). La stessa persona si è rifatta due minuti
+  dopo come account 41 con il numero giusto, che è quello vero. Il 40 è da
+  disattivare.
+- [ ] **«Archivia» invece di «Elimina» nella chat** — Flavia ha cancellato
+  22 conversazioni in una settimana (dalla 20 alla 41), quasi tutte poco
+  dopo averle gestite: sembra usarlo come «fatto». Così però perde lo
+  storico con quella cliente, e il messaggio dopo apre una conversazione
+  vuota. Un «Archivia» che le toglie dalla lista senza cancellarle risponde
+  a quello che fa davvero.
+- [ ] **Icone del portale mancanti** — `favicon.ico` e
+  `apple-touch-icon*.png` rispondono 404 (si vede nel log di nginx a ogni
+  visita da iPhone): chi salva il portale sulla schermata Home non ha
+  l'icona del salone.
+- [ ] **L'audit del lunedì resterà rosso fino al prossimo rilascio** —
+  l'esclusione di python-jose (#161) è su `develop`, e l'audit programmato
+  controlla `main`: il 12/10 fallirà per quella. Si risolve da solo col
+  prossimo rilascio (o con una 1.2.1 di sola manutenzione, se dà fastidio).
+- [ ] **Il TODO ha avuto dati personali per intero in un repository
+  pubblico** — i numeri di cinque clienti con nomi e date degli
+  appuntamenti (dal 27/09) e gli indirizzi email personali di Flavia,
+  Raffaella e Vincenzo, che sono anche i loro accessi al gestionale (dal
+  29/07). Mascherati il 6/10, ma restano nella storia di git. Da
+  decidere con Lorenzo: rendere il repository privato, e/o riscrivere la
+  storia (distruttivo: `main` blocca il force push di proposito).
+
 ### Richiesta — 2026-10-06: limiti per persona e numero sulla schermata del codice
 
 Dal controllo errori 30/09–06/10 (nessun guasto di sistema: 0 risposte 5xx
@@ -1960,8 +2002,9 @@ ancora valido».
 
 ### Aperte — 2026-09-29
 
-- [ ] **Dependabot: SQLAlchemy 2.0.51 → 2.1.0**
-  ([PR #146](https://github.com/lorenzomelchionna/gestionale_nsh/pull/146)).
+- [ ] **Dependabot: SQLAlchemy 2.0.51 → 2.1.2**
+  ([PR #158](https://github.com/lorenzomelchionna/gestionale_nsh/pull/158),
+  che dal 5/10 sostituisce la #146 chiusa).
   Salto di versione minore di una libreria su cui poggia tutto il backend:
   da provare a parte (suite completa + migrazioni + un giro nel browser)
   prima di unirla, non da unire perché la CI è verde.
@@ -2066,11 +2109,19 @@ ogni 15 minuti.
   non era più in agenda — non verificabile senza DB, nessun errore nei log
   del worker.
 - [ ] **Numeri che WhatsApp rifiuta (63024) — Flavia li corregge**:
-  Antonio 339 386 3177 (29/09 08:00, promemoria non arrivato), Euplio
-  339 4030 (**incompleto**, 06/10 18:00), Carmine 333 396 1317 (9 e 23/10
-  17:30), Raffaele 377 343 9600, e dal 29/09 **Claudio 339 800 5361** (29/09
-  09:30: né conferma né promemoria arrivati). Segnalati a Lorenzo il
-  2026-09-27 e 29.
+  Antonio (…3177, 29/09 08:00, promemoria non arrivato), Euplio (…4030,
+  **incompleto**: appuntamento il 06/10 alle 18:00, promemoria non
+  arriverà), Carmine (…1317, 9 e 23/10 17:30), Raffaele (…9600), e dal
+  29/09 **Claudio** (…5361, 29/09 09:30: né conferma né promemoria
+  arrivati). Segnalati a Lorenzo il 2026-09-27 e 29. **Dal controllo del
+  6/10, tre in più**: Emilio (…389: conferma e promemoria del 30/09),
+  Liberato (…252: conferma del 02/10), Marilena (…713: conferma e
+  promemoria del 03/10). E Mirella (…035): due messaggi del 03/10 accettati
+  da WhatsApp ma mai consegnati al telefono (stato «sent» da giorni —
+  telefono spento o WhatsApp non più attivo su quel numero).
+  Qui solo nome e ultime cifre: **il repository è pubblico** — i numeri
+  per intero stanno nelle schede del gestionale, ed è da lì che Flavia li
+  corregge.
 
 **Trovato insieme: 4 clienti col numero che WhatsApp rifiuta.** Errore
 Twilio **63024** («destinatario non valido»: il numero non ha WhatsApp o è

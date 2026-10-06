@@ -14,6 +14,7 @@ codebase already had once.
 from typing import Annotated, Literal, Optional
 
 from fastapi import Request, APIRouter, Depends, HTTPException, status
+from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -25,6 +26,7 @@ from app.models.client import ClientAccount
 from app.models.user import User
 from app.schemas.common import TokenResponse
 from app.schemas.user import UserLogin
+from app.services import phone_verification
 from app.utils.auth import create_access_token, create_refresh_token, verify_password
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
@@ -104,10 +106,12 @@ async def login(
                 LOGIN_BLOCCATO, tipo="client", id_account=account.id,
                 email=maschera_email(account.email), motivo="telefono_non_verificato",
             )
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Numero di telefono non ancora verificato. Inserisci il codice che ti abbiamo inviato su WhatsApp.",
-            )
+            # Con il numero a cui va il codice, da scrivere sulla schermata
+            # del codice: vedi lo stesso punto in `public/auth.py`.
+            return JSONResponse(status_code=status.HTTP_403_FORBIDDEN, content={
+                "detail": "Numero di telefono non ancora verificato. Inserisci il codice che ti abbiamo inviato su WhatsApp.",
+                "phone": await phone_verification.numero_in_verifica(db, account),
+            })
         login_riuscito(tipo="client", id_account=account.id, email=account.email)
         return SignInResponse(
             # `type` is what keeps this token off the staff routes.

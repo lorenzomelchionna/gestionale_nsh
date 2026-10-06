@@ -148,6 +148,38 @@ class PhoneVerificationRequired(BaseModel):
     """
     phone_verification_required: bool = True
     whatsapp_sent: bool = True
+    # Il numero a cui è partito il codice, per scriverlo sullo schermo: chi
+    # ha sbagliato una cifra se ne accorge solo vedendolo. Qui si può dire
+    # perché chi chiama ha appena dimostrato l'indirizzo; il rinvio
+    # (`PhoneResendResult`) invece non lo dice, perché chiederlo basta
+    # conoscere un'email.
+    phone: Optional[str] = None
+
+
+class PhoneChange(BaseModel):
+    """«Numero sbagliato? Correggilo» dalla schermata del codice WhatsApp.
+
+    La password e non un token: a questo punto la sessione non c'è ancora
+    (arriva solo dopo il codice), e chi è sullo schermo l'ha appena scritta —
+    per registrarsi o per entrare. È anche ciò che impedisce a chi conosce
+    solo l'indirizzo di dirottare i codici su un numero suo.
+    """
+    email: EmailStr
+    password: str
+    phone: str
+
+    @field_validator("phone")
+    @classmethod
+    def normalise_phone(cls, value: str) -> str:
+        normalised = to_e164(value)
+        if normalised is None:
+            raise ValueError("Il numero di telefono è obbligatorio")
+        return normalised
+
+
+class PhoneChangeResult(BaseModel):
+    whatsapp_sent: bool
+    phone: str
 
 
 class PhoneVerification(BaseModel):

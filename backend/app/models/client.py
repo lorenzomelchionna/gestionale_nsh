@@ -33,6 +33,12 @@ class ClientAccount(Base):
     phone_verification_code_hash: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     phone_verification_expires: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     phone_verification_attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # Il numero corretto dalla schermata del codice («Numero sbagliato?»), in
+    # attesa di prova. Sta qui e non sulla scheda finché il codice non torna:
+    # la scheda può essere quella del salone, adottata per email, e
+    # scriverci sopra un numero mai verificato vorrebbe dire mandare
+    # conferme e promemoria a chiunque sia stato digitato per sbaglio.
+    phone_pending: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

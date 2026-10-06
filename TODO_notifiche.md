@@ -1857,6 +1857,44 @@ commit**, versione a piè di pagina in **gestionale e portale**, note in
   scritte per chi non è sviluppatore a ogni rilascio (il CHANGELOG usa gli
   oggetti dei commit, in inglese tecnico).
 
+### Richiesta — 2026-10-06: limiti per persona e numero sulla schermata del codice
+
+Dal controllo errori 30/09–06/10 (nessun guasto di sistema: 0 risposte 5xx
+su 25.999, worker senza errori, 62/62 email consegnate). Problemi veri tutti
+nella registrazione. Delle quattro correzioni proposte Lorenzo ha scelto
+queste due; scartate «codice nell'oggetto dell'email» e «codice precedente
+ancora valido».
+
+- [x] **Limiti per indirizzo email, non solo per IP.** Il 3/10 il Wi-Fi del
+  salone (un IP solo) ha fatto da secchio comune: una cliente bloccata sul
+  codice ha esaurito i rinvii di tutte, e alle 13:22 un iPhone sullo stesso
+  Wi-Fi è stato respinto alla registrazione. Ora ogni rotta della
+  registrazione ha due tetti — stretto per indirizzo (`per_email` in
+  `app/rate_limit.py`, impronta HMAC dell'email minuscola: niente indirizzi
+  in chiaro nel log di slowapi né in Redis) e largo per IP contro i cicli:
+  register 5/h + 20/h, verify-email e verify-phone 10/min + 30/min,
+  resend-code 3/h + 20/h, resend-phone-code 3/h + 10/h (WhatsApp: costa e
+  rovina la reputazione del numero), forgot-password 3/h + 10/h. Login e
+  prenotazione senza account restano per IP. Il 429 nel log dice quale
+  tetto (`chiave=email|ip`, email mascherata).
+- [x] **Numero sulla schermata del codice WhatsApp + «Numero sbagliato?
+  Correggilo».** Il 2/10 una cliente ha scritto male il numero: il codice
+  l'ha letto un estraneo e lei ha dovuto rifare tutto con un'altra email.
+  Ora la schermata dice «…su WhatsApp al +39 335 111 2233» (dalla risposta
+  di verify-email o del login bloccato — mai dal rinvio, che chiunque può
+  chiedere con un indirizzo) e il numero si corregge con
+  `POST /api/public/auth/change-phone` (email + password, solo prima della
+  conferma del numero). Il numero nuovo aspetta in
+  `client_accounts.phone_pending` (migration `a7d3c9e15f42`) e passa sulla
+  scheda solo quando torna il codice — la scheda può essere quella del
+  salone, adottata per email. Utile anche quando il codice parte al numero
+  della scheda del salone (magari il fisso) invece che a quello scritto.
+  `tests/test_limiti_per_persona.py` (17) e `tests/test_cambio_numero.py`
+  (17); falsificato con 13 mutazioni, tutte prese. Suite 907 verde, build
+  ok, migration su/giù/su da vuoto, verificato nel browser (registrazione →
+  email → numero → correzione → codice → dentro; login bloccato su
+  telefono a 375 px).
+
 ### Richiesta — 2026-09-29: mezz'ore in calendario, orario 8–19, fascia 19–20 del salone
 
 - [x] Colonna degli orari con **ogni mezz'ora**: «17:30» fra le 17 e le 18,

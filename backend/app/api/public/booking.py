@@ -23,7 +23,7 @@ from app.schemas.waitlist import WaitlistCreate, WaitlistOut
 from app.schemas.common import MessageResponse
 from app.dependencies import get_current_client
 from app.utils.tempo import istante, oggi_salone
-from app.services.availability import busy_slot_offsets, get_available_slots
+from app.services.availability import CHIUSURA_PORTALE, busy_slot_offsets, get_available_slots
 
 router = APIRouter(prefix="", tags=["Public Booking"])
 
@@ -211,7 +211,7 @@ async def public_availability(
 
     slots = await get_available_slots(
         db, collaborator_id, target_date, sum(s.duration_slots for s in services),
-        busy_offsets=busy_slot_offsets(services),
+        busy_offsets=busy_slot_offsets(services), chiusura=CHIUSURA_PORTALE,
     )
     return [s.isoformat() for s in slots]
 
@@ -267,6 +267,7 @@ async def public_availability_calendar(
         else:
             slots = await get_available_slots(
                 db, collaborator_id, day, durata, busy_offsets=posa,
+                chiusura=CHIUSURA_PORTALE,
             )
             out.append(DayAvailability(date=day, slots=len(slots)))
         day += timedelta(days=1)
@@ -332,9 +333,11 @@ async def valida_prenotazione(
     # Same figure the availability endpoints use, summed because a booking may
     # carry several services ("taglio + barba" is two blocks, not one).
     duration_slots = sum(svc.duration_slots for svc in services)
+    # Lo stesso tetto delle 19 dell'elenco degli orari: altrimenti la fascia
+    # che il portale non mostra resterebbe prenotabile con una chiamata a mano.
     slots = await get_available_slots(
         db, collaborator_id, start.date(), duration_slots,
-        busy_offsets=busy_slot_offsets(services),
+        busy_offsets=busy_slot_offsets(services), chiusura=CHIUSURA_PORTALE,
     )
     if start not in slots:
         # Covers every rule get_available_slots already knows: working hours,

@@ -320,6 +320,11 @@ export const deleteExpense = (id: number) =>
 export const getAbsencesInRange = (start_date: string, end_date: string) =>
   api.get<Absence[]>('/admin/absences', { params: { start_date, end_date } }).then(r => r.data)
 
+/** I giorni straordinari di tutti i collaboratori nell'intervallo, per la
+    griglia del calendario (che altrimenti partirebbe sempre alle 8). */
+export const getExtraDaysInRange = (start_date: string, end_date: string) =>
+  api.get<ExtraWorkDay[]>('/admin/extra-days', { params: { start_date, end_date } }).then(r => r.data)
+
 export const getAbsences = (collaborator_id: number) =>
   api.get<Absence[]>(`/admin/absences/${collaborator_id}`).then(r => r.data)
 

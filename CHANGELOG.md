@@ -8,6 +8,12 @@ cambiamento incompatibile il primo.
 Le voci le scrive `scripts/release.py prepare` dai commit di ogni rilascio;
 vedi «CI e flusso di rilascio» in `CLAUDE.md`.
 
+## [1.2.0] — 2026-10-06
+
+### Novità
+
+- auth: rate limits per email address, phone shown and correctable on the WhatsApp code screen
+
 ## [1.1.0] — 2026-09-29
 
 ### Novità

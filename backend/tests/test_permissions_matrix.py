@@ -151,6 +151,9 @@ EXPECTED_GUARDS = {
     # portare un token, quindi il controllo è il codice WhatsApp, non un guard.
     ("POST", "/api/public/auth/verify-phone"): "public",
     ("POST", "/api/public/auth/resend-phone-code"): "public",
+    # «Numero sbagliato?»: pubblica perché la sessione non c'è ancora, ma
+    # chiede la password — vedi `change_phone`.
+    ("POST", "/api/public/auth/change-phone"): "public",
     ("POST", "/api/public/auth/reset-password"): "public",
     ("GET", "/api/public/availability"): "public",
     ("GET", "/api/public/availability/calendar"): "public",

@@ -41,6 +41,7 @@ LIMITE_SUPERATO = "limite_superato"
 REGISTRAZIONE = "registrazione"
 EMAIL_VERIFICATA = "email_verificata"
 TELEFONO_VERIFICATO = "telefono_verificato"
+NUMERO_CORRETTO = "numero_corretto"        # «Numero sbagliato?» prima del codice
 VERIFICA_FALLITA = "verifica_fallita"
 RESET_CHIESTO = "reset_password_chiesto"
 RESET_ESEGUITO = "reset_password_eseguito"

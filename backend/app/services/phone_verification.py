@@ -14,13 +14,17 @@ client they have never met.
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from app.models.client import ClientAccount
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.client import Client, ClientAccount
 from app.services.verification_codes import CODE_LENGTH, CODE_TTL_MINUTES, MAX_ATTEMPTS, generate_code
 from app.utils.auth import hash_password, verify_password
 
 __all__ = [
     "CODE_LENGTH", "CODE_TTL_MINUTES", "MAX_ATTEMPTS", "generate_code",
     "issue_code", "VerificationError", "check_code", "is_pending",
+    "numero_in_verifica",
 ]
 
 
@@ -91,3 +95,18 @@ def _expired(moment: datetime) -> bool:
 def is_pending(account: Optional[ClientAccount]) -> bool:
     """True when the address is proven but the number is not yet."""
     return account is not None and account.email_verified and not account.phone_verified
+
+
+async def numero_in_verifica(db: AsyncSession, account: ClientAccount) -> Optional[str]:
+    """Il numero a cui va il codice: quello corretto dalla schermata del
+    codice, se c'è, altrimenti quello della scheda collegata all'account.
+
+    Una regola sola per chi manda il codice e per chi lo scrive sullo
+    schermo — se divergessero, la schermata direbbe un numero e WhatsApp
+    partirebbe verso un altro.
+    """
+    if account.phone_pending:
+        return account.phone_pending
+    return (await db.execute(
+        select(Client.phone).where(Client.account_id == account.id)
+    )).scalar_one_or_none()

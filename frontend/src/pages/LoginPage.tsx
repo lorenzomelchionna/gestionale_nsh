@@ -10,8 +10,9 @@ import { INDIRIZZO, TELEFONO } from '@/config/business'
 import { VERSIONE } from '@/config/version'
 import {
   signIn, clientRegister, verifyEmail, resendVerificationCode,
-  verifyPhone, resendPhoneCode,
+  verifyPhone, resendPhoneCode, changePhone,
 } from '@/services/publicApi'
+import { telefonoLeggibile } from '@/utils/telefono'
 
 /** Deve corrispondere a `MIN_CLIENT_PASSWORD` in `schemas/client.py`. Il
  *  controllo vero sta sul server — questo esiste perché il 422 di Pydantic
@@ -76,6 +77,10 @@ export default function LoginPage() {
     first_name: '', last_name: '', phone: '', birth_date: '',
   })
   const [code, setCode] = useState('')
+  // Il numero a cui è partito il codice WhatsApp, da scrivere sullo schermo:
+  // il 2 ottobre una cliente col numero sbagliato aspettava un codice che
+  // intanto leggeva un estraneo, e la schermata non diceva dove era andato.
+  const [phoneSent, setPhoneSent] = useState<string | null>(null)
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -103,7 +108,9 @@ export default function LoginPage() {
         navigate(next || '/booking')
       }
     } catch (err) {
-      const res = (err as { response?: { status?: number; data?: { detail?: string } } })?.response
+      const res = (err as {
+        response?: { status?: number; data?: { detail?: string; phone?: string | null } }
+      })?.response
       const detail = res?.data?.detail ?? ''
       const bassa = detail.toLowerCase()
       // La password era giusta, manca uno dei due passi. "telefono" prima
@@ -112,6 +119,7 @@ export default function LoginPage() {
       // schermata dell'email, anche quando è il telefono a mancare.
       if (res?.status === 403 && bassa.includes('telefono')) {
         setMode('verify-phone')
+        setPhoneSent(res.data?.phone ?? null)
         setNotice('Ti abbiamo mandato un codice su WhatsApp.')
         resendPhoneCode(email).catch(() => {})
       } else if (res?.status === 403 && bassa.includes('verificat')) {
@@ -185,13 +193,20 @@ export default function LoginPage() {
       // telefono: il codice per quel passo è già partito su WhatsApp.
       setMode('verify-phone')
       setCode('')
+      setPhoneSent(result.phone ?? null)
       if (result.whatsapp_sent) {
         setNotice('Ti abbiamo mandato un codice su WhatsApp.')
+      } else if (!result.phone) {
+        // Nessun numero a cui mandarlo: il blocco per correggerlo è già
+        // aperto qui sotto, ed è l'unica strada.
+        setNotice('')
+        setError('Il tuo indirizzo è confermato. Scrivi qui sotto il numero a cui mandarti il codice su WhatsApp.')
       } else {
         setNotice('')
         setError(
           'Il tuo indirizzo è confermato, ma non siamo riusciti a mandare il codice su ' +
-          'WhatsApp. Riprova fra poco con "Invia un nuovo codice", oppure contatta il salone.'
+          'WhatsApp. Controlla il numero qui sotto, riprova con "Invia un nuovo codice" ' +
+          'oppure contatta il salone.'
         )
       }
     } catch (err) {
@@ -268,11 +283,49 @@ export default function LoginPage() {
     }
   }
 
+  /** «Numero sbagliato? Correggilo». Vero se il numero è cambiato, così il
+   *  blocco si richiude solo quando c'è qualcosa da aspettare. */
+  const handleChangePhone = async (nuovo: string, passwordScritta: string): Promise<boolean> => {
+    setError('')
+    setLoading(true)
+    try {
+      // La password è quella appena scritta per registrarsi o per entrare;
+      // il blocco la chiede solo se questa pagina non la conosce più.
+      const result = await changePhone(email, password || passwordScritta, nuovo)
+      setPhoneSent(result.phone)
+      setCode('')
+      if (result.whatsapp_sent) {
+        setNotice(`Ti abbiamo mandato un nuovo codice su WhatsApp al ${telefonoLeggibile(result.phone)}.`)
+      } else {
+        setNotice('')
+        setError(
+          'Non siamo riusciti a mandare il codice a questo numero. Controllalo e riprova, ' +
+          'oppure contatta il salone.'
+        )
+      }
+      return true
+    } catch (err) {
+      const res = (err as { response?: { status?: number; data?: { detail?: unknown } } })?.response
+      if (res?.status === 422) {
+        setError('Questo numero non sembra valido. Scrivilo come 333 123 4567.')
+      } else if (res?.status === 401) {
+        setError('La password non è giusta. Torna indietro e accedi di nuovo per correggere il numero.')
+      } else {
+        const detail = res?.data?.detail
+        setError(typeof detail === 'string' ? detail : 'Non siamo riusciti a cambiare il numero. Riprova fra poco.')
+      }
+      return false
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const switchMode = (m: Mode) => {
     setMode(m)
     setError('')
     setNotice('')
     setConfirmPassword('')
+    setPhoneSent(null)
   }
 
   return (
@@ -308,7 +361,16 @@ export default function LoginPage() {
             <h1 className="font-heading text-[34px] leading-tight text-foreground">
               {TITLES[mode].title}
             </h1>
-            <p className="note">{TITLES[mode].sub}</p>
+            <p className="note">
+              {mode === 'verify-phone' && phoneSent ? (
+                <>
+                  Abbiamo mandato sei cifre su WhatsApp al{' '}
+                  <strong className="text-foreground font-medium whitespace-nowrap tabular-nums">
+                    {telefonoLeggibile(phoneSent)}
+                  </strong>.
+                </>
+              ) : TITLES[mode].sub}
+            </p>
           </div>
 
           {mode === 'verify' || mode === 'verify-phone' ? (
@@ -322,6 +384,17 @@ export default function LoginPage() {
               onResend={mode === 'verify' ? handleResend : handleResendPhone}
               onBack={() => switchMode('signin')}
               viaEmail={mode === 'verify'}
+              extra={mode === 'verify-phone' ? (
+                <CorreggiNumero
+                  // Si riapre da capo a ogni numero nuovo, e parte aperto se
+                  // un numero non c'è proprio.
+                  key={phoneSent ?? 'nessuno'}
+                  apertoSubito={!phoneSent}
+                  chiediPassword={!password}
+                  loading={loading}
+                  onSubmit={handleChangePhone}
+                />
+              ) : undefined}
             />
           ) : (
             <>
@@ -564,6 +637,8 @@ interface VerifyProps {
   onBack: () => void
   /** Il codice arriva per email: allora si ricorda di guardare lo spam. */
   viaEmail?: boolean
+  /** Sotto il modulo e fuori da esso (un form non ne può contenere un altro). */
+  extra?: React.ReactNode
 }
 
 /**
@@ -573,7 +648,7 @@ interface VerifyProps {
  * hand and their inbox in the other, and anything beyond the code is in the way.
  */
 function VerifyForm({
-  code, setCode, notice, error, loading, onSubmit, onResend, onBack, viaEmail = false,
+  code, setCode, notice, error, loading, onSubmit, onResend, onBack, viaEmail = false, extra,
 }: VerifyProps) {
   return (
     <>
@@ -624,6 +699,8 @@ function VerifyForm({
         </button>
       </form>
 
+      {extra}
+
       <div className="flex items-center justify-between gap-3 border-t border-rule pt-4">
         <button
           type="button"
@@ -642,5 +719,95 @@ function VerifyForm({
         </button>
       </div>
     </>
+  )
+}
+
+/**
+ * «Numero sbagliato? Correggilo», sotto il codice WhatsApp.
+ *
+ * Chiuso è una riga sola: quasi tutti il numero l'hanno scritto giusto, e a
+ * questo punto hanno il telefono in una mano. Il numero nuovo riceve un
+ * codice suo; quello di prima resta sulla scheda finché il codice non torna.
+ */
+function CorreggiNumero({ apertoSubito, chiediPassword, loading, onSubmit }: {
+  apertoSubito: boolean
+  chiediPassword: boolean
+  loading: boolean
+  onSubmit: (numero: string, password: string) => Promise<boolean>
+}) {
+  const [aperto, setAperto] = useState(apertoSubito)
+  const [numero, setNumero] = useState('')
+  const [pwd, setPwd] = useState('')
+
+  if (!aperto) {
+    return (
+      <button
+        type="button"
+        onClick={() => setAperto(true)}
+        className="self-start text-[13px] text-primary-dark hover:underline"
+      >
+        Numero sbagliato? Correggilo
+      </button>
+    )
+  }
+
+  return (
+    <form
+      onSubmit={async e => {
+        e.preventDefault()
+        if (await onSubmit(numero, pwd)) {
+          setAperto(false)
+          setNumero('')
+          setPwd('')
+        }
+      }}
+      className="flex flex-col gap-3 border-l-2 border-primary pl-3.5"
+    >
+      <div>
+        <label htmlFor="nuovo_numero" className="label">Il tuo numero di cellulare</label>
+        <input
+          id="nuovo_numero"
+          className="input"
+          type="tel"
+          inputMode="tel"
+          autoComplete="tel"
+          required
+          placeholder="333 123 4567"
+          value={numero}
+          onChange={e => setNumero(e.target.value)}
+        />
+        <p className="text-xs text-ink-3 mt-1.5">
+          Il codice nuovo arriva su WhatsApp a questo numero.
+        </p>
+      </div>
+      {chiediPassword && (
+        <div>
+          <label htmlFor="password_numero" className="label">La tua password</label>
+          <input
+            id="password_numero"
+            className="input"
+            type="password"
+            autoComplete="current-password"
+            required
+            value={pwd}
+            onChange={e => setPwd(e.target.value)}
+          />
+        </div>
+      )}
+      <div className="flex items-center gap-3">
+        <button
+          type="submit"
+          disabled={loading || numero.replace(/\D/g, '').length < 6}
+          className="btn-primary btn-sm"
+        >
+          Manda il codice
+        </button>
+        {!apertoSubito && (
+          <button type="button" onClick={() => setAperto(false)} className="btn-secondary btn-sm">
+            Annulla
+          </button>
+        )}
+      </div>
+    </form>
   )
 }

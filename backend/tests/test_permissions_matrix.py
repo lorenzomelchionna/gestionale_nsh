@@ -94,6 +94,9 @@ EXPECTED_GUARDS = {
     ("PUT", "/api/admin/expenses/{expense_id}"): "admin",
     ("POST", "/api/admin/extra-days"): "admin",
     ("GET", "/api/admin/extra-days/{collaborator_id}"): "admin",
+    # Per intervallo, per la griglia del calendario: staff, come il
+    # calendario stesso e come l'analoga rotta delle assenze.
+    ("GET", "/api/admin/extra-days"): "staff",
     # Buoni regalo: admin, come tutta la cassa. Un buono è denaro al
     # portatore — chi lo emette decide un incasso, chi lo riscatta decide che
     # un servizio è pagato, e chi lo annulla cancella un credito di qualcuno.

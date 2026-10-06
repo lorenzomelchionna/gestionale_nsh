@@ -574,7 +574,12 @@ function ExtraDaysTab({ collaboratorId }: { collaboratorId: number }) {
     queryFn: () => getExtraWorkDays(collaboratorId),
   })
 
-  const inv = () => qc.invalidateQueries({ queryKey: ['extra-days', collaboratorId] })
+  // Anche il calendario: è da lì che un giorno straordinario si vede, e
+  // senza questo lo mostrerebbe solo dopo aver ricaricato la pagina.
+  const inv = () => {
+    qc.invalidateQueries({ queryKey: ['extra-days', collaboratorId] })
+    qc.invalidateQueries({ queryKey: ['extra-days-range'] })
+  }
 
   const createMut = useMutation({
     mutationFn: () => createExtraWorkDay({

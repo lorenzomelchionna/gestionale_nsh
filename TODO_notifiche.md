@@ -1857,6 +1857,35 @@ commit**, versione a piè di pagina in **gestionale e portale**, note in
   scritte per chi non è sviluppatore a ogni rilascio (il CHANGELOG usa gli
   oggetti dei commit, in inglese tecnico).
 
+### Segnalazione — 2026-10-06: «nei giorni straordinari non va»
+
+Flavia: per sabato 10/10 un giorno straordinario dalle 07:30 alle 20:00, ma
+«non mi fa fare». Dal log: alle 13:13 apre lo straordinario, dalle 13:15
+gira i giorni del calendario.
+
+- [x] **Il calendario ignorava i giorni straordinari.** La griglia partiva
+  sempre alle 08:00: le 07:30 non si vedevano né si prenotavano, e una
+  cliente presa online alle 07:30 (il portale le offriva già) sarebbe finita
+  sopra il bordo, invisibile. Ora il calendario chiede i giorni straordinari
+  della settimana (`GET /api/admin/extra-days?start_date&end_date`, staff) e
+  la griglia parte dall'ora intera del primo inizio in vista — straordinario
+  o appuntamento — e arriva fin dove finisce l'ultimo (la fascia dopo le 19
+  si apre da sola). In testata alla colonna «Straordinario 07:30–20:00»,
+  nell'agenda su telefono una riga per chi ha orari diversi. L'orologio di
+  «Nuovo» comprende le 7 quando la griglia parte alle 7 (13 ore invece di 12).
+  Pagina Collaboratori: aggiungere o togliere uno straordinario aggiorna il
+  calendario senza ricaricare.
+- [x] **Il portale offriva la fascia 19–20 nei giorni straordinari** — le
+  19:00 e le 19:30 di quel sabato, contro la decisione del 29/09. Ora il
+  portale non va oltre le 19 qualunque cosa dicano gli orari
+  (`CHIUSURA_PORTALE` in `availability.py`, su elenco orari, conteggio del
+  calendario e prenotazione); il gestionale resta senza tetto. Le 07:30 il
+  portale continua a offrirle: lo straordinario dice che Flavia lavora.
+  `tests/test_giorni_straordinari.py` (12); falsificato con 7 mutazioni,
+  tutte prese. Suite 919 verde, build ok, verificato nel browser con uno
+  straordinario 07:30–20:00 (giorno, settimana, telefono; prenotazione alle
+  07:30 dal gestionale; giorno normale ancora 08:00–19:00).
+
 ### Controllo errori 30/09–06/10 — fatto il 2026-10-06
 
 Sistema sano: 25.999 richieste al backend e **zero** 5xx, worker senza un

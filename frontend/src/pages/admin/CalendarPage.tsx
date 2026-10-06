@@ -13,10 +13,10 @@ import {
   getAppointments, getCollaborators, confirmAppointment,
   rejectAppointment, completeAppointment, cancelAppointment, checkoutAppointment,
   createAppointment, getClients, getServices, updateAppointment, getAbsences, getBookingConfig,
-  createClient, getAbsencesInRange,
+  createClient, getAbsencesInRange, getExtraDaysInRange,
 } from '@/services/api'
 import { errorText } from '@/components/admin/ClientFormSheet'
-import type { Absence, Appointment, Client, Collaborator } from '@/types'
+import type { Absence, Appointment, Client, Collaborator, ExtraWorkDay } from '@/types'
 import Sheet from '@/components/ui/Sheet'
 import { EmptyState, Segmented } from '@/components/ui'
 import clsx from 'clsx'
@@ -31,9 +31,12 @@ interface DragState {
 
 const SLOT_HEIGHT = 48  // px per 30-min slot
 const HOUR_HEIGHT = SLOT_HEIGHT * 2
-const START_HOUR = 8
-/** Chiusura del salone: fin qui prenotano le clienti (lo decidono gli orari
-    dei collaboratori, 08:00–19:00) e fin qui arriva di base la griglia. */
+/** Apertura del salone: da qui parte di base la griglia. Un giorno
+    straordinario che comincia prima (o un appuntamento che ci cade) la fa
+    partire prima — vedi `startHour` in `CalendarPage`. */
+const OPEN_HOUR = 8
+/** Chiusura del salone: fin qui prenotano le clienti (il portale non va
+    oltre, `CHIUSURA_PORTALE` nel backend) e fin qui arriva di base la griglia. */
 const CLOSE_HOUR = 19
 /** Dopo la chiusura il salone tiene ancora qualche cliente: la fascia fino
     alle 20 si prenota solo da qui, e nella griglia compare quando serve. */
@@ -41,10 +44,12 @@ const LATE_HOUR = 20
 
 const minutiDelGiorno = (d: Date) => d.getHours() * 60 + d.getMinutes()
 
-/** Un appuntamento che sfora la chiusura, anche solo di mezz'ora. */
-const oltreChiusura = (a: Appointment) =>
-  minutiDelGiorno(parseISO(a.end_time)) > CLOSE_HOUR * 60 ||
-  minutiDelGiorno(parseISO(a.start_time)) >= CLOSE_HOUR * 60
+/** «07:30:00» → 450: gli orari dei giorni straordinari, ore di orologio. */
+const minutiOrario = (orario: string) => Number(orario.slice(0, 2)) * 60 + Number(orario.slice(3, 5))
+
+/** «Straordinario 07:30–20:00», come si legge in testata e nell'agenda. */
+const extraDayLabel = (e: ExtraWorkDay) =>
+  `Straordinario ${e.start_time.slice(0, 5)}–${e.end_time.slice(0, 5)}`
 
 const TERMINAL_STATUSES = ['completed', 'cancelled', 'rejected']
 
@@ -71,7 +76,7 @@ function roundUpToSlot(d: Date, slotMin = 30): Date {
  * Find the first free slot for a collaborator, starting from `from`.
  * Skips appointments in non-terminal status. Honors working hours.
  * If the candidate slot overlaps an existing appt, jumps to its end + round up.
- * Wraps to next day's START_HOUR at closing time (CLOSE_HOUR): the
+ * Wraps to next day's OPEN_HOUR at closing time (CLOSE_HOUR): the
  * suggestion stays inside opening hours, the late band is chosen by hand.
  */
 function computeFirstAvailableSlot(
@@ -88,12 +93,12 @@ function computeFirstAvailableSlot(
     .sort((a, b) => parseISO(a.start_time).getTime() - parseISO(b.start_time).getTime())
 
   let candidate = roundUpToSlot(from, slotMin)
-  if (candidate.getHours() < START_HOUR) {
-    candidate.setHours(START_HOUR, 0, 0, 0)
+  if (candidate.getHours() < OPEN_HOUR) {
+    candidate.setHours(OPEN_HOUR, 0, 0, 0)
   }
   while (candidate.getHours() >= CLOSE_HOUR) {
     candidate = addDays(candidate, 1)
-    candidate.setHours(START_HOUR, 0, 0, 0)
+    candidate.setHours(OPEN_HOUR, 0, 0, 0)
   }
 
   // Push past any overlapping appointment
@@ -110,7 +115,7 @@ function computeFirstAvailableSlot(
         candidate = roundUpToSlot(aEnd, slotMin)
         if (candidate.getHours() >= CLOSE_HOUR) {
           candidate = addDays(candidate, 1)
-          candidate.setHours(START_HOUR, 0, 0, 0)
+          candidate.setHours(OPEN_HOUR, 0, 0, 0)
         }
         changed = true
         break
@@ -258,13 +263,36 @@ export default function CalendarPage() {
   const visibleIds = new Set(visibleCollabs.map(c => c.id))
   const absences = (absencesData ?? []).filter(a => visibleIds.has(a.collaborator_id))
 
-  // La griglia finisce alla chiusura. La fascia 19–20 si apre a mano per
-  // prenotarci, e da sola quando c'è già qualcuno: un appuntamento non può
-  // sparire perché cade in un'ora che di solito non si guarda.
+  // I giorni straordinari in vista. Fino al 2026-10-06 la griglia non li
+  // chiedeva: un sabato dalle 07:30 valeva per il portale, che le 07:30 le
+  // offriva, ma qui la griglia partiva comunque alle 8 — l'ora non si vedeva
+  // e non si poteva prenotare, e una cliente presa online alle 07:30 sarebbe
+  // finita sopra il bordo, invisibile.
+  const { data: extraDaysData } = useQuery({
+    queryKey: ['extra-days-range', dateFrom.slice(0, 10), dateTo.slice(0, 10)],
+    queryFn: () => getExtraDaysInRange(dateFrom.slice(0, 10), dateTo.slice(0, 10)),
+  })
+  const extraDays = (extraDaysData ?? []).filter(e => visibleIds.has(e.collaborator_id))
+
+  // La griglia va dall'apertura alla chiusura, e si allarga quanto serve a
+  // non nascondere niente: prima delle 8 se un giorno straordinario o un
+  // appuntamento comincia prima, dopo le 19 se qualcosa finisce dopo. La
+  // fascia dopo la chiusura si apre anche a mano, per prenotarci.
+  const primoInizio = Math.min(
+    OPEN_HOUR * 60,
+    ...extraDays.map(e => minutiOrario(e.start_time)),
+    ...appointments.map(a => minutiDelGiorno(parseISO(a.start_time))),
+  )
+  const ultimaFine = Math.max(
+    CLOSE_HOUR * 60,
+    ...extraDays.map(e => minutiOrario(e.end_time)),
+    ...appointments.map(a => minutiDelGiorno(parseISO(a.end_time))),
+  )
+  const startHour = Math.floor(primoInizio / 60)
   const [lateOpen, setLateOpen] = useState(false)
-  const hasLate = appointments.some(oltreChiusura)
-  const endHour = lateOpen || hasLate ? LATE_HOUR : CLOSE_HOUR
-  const gridHeight = (endHour - START_HOUR) * HOUR_HEIGHT
+  const hasLate = ultimaFine > CLOSE_HOUR * 60
+  const endHour = lateOpen || hasLate ? Math.max(LATE_HOUR, Math.ceil(ultimaFine / 60)) : CLOSE_HOUR
+  const gridHeight = (endHour - startHour) * HOUR_HEIGHT
 
   // Mutations
   const invalidate = () => qc.invalidateQueries({ queryKey: ['appointments'] })
@@ -280,13 +308,13 @@ export default function CalendarPage() {
     const ds = dragState.current
     if (!ds) return
     const snappedMin = Math.floor(relativeY / SLOT_HEIGHT) * 30
-    const clampedMin = Math.max(0, Math.min(snappedMin, (endHour - START_HOUR) * 60 - ds.durationMin))
+    const clampedMin = Math.max(0, Math.min(snappedMin, (endHour - startHour) * 60 - ds.durationMin))
     const start = new Date(dropDate)
-    start.setHours(START_HOUR + Math.floor(clampedMin / 60), clampedMin % 60, 0, 0)
+    start.setHours(startHour + Math.floor(clampedMin / 60), clampedMin % 60, 0, 0)
     const end = addMinutes(start, ds.durationMin)
     setPendingMove({ id: ds.id, start, end, collaboratorId, originalCollaboratorId: ds.collaboratorId })
     dragState.current = null
-  }, [endHour])
+  }, [endHour, startHour])
 
   // Drop on top of another appointment → start exactly at its end (no snap)
   const handleDropOnAppointment = useCallback((targetAppt: Appointment) => {
@@ -345,7 +373,7 @@ export default function CalendarPage() {
 
   // Time → Y position
   const timeToY = (dt: Date) => {
-    const totalMin = dt.getHours() * 60 + dt.getMinutes() - START_HOUR * 60
+    const totalMin = dt.getHours() * 60 + dt.getMinutes() - startHour * 60
     return (totalMin / 30) * SLOT_HEIGHT
   }
 
@@ -435,7 +463,7 @@ export default function CalendarPage() {
               aria-pressed={endHour === LATE_HOUR}
               className={clsx('segmented-item', endHour === LATE_HOUR && 'segmented-item-active')}
               title={hasLate
-                ? "C'è un appuntamento dopo le 19: la fascia resta visibile"
+                ? "Nei giorni in vista c'è un appuntamento o un giorno straordinario dopo le 19: la fascia resta visibile"
                 : 'Mostra la fascia 19–20, prenotabile solo dal salone'}
             >
               Dopo le 19
@@ -468,6 +496,7 @@ export default function CalendarPage() {
         date={currentDate}
         appointments={appointments}
         absences={absences}
+        extraDays={extraDays}
         collaborators={visibleCollabs}
         onAppointmentClick={setSelectedAppointment}
         onCreate={openCreate}
@@ -483,7 +512,7 @@ export default function CalendarPage() {
                 dell'ora; l'ultima è il bordo della griglia, cioè la chiusura
                 (o le 20 con la fascia aperta). */}
             <div className="relative" style={{ height: gridHeight }}>
-              {Array.from({ length: (endHour - START_HOUR) * 2 + 1 }, (_, i) => {
+              {Array.from({ length: (endHour - startHour) * 2 + 1 }, (_, i) => {
                 const mezza = i % 2 === 1
                 return (
                   <div
@@ -494,7 +523,7 @@ export default function CalendarPage() {
                     )}
                     style={{ top: i * SLOT_HEIGHT }}
                   >
-                    {String(START_HOUR + Math.floor(i / 2)).padStart(2, '0')}:{mezza ? '30' : '00'}
+                    {String(startHour + Math.floor(i / 2)).padStart(2, '0')}:{mezza ? '30' : '00'}
                   </div>
                 )
               })}
@@ -512,6 +541,8 @@ export default function CalendarPage() {
                   date={currentDate}
                   appointments={appointments.filter(a => a.collaborator_id === collab.id)}
                   absences={absences.filter(a => a.collaborator_id === collab.id)}
+                  extraDays={extraDays.filter(e => e.collaborator_id === collab.id)}
+                  startHour={startHour}
                   gridHeight={gridHeight}
                   timeToY={timeToY}
                   durationToH={durationToH}
@@ -534,6 +565,7 @@ export default function CalendarPage() {
                   collaborators={visibleCollabs}
                   appointments={appointments.filter(a => isSameDay(parseISO(a.start_time), day))}
                   absences={absences}
+                  startHour={startHour}
                   gridHeight={gridHeight}
                   timeToY={timeToY}
                   durationToH={durationToH}
@@ -573,6 +605,7 @@ export default function CalendarPage() {
           initialSlot={newApptSlot}
           collaborators={collaborators}
           closedWeekdays={bookingConfig?.closed_weekdays ?? [0, 1]}
+          firstHour={startHour}
           onClose={() => { setShowCreateModal(false); setNewApptSlot(null) }}
           onCreated={() => { invalidate(); setShowCreateModal(false); setNewApptSlot(null) }}
         />
@@ -635,11 +668,13 @@ export default function CalendarPage() {
 
 // ── Day column ────────────────────────────────────────────────────
 
-function DayColumn({ collaborator, date, appointments, absences, gridHeight, timeToY, durationToH, onSlotClick, onAppointmentClick, dragState, didDrag, onDrop, onDropOnAppointment }: {
+function DayColumn({ collaborator, date, appointments, absences, extraDays, startHour, gridHeight, timeToY, durationToH, onSlotClick, onAppointmentClick, dragState, didDrag, onDrop, onDropOnAppointment }: {
   collaborator: Collaborator
   date: Date
   appointments: Appointment[]
   absences: Absence[]
+  extraDays: ExtraWorkDay[]
+  startHour: number
   gridHeight: number
   timeToY: (d: Date) => number
   durationToH: (s: Date, e: Date) => number
@@ -651,6 +686,7 @@ function DayColumn({ collaborator, date, appointments, absences, gridHeight, tim
   onDropOnAppointment: (target: Appointment) => void
 }) {
   const fullDayAbsence = absencesOn(absences, date).find(isFullDay)
+  const straordinario = extraDays.find(e => e.date === format(date, 'yyyy-MM-dd'))
   return (
     <div className="flex-1 min-w-[120px] border-l border-rule">
       {/* Header — the band names the column; the rules separate it. */}
@@ -663,6 +699,12 @@ function DayColumn({ collaborator, date, appointments, absences, gridHeight, tim
         {fullDayAbsence ? (
           <span className="text-[11px] leading-tight text-ink-2 font-medium truncate">
             {absenceLabel(fullDayAbsence)}
+          </span>
+        ) : straordinario ? (
+          // Che l'orario di quel giorno è diverso dal solito si dice qui: è
+          // la prova, per chi lo ha impostato, che il calendario lo sa.
+          <span className="text-[11px] leading-tight text-primary-dark font-medium truncate">
+            {extraDayLabel(straordinario)}
           </span>
         ) : (
           <span className="text-[11px] leading-tight text-ink-3 truncate">
@@ -681,7 +723,7 @@ function DayColumn({ collaborator, date, appointments, absences, gridHeight, tim
           const totalMin = (y / SLOT_HEIGHT) * 30
           const slotMin = Math.floor(totalMin / 30) * 30
           const slotDate = new Date(date)
-          slotDate.setHours(START_HOUR + Math.floor(slotMin / 60), slotMin % 60, 0, 0)
+          slotDate.setHours(startHour + Math.floor(slotMin / 60), slotMin % 60, 0, 0)
           onSlotClick(slotDate)
         }}
         onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move' }}
@@ -700,7 +742,7 @@ function DayColumn({ collaborator, date, appointments, absences, gridHeight, tim
             style={{ top: i * SLOT_HEIGHT }}
           />
         ))}
-        <AfterClosingBand gridHeight={gridHeight} />
+        <AfterClosingBand startHour={startHour} gridHeight={gridHeight} />
         <NowRule date={date} timeToY={timeToY} gridHeight={gridHeight} />
         {absencesOn(absences, date).map(a => (
           <AbsenceBlock key={a.id} absence={a} date={date} gridHeight={gridHeight} timeToY={timeToY} />
@@ -759,8 +801,8 @@ function DayColumn({ collaborator, date, appointments, absences, gridHeight, tim
  * prenotazione del salone. Non intercetta i clic, così un clic nella fascia
  * apre «nuovo appuntamento» come ovunque.
  */
-function AfterClosingBand({ gridHeight }: { gridHeight: number }) {
-  const top = (CLOSE_HOUR - START_HOUR) * HOUR_HEIGHT
+function AfterClosingBand({ startHour, gridHeight }: { startHour: number; gridHeight: number }) {
+  const top = (CLOSE_HOUR - startHour) * HOUR_HEIGHT
   if (gridHeight <= top) return null
   return (
     <div
@@ -878,11 +920,12 @@ function AbsenceBlock({ absence, date, gridHeight, timeToY, who, stackIndex = 0 
  * hours that actually have something in them instead of 12 hours of blank grid.
  */
 function AgendaView({
-  date, appointments, absences, collaborators, onAppointmentClick, onCreate,
+  date, appointments, absences, extraDays, collaborators, onAppointmentClick, onCreate,
 }: {
   date: Date
   appointments: Appointment[]
   absences: Absence[]
+  extraDays: ExtraWorkDay[]
   collaborators: Collaborator[]
   onAppointmentClick: (a: Appointment) => void
   onCreate: () => void
@@ -893,6 +936,8 @@ function AgendaView({
 
   const collabById = new Map(collaborators.map(c => [c.id, c]))
   const dayAbsences = absencesOn(absences, date)
+  const giorno = format(date, 'yyyy-MM-dd')
+  const dayExtras = extraDays.filter(e => e.date === giorno)
 
   return (
     <div className="lg:hidden flex-1">
@@ -910,6 +955,20 @@ function AgendaView({
                 {collabById.get(a.collaborator_id)?.first_name}
               </span>
               {' · '}{absenceLabel(a)}
+            </div>
+          ))}
+        </div>
+      )}
+      {/* Orari diversi dal solito, subito sotto: dicono chi comincia prima
+          o finisce dopo, che in una lista di soli appuntamenti non si vede. */}
+      {dayExtras.length > 0 && (
+        <div className="space-y-2 mb-2">
+          {dayExtras.map(e => (
+            <div key={e.id} className="p-3 border border-border border-l-2 border-l-primary text-ink-2 text-[14px]">
+              <span className="font-heading text-[16px] text-foreground">
+                {collabById.get(e.collaborator_id)?.first_name}
+              </span>
+              {' · '}{extraDayLabel(e)}
             </div>
           ))}
         </div>
@@ -990,11 +1049,12 @@ function AgendaView({
 
 // ── Week day column ───────────────────────────────────────────────
 
-function WeekDayColumn({ date, collaborators, appointments, absences, gridHeight, timeToY, durationToH, onSlotClick, onAppointmentClick, dragState, didDrag, onDrop, onDropOnAppointment }: {
+function WeekDayColumn({ date, collaborators, appointments, absences, startHour, gridHeight, timeToY, durationToH, onSlotClick, onAppointmentClick, dragState, didDrag, onDrop, onDropOnAppointment }: {
   date: Date
   collaborators: Collaborator[]
   appointments: Appointment[]
   absences: Absence[]
+  startHour: number
   gridHeight: number
   timeToY: (d: Date) => number
   durationToH: (s: Date, e: Date) => number
@@ -1029,7 +1089,7 @@ function WeekDayColumn({ date, collaborators, appointments, absences, gridHeight
           const totalMin = (y / SLOT_HEIGHT) * 30
           const slotMin = Math.floor(totalMin / 30) * 30
           const slotDate = new Date(date)
-          slotDate.setHours(START_HOUR + Math.floor(slotMin / 60), slotMin % 60, 0, 0)
+          slotDate.setHours(startHour + Math.floor(slotMin / 60), slotMin % 60, 0, 0)
           onSlotClick(slotDate)
         }}
         onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move' }}
@@ -1044,7 +1104,7 @@ function WeekDayColumn({ date, collaborators, appointments, absences, gridHeight
         {Array.from({ length: gridHeight / SLOT_HEIGHT }, (_, i) => (
           <div key={i} className={clsx('absolute left-0 right-0 border-t', i % 2 === 0 ? 'border-rule' : 'border-rule-soft')} style={{ top: i * SLOT_HEIGHT }} />
         ))}
-        <AfterClosingBand gridHeight={gridHeight} />
+        <AfterClosingBand startHour={startHour} gridHeight={gridHeight} />
         <NowRule date={date} timeToY={timeToY} gridHeight={gridHeight} />
         {/* Nella settimana i collaboratori condividono la colonna: le giornate
             intere diventano una striscia in cima, non un velo su tutto il giorno. */}
@@ -1497,10 +1557,13 @@ function AppointmentModal({
 
 // ── Create appointment modal ──────────────────────────────────────
 
-function CreateAppointmentModal({ initialSlot, collaborators, closedWeekdays, onClose, onCreated }: {
+function CreateAppointmentModal({ initialSlot, collaborators, closedWeekdays, firstHour, onClose, onCreated }: {
   initialSlot: { date: Date; collaboratorId: number } | null
   collaborators: Collaborator[]
   closedWeekdays: number[]
+  /** La prima ora dell'orologio: quella da cui parte la griglia, cioè le 7
+      se nei giorni in vista c'è uno straordinario dalle 07:30. */
+  firstHour: number
   onClose: () => void
   onCreated: () => void
 }) {
@@ -1546,6 +1609,11 @@ function CreateAppointmentModal({ initialSlot, collaborators, closedWeekdays, on
   const [calMonth, setCalMonth] = useState<Date>(startOfMonth(initDate))
   const [hours, setHours] = useState(String(initDate.getHours()))
   const [minutes, setMinutes] = useState(String(Math.floor(initDate.getMinutes() / 30) * 30))
+  // Le ore dell'orologio, dalla prima della griglia all'ultima prenotabile
+  // dal salone. Di solito 8–19, cioè dodici come su un quadrante; con uno
+  // straordinario dalle 07:30 sono tredici, e il passo si stringe.
+  const ore = Array.from({ length: LATE_HOUR - firstHour }, (_, i) => i + firstHour)
+  const passo = 360 / ore.length
 
   const startTime = useMemo(() => {
     const h = hours.padStart(2, '0')
@@ -1923,8 +1991,8 @@ function CreateAppointmentModal({ initialSlot, collaborators, closedWeekdays, on
                 {/* SVG hand */}
                 <svg className="absolute inset-0 w-full h-full pointer-events-none">
                   {(() => {
-                    const idx = Number(hours) - START_HOUR
-                    const angle = (idx * 30 - 90) * (Math.PI / 180)
+                    const idx = Number(hours) - firstHour
+                    const angle = (idx * passo - 90) * (Math.PI / 180)
                     const x2 = 96 + 54 * Math.cos(angle)
                     const y2 = 96 + 54 * Math.sin(angle)
                     return (
@@ -1937,8 +2005,8 @@ function CreateAppointmentModal({ initialSlot, collaborators, closedWeekdays, on
                   })()}
                 </svg>
                 {/* Hour buttons */}
-                {Array.from({ length: LATE_HOUR - START_HOUR }, (_, i) => i + START_HOUR).map((h, i) => {
-                  const angle = (i * 30 - 90) * (Math.PI / 180)
+                {ore.map((h, i) => {
+                  const angle = (i * passo - 90) * (Math.PI / 180)
                   const x = 96 + 72 * Math.cos(angle)
                   const y = 96 + 72 * Math.sin(angle)
                   const sel = Number(hours) === h

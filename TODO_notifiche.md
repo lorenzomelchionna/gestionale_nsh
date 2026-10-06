@@ -1894,6 +1894,31 @@ ancora valido».
   ok, migration su/giù/su da vuoto, verificato nel browser (registrazione →
   email → numero → correzione → codice → dentro; login bloccato su
   telefono a 375 px).
+  [PR #159](https://github.com/lorenzomelchionna/gestionale_nsh/pull/159)
+  → `develop`, insieme a
+  [PR #96](https://github.com/lorenzomelchionna/gestionale_nsh/pull/96)
+  di Dependabot (axios 1.19 → **1.20**, chiude le 12 segnalazioni «high»
+  dell'audit del 5/10; più react-query 5.104, react-hook-form 7.89 — non
+  usata da nessuna pagina —, react-router-dom 7.18.4, zustand 5.0.15).
+  Prova in locale della combinazione prima del rilascio: rinnovo della
+  sessione con axios 1.20 (7 × 401 → 7 rinnovi → 7 richieste ripetute, come
+  in produzione), calendario, clienti, chat e prenotazione senza errori.
+  Rilascio **1.2.0** con `release.py prepare`
+  ([PR #160](https://github.com/lorenzomelchionna/gestionale_nsh/pull/160),
+  commit `7669296`); tag e
+  [Release](https://github.com/lorenzomelchionna/gestionale_nsh/releases/tag/v1.2.0)
+  automatici. **Deploy confermato** il 2026-10-06 alle 10:15 UTC: backend,
+  frontend e worker `SUCCESS`; migration `a7d3c9e15f42` applicata
+  all'avvio; `/health` → 1.2.0; bundle con «Numero sbagliato? Correggilo»;
+  `GET /api/public/auth/change-phone` → 405 (la rotta c'è, solo POST).
+  L'unione automatica delle PR è spenta nelle impostazioni del repository
+  (lasciata così).
+- [ ] **Audit Python: python-jose 3.5.0 GHSA-3qf3-8w2g-rqmx** (uscita il
+  6/10, nessuna versione corretta). Non raggiungibile: firme HS256 con
+  segreto simmetrico e `algorithms` fissato in `jwt.decode`. Esclusione
+  motivata in `backend/.pip-audit-ignore`,
+  [PR #161](https://github.com/lorenzomelchionna/gestionale_nsh/pull/161)
+  → `develop`, da unire. A lungo termine: passare a PyJWT.
 
 ### Richiesta — 2026-09-29: mezz'ore in calendario, orario 8–19, fascia 19–20 del salone
 

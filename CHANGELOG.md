@@ -8,6 +8,12 @@ cambiamento incompatibile il primo.
 Le voci le scrive `scripts/release.py prepare` dai commit di ogni rilascio;
 vedi «CI e flusso di rilascio» in `CLAUDE.md`.
 
+## [1.2.1] — 2026-10-06
+
+### Correzioni
+
+- calendar: extra working days start the grid early; portal never books past 19:00
+
 ## [1.2.0] — 2026-10-06
 
 ### Novità

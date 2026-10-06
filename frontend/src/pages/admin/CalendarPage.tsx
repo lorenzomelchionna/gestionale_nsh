@@ -1,8 +1,8 @@
-import React, { useState, useMemo, useCallback, useRef } from 'react'
+import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   format, addDays, startOfWeek, isSameDay, parseISO, addMinutes, differenceInMinutes,
-  startOfMonth, getDaysInMonth, isWithinInterval, startOfDay, endOfDay, addMonths, subMonths
+  startOfMonth, endOfMonth, getDaysInMonth, isWithinInterval, startOfDay, endOfDay, addMonths, subMonths
 } from 'date-fns'
 import { it } from 'date-fns/locale'
 import {
@@ -46,6 +46,40 @@ const minutiDelGiorno = (d: Date) => d.getHours() * 60 + d.getMinutes()
 
 /** «07:30:00» → 450: gli orari dei giorni straordinari, ore di orologio. */
 const minutiOrario = (orario: string) => Number(orario.slice(0, 2)) * 60 + Number(orario.slice(3, 5))
+
+/**
+ * Dove la colonna di un collaboratore è «fuori orario», in minuti dalla
+ * mezzanotte: solo quello che uno straordinario cambia, e solo per chi ce
+ * l'ha.
+ *
+ * Le righe in comune della griglia non si possono togliere — le colonne
+ * devono restare allineate — quindi uno straordinario dalle 07:30 aggiunge
+ * le 7 per tutti. Ma lavora solo chi ce l'ha: nelle colonne degli altri
+ * quelle righe sono fuori orario, e nella sua lo è quello che sta fuori
+ * dalle sue fasce, fino alla chiusura. Dopo le 19 resta la fascia del
+ * salone, uguale per tutti (decisione del 2026-09-29).
+ *
+ * `straordinari` sono quelli del collaboratore per quel giorno. Senza, si
+ * oscurano solo le righe prima delle 8: un giorno qualunque resta com'era.
+ */
+function fuoriOrario(straordinari: ExtraWorkDay[], startHour: number): [number, number][] {
+  const inizioGriglia = startHour * 60
+  const chiusura = CLOSE_HOUR * 60
+  if (straordinari.length === 0) {
+    return inizioGriglia < OPEN_HOUR * 60 ? [[inizioGriglia, OPEN_HOUR * 60]] : []
+  }
+  const fasce = straordinari
+    .map(e => [minutiOrario(e.start_time), minutiOrario(e.end_time)] as [number, number])
+    .sort((x, y) => x[0] - y[0])
+  const fuori: [number, number][] = []
+  let cursore = inizioGriglia
+  for (const [da, a] of fasce) {
+    if (da > cursore) fuori.push([cursore, Math.min(da, chiusura)])
+    cursore = Math.max(cursore, a)
+  }
+  if (cursore < chiusura) fuori.push([cursore, chiusura])
+  return fuori.filter(([da, a]) => a > da)
+}
 
 /** «Straordinario 07:30–20:00», come si legge in testata e nell'agenda. */
 const extraDayLabel = (e: ExtraWorkDay) =>
@@ -565,6 +599,7 @@ export default function CalendarPage() {
                   collaborators={visibleCollabs}
                   appointments={appointments.filter(a => isSameDay(parseISO(a.start_time), day))}
                   absences={absences}
+                  extraDays={extraDays}
                   startHour={startHour}
                   gridHeight={gridHeight}
                   timeToY={timeToY}
@@ -605,7 +640,6 @@ export default function CalendarPage() {
           initialSlot={newApptSlot}
           collaborators={collaborators}
           closedWeekdays={bookingConfig?.closed_weekdays ?? [0, 1]}
-          firstHour={startHour}
           onClose={() => { setShowCreateModal(false); setNewApptSlot(null) }}
           onCreated={() => { invalidate(); setShowCreateModal(false); setNewApptSlot(null) }}
         />
@@ -686,7 +720,8 @@ function DayColumn({ collaborator, date, appointments, absences, extraDays, star
   onDropOnAppointment: (target: Appointment) => void
 }) {
   const fullDayAbsence = absencesOn(absences, date).find(isFullDay)
-  const straordinario = extraDays.find(e => e.date === format(date, 'yyyy-MM-dd'))
+  const suoiStraordinari = extraDays.filter(e => e.date === format(date, 'yyyy-MM-dd'))
+  const straordinario = suoiStraordinari[0]
   return (
     <div className="flex-1 min-w-[120px] border-l border-rule">
       {/* Header — the band names the column; the rules separate it. */}
@@ -743,6 +778,9 @@ function DayColumn({ collaborator, date, appointments, absences, extraDays, star
           />
         ))}
         <AfterClosingBand startHour={startHour} gridHeight={gridHeight} />
+        {fuoriOrario(suoiStraordinari, startHour).map(([da, a]) => (
+          <OffHoursBlock key={da} da={da} a={a} startHour={startHour} />
+        ))}
         <NowRule date={date} timeToY={timeToY} gridHeight={gridHeight} />
         {absencesOn(absences, date).map(a => (
           <AbsenceBlock key={a.id} absence={a} date={date} gridHeight={gridHeight} timeToY={timeToY} />
@@ -814,6 +852,31 @@ function AfterClosingBand({ startHour, gridHeight }: { startHour: number; gridHe
       <span className="block px-1.5 pt-0.5 text-[11px] leading-tight italic text-ink-3 break-words">
         Oltre chiusura
       </span>
+    </div>
+  )
+}
+
+/**
+ * Un tratto di colonna fuori orario. Tinta piatta come la fascia dopo la
+ * chiusura, ma senza filo in cima e senza clic: lì il salone prenota, qui
+ * nessuno lavora. Prenotare comunque si può dal pulsante «Nuovo», non per
+ * sbaglio dalla griglia.
+ */
+function OffHoursBlock({ da, a, startHour }: { da: number; a: number; startHour: number }) {
+  const top = ((da - startHour * 60) / 30) * SLOT_HEIGHT
+  const height = ((a - da) / 30) * SLOT_HEIGHT
+  return (
+    <div
+      className="absolute left-0 right-0 z-[4] bg-ink-3/[0.12] cursor-not-allowed"
+      style={{ top, height }}
+      title="Fuori orario"
+      onClick={e => e.stopPropagation()}
+    >
+      {height >= 24 && (
+        <span className="block px-1.5 pt-0.5 text-[11px] leading-tight italic text-ink-3 truncate">
+          Fuori orario
+        </span>
+      )}
     </div>
   )
 }
@@ -1049,11 +1112,12 @@ function AgendaView({
 
 // ── Week day column ───────────────────────────────────────────────
 
-function WeekDayColumn({ date, collaborators, appointments, absences, startHour, gridHeight, timeToY, durationToH, onSlotClick, onAppointmentClick, dragState, didDrag, onDrop, onDropOnAppointment }: {
+function WeekDayColumn({ date, collaborators, appointments, absences, extraDays, startHour, gridHeight, timeToY, durationToH, onSlotClick, onAppointmentClick, dragState, didDrag, onDrop, onDropOnAppointment }: {
   date: Date
   collaborators: Collaborator[]
   appointments: Appointment[]
   absences: Absence[]
+  extraDays: ExtraWorkDay[]
   startHour: number
   gridHeight: number
   timeToY: (d: Date) => number
@@ -1105,6 +1169,18 @@ function WeekDayColumn({ date, collaborators, appointments, absences, startHour,
           <div key={i} className={clsx('absolute left-0 right-0 border-t', i % 2 === 0 ? 'border-rule' : 'border-rule-soft')} style={{ top: i * SLOT_HEIGHT }} />
         ))}
         <AfterClosingBand startHour={startHour} gridHeight={gridHeight} />
+        {/* Qui la colonna è di tutti: prima delle 8 si apre solo da quando
+            comincia il primo straordinario di quel giorno, se c'è. */}
+        {(() => {
+          const giorno = format(date, 'yyyy-MM-dd')
+          const apre = Math.min(
+            OPEN_HOUR * 60,
+            ...extraDays.filter(e => e.date === giorno).map(e => minutiOrario(e.start_time)),
+          )
+          return startHour * 60 < apre
+            ? <OffHoursBlock da={startHour * 60} a={apre} startHour={startHour} />
+            : null
+        })()}
         <NowRule date={date} timeToY={timeToY} gridHeight={gridHeight} />
         {/* Nella settimana i collaboratori condividono la colonna: le giornate
             intere diventano una striscia in cima, non un velo su tutto il giorno. */}
@@ -1557,13 +1633,10 @@ function AppointmentModal({
 
 // ── Create appointment modal ──────────────────────────────────────
 
-function CreateAppointmentModal({ initialSlot, collaborators, closedWeekdays, firstHour, onClose, onCreated }: {
+function CreateAppointmentModal({ initialSlot, collaborators, closedWeekdays, onClose, onCreated }: {
   initialSlot: { date: Date; collaboratorId: number } | null
   collaborators: Collaborator[]
   closedWeekdays: number[]
-  /** La prima ora dell'orologio: quella da cui parte la griglia, cioè le 7
-      se nei giorni in vista c'è uno straordinario dalle 07:30. */
-  firstHour: number
   onClose: () => void
   onCreated: () => void
 }) {
@@ -1609,11 +1682,39 @@ function CreateAppointmentModal({ initialSlot, collaborators, closedWeekdays, fi
   const [calMonth, setCalMonth] = useState<Date>(startOfMonth(initDate))
   const [hours, setHours] = useState(String(initDate.getHours()))
   const [minutes, setMinutes] = useState(String(Math.floor(initDate.getMinutes() / 30) * 30))
-  // Le ore dell'orologio, dalla prima della griglia all'ultima prenotabile
-  // dal salone. Di solito 8–19, cioè dodici come su un quadrante; con uno
-  // straordinario dalle 07:30 sono tredici, e il passo si stringe.
-  const ore = Array.from({ length: LATE_HOUR - firstHour }, (_, i) => i + firstHour)
+  // Le ore dell'orologio: 8–19, dodici come su un quadrante, più quelle che
+  // lo straordinario del collaboratore scelto aggiunge **quel giorno** — le 7
+  // per Flavia il sabato dalle 07:30, non per chi quel sabato comincia alle 8.
+  const meseDa = format(startOfMonth(selectedDate), 'yyyy-MM-dd')
+  const meseA = format(endOfMonth(selectedDate), 'yyyy-MM-dd')
+  const { data: straordinariMese } = useQuery({
+    queryKey: ['extra-days-range', meseDa, meseA],
+    queryFn: () => getExtraDaysInRange(meseDa, meseA),
+  })
+  const giornoScelto = format(selectedDate, 'yyyy-MM-dd')
+  const suoiStraordinari = (straordinariMese ?? []).filter(
+    e => e.collaborator_id === selectedCollabId && e.date === giornoScelto
+  )
+  const primaOra = Math.min(
+    OPEN_HOUR,
+    ...suoiStraordinari.map(e => Math.floor(minutiOrario(e.start_time) / 60)),
+    // Finché non sono arrivati, l'ora del clic resta: è quella giusta.
+    ...(straordinariMese ? [] : [Number(hours)]),
+  )
+  const dopoUltima = Math.max(
+    LATE_HOUR,
+    ...suoiStraordinari.map(e => Math.ceil(minutiOrario(e.end_time) / 60)),
+  )
+  const ore = Array.from({ length: dopoUltima - primaOra }, (_, i) => i + primaOra)
   const passo = 360 / ore.length
+  // Cambiando collaboratore o giorno l'ora scelta può uscire dall'orologio:
+  // la si riporta dentro invece di lasciare una lancetta che punta nel vuoto.
+  useEffect(() => {
+    if (!straordinariMese) return
+    const h = Number(hours)
+    if (h < primaOra) setHours(String(primaOra))
+    else if (h >= dopoUltima) setHours(String(dopoUltima - 1))
+  }, [straordinariMese, primaOra, dopoUltima, hours])
 
   const startTime = useMemo(() => {
     const h = hours.padStart(2, '0')
@@ -1991,7 +2092,7 @@ function CreateAppointmentModal({ initialSlot, collaborators, closedWeekdays, fi
                 {/* SVG hand */}
                 <svg className="absolute inset-0 w-full h-full pointer-events-none">
                   {(() => {
-                    const idx = Number(hours) - firstHour
+                    const idx = Number(hours) - primaOra
                     const angle = (idx * passo - 90) * (Math.PI / 180)
                     const x2 = 96 + 54 * Math.cos(angle)
                     const y2 = 96 + 54 * Math.sin(angle)

@@ -1913,12 +1913,14 @@ ancora valido».
   `GET /api/public/auth/change-phone` → 405 (la rotta c'è, solo POST).
   L'unione automatica delle PR è spenta nelle impostazioni del repository
   (lasciata così).
-- [ ] **Audit Python: python-jose 3.5.0 GHSA-3qf3-8w2g-rqmx** (uscita il
+- [x] **Audit Python: python-jose 3.5.0 GHSA-3qf3-8w2g-rqmx** (uscita il
   6/10, nessuna versione corretta). Non raggiungibile: firme HS256 con
   segreto simmetrico e `algorithms` fissato in `jwt.decode`. Esclusione
   motivata in `backend/.pip-audit-ignore`,
   [PR #161](https://github.com/lorenzomelchionna/gestionale_nsh/pull/161)
-  → `develop`, da unire. A lungo termine: passare a PyJWT.
+  → `develop`, unita il 2026-10-06 (`606d7d4`); arriva su `main` col
+  prossimo rilascio, e l'audit completo gira su quella PR. A lungo termine:
+  passare a PyJWT, mantenuta.
 
 ### Richiesta — 2026-09-29: mezz'ore in calendario, orario 8–19, fascia 19–20 del salone
 

@@ -1885,6 +1885,17 @@ gira i giorni del calendario.
   tutte prese. Suite 919 verde, build ok, verificato nel browser con uno
   straordinario 07:30–20:00 (giorno, settimana, telefono; prenotazione alle
   07:30 dal gestionale; giorno normale ancora 08:00–19:00).
+  [PR #162](https://github.com/lorenzomelchionna/gestionale_nsh/pull/162)
+  → `develop`; rilascio **1.2.1**
+  ([PR #163](https://github.com/lorenzomelchionna/gestionale_nsh/pull/163),
+  commit `b75bfa1`, CI 10/10 con l'audit Python di nuovo verde grazie
+  all'esclusione di python-jose ora su `main`); tag e
+  [Release](https://github.com/lorenzomelchionna/gestionale_nsh/releases/tag/v1.2.1)
+  automatici. **Deploy confermato** il 2026-10-06 alle 14:51 UTC: backend,
+  frontend e worker `SUCCESS`; `/health` → 1.2.1; portale per Flavia
+  sabato 10/10 dalle 07:30 alle 18:30 (prima arrivava alle 19:30), sabato
+  17/10 invariato 08:00–18:30; nuova rotta presente; bundle con
+  «Straordinario». Flavia deve ricaricare la pagina del calendario.
 
 ### Controllo errori 30/09–06/10 — fatto il 2026-10-06
 
@@ -1916,10 +1927,9 @@ Le due correzioni nate da qui sono nella 1.2.0 (sezione sotto); restano:
   `apple-touch-icon*.png` rispondono 404 (si vede nel log di nginx a ogni
   visita da iPhone): chi salva il portale sulla schermata Home non ha
   l'icona del salone.
-- [ ] **L'audit del lunedì resterà rosso fino al prossimo rilascio** —
-  l'esclusione di python-jose (#161) è su `develop`, e l'audit programmato
-  controlla `main`: il 12/10 fallirà per quella. Si risolve da solo col
-  prossimo rilascio (o con una 1.2.1 di sola manutenzione, se dà fastidio).
+- [x] ~~**L'audit del lunedì resterà rosso fino al prossimo rilascio**~~ —
+  risolto con la 1.2.1 il 2026-10-06: l'esclusione di python-jose è su
+  `main`, e l'audit della PR di rilascio è già passato.
 - [ ] **Il TODO ha avuto dati personali per intero in un repository
   pubblico** — i numeri di cinque clienti con nomi e date degli
   appuntamenti (dal 27/09) e gli indirizzi email personali di Flavia,

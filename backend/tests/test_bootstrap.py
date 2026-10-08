@@ -1,5 +1,5 @@
 """
-`bootstrap.py` gira a ogni avvio del container (railway.toml startCommand).
+`bootstrap.py` gira a ogni avvio del container (comando d'avvio del backend in `.railway/railway.ts`).
 
 Quindi non è uno script di setup che si lancia una volta: è codice di
 produzione che sta fra il container e il servizio funzionante. Se solleva,

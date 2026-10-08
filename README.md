@@ -149,9 +149,15 @@ Il repo è pronto per deploy su Railway (testato in regione EU Frankfurt).
 
 | Service Railway | Root Directory | Note |
 |---|---|---|
-| `backend` | (vuoto, usa `Dockerfile` root) | FastAPI + Alembic + bootstrap |
+| `backend` | `backend` | FastAPI + Alembic + bootstrap |
 | `frontend` | `frontend` | Vite build + nginx |
-| `worker` (opzionale) | `backend` | `startCommand = sh worker-start.sh` |
+| `worker` | `backend` | Celery worker + beat (`sh worker-start.sh`) |
+
+Le impostazioni dei servizi (comandi d'avvio, healthcheck, riavvio) stanno in
+`.railway/railway.ts` (Infrastructure as Code) e si applicano a mano con
+`railway config plan` / `railway config apply`: Railway non legge quel file
+durante il deploy. I `railway.toml` non ci sono più — Config as Code è
+deprecato e smette di funzionare il 2026-12-01.
 | PostgreSQL plugin | — | DB |
 | Redis plugin | — | Broker Celery + cache |
 
@@ -170,7 +176,7 @@ Il repo è pronto per deploy su Railway (testato in regione EU Frankfurt).
 
 ### Migrations
 
-Il `startCommand` del backend esegue automaticamente:
+Il comando d'avvio del backend (in `.railway/railway.ts`) esegue automaticamente:
 
 ```
 alembic upgrade head && python bootstrap.py && uvicorn ...

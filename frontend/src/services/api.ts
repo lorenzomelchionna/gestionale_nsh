@@ -284,6 +284,8 @@ export const cancelAppointment = (id: number, reason?: string) =>
 /** Chiude la visita e registra l'incasso, in un passo. Solo admin. */
 export const checkoutAppointment = (id: number, data: {
   method: 'contanti' | 'carta'; amount: number; visit_notes?: string
+  /** Venduti a fine visita: incassati a parte (tipo «prodotto») e scalati. */
+  products?: { product_id: number; quantity: number; unit_price: number }[]
 }) =>
   api.post<Appointment>(`/admin/appointments/${id}/checkout`, data).then(r => r.data)
 

@@ -1857,6 +1857,33 @@ commit**, versione a piè di pagina in **gestionale e portale**, note in
   scritte per chi non è sviluppatore a ogni rilascio (il CHANGELOG usa gli
   oggetti dei commit, in inglese tecnico).
 
+### Richiesta — 2026-10-08: vendere prodotti all'incasso della visita
+
+Decisioni di Lorenzo: prezzo di listino **modificabile**, la giacenza
+**blocca** la vendita, solo dall'**«Incassa» dell'appuntamento** (non dopo
+l'incasso, non dalla Cassa senza appuntamento).
+
+- [x] Pannello «Incassa»: «Servizi (€)» + «Prodotti venduti» (ricerca per
+  nome, quantità fino alla giacenza, esauriti non selezionabili, prezzo
+  precompilato dal listino), totale prodotti e totale generale. Backend:
+  `products` in `POST /appointments/{id}/checkout` → pagamento a parte di
+  tipo `prodotto` (stesso metodo, nota «2× Maschera, 1× Shampoo»),
+  movimenti `vendita` legati alla visita, giacenza scalata; tutto o niente
+  (409 col nome del prodotto, niente incassato nemmeno il servizio); righe
+  dello stesso prodotto sommate; prodotti bloccati in ordine di id; omaggio
+  a 0 scala senza incasso. Riepilogo visita: riga «Prodotti €…».
+  `tests/test_prodotti_all_incasso.py` (15), falsificato con 13 mutazioni,
+  tutte prese; suite 940 verde; verificato nel browser (102 € = 30 servizio
+  + 72 prodotti, giacenze 8→6 e 15→14, due righe in Cassa).
+  [PR #172](https://github.com/lorenzomelchionna/gestionale_nsh/pull/172)
+  → `develop`; rilascio **1.3.0**
+  ([PR #173](https://github.com/lorenzomelchionna/gestionale_nsh/pull/173),
+  commit `c3473ab`). **Deploy confermato** il 2026-10-08 alle 20:40 UTC:
+  tre servizi `SUCCESS`, `/health` → 1.3.0, bundle con «Prodotti venduti»,
+  migration + bootstrap ok, worker «ready», nessun 5xx.
+- [ ] (Non chiesto ora) vendere prodotti dopo l'incasso o senza
+  appuntamento, dalla Cassa.
+
 ### Segnalazione — 2026-10-08: «li carico faccio salva e non escono, si è fermato a 20»
 
 Flavia, caricando prodotti nel magazzino.

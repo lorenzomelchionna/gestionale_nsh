@@ -26,7 +26,9 @@ async def list_services(
     if active_only:
         q = q.where(Service.is_active == True)
     total = (await db.execute(select(func.count()).select_from(q.subquery()))).scalar_one()
-    result = await db.execute(q.offset((page - 1) * page_size).limit(page_size))
+    # Ordered by id — the order they were shown in until now — so that the
+    # frontend, which reads every page, never gets a row twice or not at all.
+    result = await db.execute(q.order_by(Service.id).offset((page - 1) * page_size).limit(page_size))
     return PaginatedResponse(
         items=[ServiceOut.model_validate(s) for s in result.scalars().all()],
         total=total, page=page, page_size=page_size, pages=-(-total // page_size),

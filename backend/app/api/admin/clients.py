@@ -58,7 +58,12 @@ async def list_clients(
         )
 
     total = (await db.execute(select(func.count()).select_from(q.subquery()))).scalar_one()
-    result = await db.execute(q.offset((page - 1) * page_size).limit(page_size))
+    # Without an order, `offset` over the same query can repeat or skip rows
+    # between pages: the calendar reads all of them to pick a client.
+    result = await db.execute(
+        q.order_by(Client.last_name, Client.first_name, Client.id)
+        .offset((page - 1) * page_size).limit(page_size)
+    )
     return PaginatedResponse(
         items=[ClientOut.model_validate(c) for c in result.scalars().all()],
         total=total,

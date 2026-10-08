@@ -31,7 +31,7 @@ async def list_expenses(
     if category:
         q = q.where(Expense.category == category)
     total = (await db.execute(select(func.count()).select_from(q.subquery()))).scalar_one()
-    result = await db.execute(q.order_by(Expense.date.desc()).offset((page - 1) * page_size).limit(page_size))
+    result = await db.execute(q.order_by(Expense.date.desc(), Expense.id.desc()).offset((page - 1) * page_size).limit(page_size))
     return PaginatedResponse(
         items=[ExpenseOut.model_validate(e) for e in result.scalars().all()],
         total=total, page=page, page_size=page_size, pages=-(-total // page_size),

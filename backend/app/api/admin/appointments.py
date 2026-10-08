@@ -102,7 +102,7 @@ async def list_appointments(
     ordering = (
         Appointment.start_time.desc() if order == "desc" else Appointment.start_time.asc()
     )
-    result = await db.execute(q.order_by(ordering).offset((page - 1) * page_size).limit(page_size))
+    result = await db.execute(q.order_by(ordering, Appointment.id).offset((page - 1) * page_size).limit(page_size))
     return PaginatedResponse(
         items=[_enrich(a) for a in result.scalars().all()],
         total=total, page=page, page_size=page_size, pages=-(-total // page_size),

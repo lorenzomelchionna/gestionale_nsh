@@ -118,7 +118,10 @@ class TestFile:
     def test_file_disallineati_bloccano(self, copia):
         pkg = copia / r.FRONT_PKG
         dati = json.loads(pkg.read_text())
-        dati["version"] = "1.2.3"
+        # 0.0.1 e non una versione plausibile: le versioni salgono e basta,
+        # quindi questa non sarà mai quella vera. Con "1.2.3" il test è
+        # passato finché il repository non è arrivato proprio alla 1.2.3.
+        dati["version"] = "0.0.1"
         pkg.write_text(json.dumps(dati))
         with pytest.raises(r.ErroreRilascio, match="non coincidono"):
             r.versione_unica(r.leggi_versioni(radice=copia))

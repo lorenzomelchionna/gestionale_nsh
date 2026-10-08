@@ -1907,6 +1907,26 @@ Flavia, caricando prodotti nel magazzino.
   14:15 UTC senza toml: i tre servizi costruiti da `Dockerfile`, backend
   con `alembic upgrade head` + bootstrap all'avvio, `/health` → 1.2.4,
   worker «ready» con beat, nessun 5xx. Regola in `CLAUDE.md` → «Railway».
+- [x] **Le email del worker non uscivano da noreply** (domanda di Lorenzo,
+  2026-10-08). Conferme, promemoria, auguri e «Nuova prenotazione online»
+  partivano dall'indirizzo Gmail del salone, che Brevo riscrive in
+  `…@11490705.brevosend.com`: l'11/08 `EMAILS_FROM_EMAIL` era stata cambiata
+  sul solo backend. Su Brevo: worker da `brevosend.com` dal 2/08 al 08/10
+  12:44 UTC. Ora il mittente è scritto per esteso in `.railway/railway.ts`
+  per backend e worker; applicato (1 modifica, worker), worker ripartito alle
+  14:21 UTC. Prova d'invio dal worker non fatta: SSH in produzione bloccato
+  dal controllo di sicurezza.
+  - [ ] **Verificare su Brevo** che la prima email del worker dopo le 14:21
+    UTC del 08/10 abbia mittente `noreply@newstylehair.it`.
+- [x] **Email dell'admin in chiaro nei log del bootstrap** — mascherata
+  (`maschera_email`, anche nel rifiuto senza `ADMIN_PASSWORD`); 3 test.
+  Tolto anche il `Dockerfile` della radice, non usato da nessuno.
+  [PR #170](https://github.com/lorenzomelchionna/gestionale_nsh/pull/170)
+  → `develop`; rilascio **1.2.5**
+  ([PR #171](https://github.com/lorenzomelchionna/gestionale_nsh/pull/171),
+  commit `64ba387`, auto-merge). **Deploy confermato** il 2026-10-08 alle
+  14:32 UTC: tre servizi `SUCCESS`, `/health` → 1.2.5, nel log
+  «Admin già esistente: n***9@gmail.com», worker «ready», nessun 5xx.
 
 ### Segnalazione — 2026-10-06: «nei giorni straordinari non va»
 

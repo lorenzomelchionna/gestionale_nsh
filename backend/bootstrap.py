@@ -257,7 +257,7 @@ async def bootstrap():
     admin_password = os.getenv("ADMIN_PASSWORD")
     seed_flag = os.getenv("SEED_DEMO", "").lower() in ("true", "1", "yes")
 
-    # This script runs on every boot (see railway.toml startCommand), and it
+    # This script runs on every boot (see the backend start command in .railway/railway.ts), and it
     # creates the admin whenever ADMIN_EMAIL does not already exist. The old
     # default password was published in this public repository, so the day a
     # typo in ADMIN_EMAIL, a fresh environment or a restored database made that

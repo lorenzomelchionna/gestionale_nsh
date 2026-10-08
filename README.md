@@ -165,8 +165,9 @@ deprecato e smette di funzionare il 2026-12-01.
 
 1. **Crea progetto Railway** → "Deploy from GitHub repo" → seleziona questo repo
 2. **Aggiungi plugin**: PostgreSQL e Redis dallo stesso progetto
-3. **Crea service `backend`** dal repo (no Root Directory — usa `Dockerfile` nella root)
+3. **Crea service `backend`** dal repo (Root Directory = `backend`, usa `backend/Dockerfile`)
 4. **Crea service `frontend`** dal repo (Root Directory = `frontend`)
+   e **`worker`** dal repo (Root Directory = `backend`): comandi d'avvio e healthcheck li porta `railway config apply` da `.railway/railway.ts`
 5. **Configura variabili** (vedi sezione sopra). Punti chiave:
    - `DATABASE_URL`: copia dal plugin Postgres ma sostituisci prefisso → `postgresql+asyncpg://...`
    - `REDIS_URL`: copia il valore *interno* dal plugin Redis

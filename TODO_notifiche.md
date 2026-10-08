@@ -1887,11 +1887,26 @@ Flavia, caricando prodotti nel magazzino.
   automatici. **Deploy confermato** il 2026-10-08 alle 13:44 UTC: backend,
   frontend e worker `SUCCESS` su `0dbfd9d`, `/health` → 1.2.3, bundle 1.2.3
   servito, nessun errore nei log. Flavia deve ricaricare la pagina.
-- [ ] **Railway: «Config as Code» (`railway.toml`) deprecato** — la CLI
-  avvisa che i file attuali funzionano fino al **2026-12-01**, poi va
-  migrato (`railway config migrate`, Infrastructure as Code). Da fare prima
-  di quella data, altrimenti i deploy potrebbero perdere lo `startCommand`
-  (e con lui `alembic upgrade head`).
+- [x] **Railway: «Config as Code» (`railway.toml`) deprecato** (smette di
+  essere letto il 2026-12-01) — migrato il 2026-10-08 a Infrastructure as
+  Code: `.railway/railway.ts` da `railway config pull` (tutti i servizi,
+  database e volumi; variabili `preserve()`), con a mano comando d'avvio
+  del backend, healthcheck e 3 tentativi di riavvio. **Non** con
+  `railway config migrate --apply`: il suo file aveva solo i servizi coi
+  toml più uno inesistente, e un apply a progetto intero cancella ciò che
+  manca (Postgres e Redis compresi). Plan fissato su file e applicato senza
+  `--confirm-destructive` (0 creati, 3 modificati, 0 distrutti); dopo,
+  plan a zero differenze (tolto `restartPolicyType`: ON_FAILURE è il
+  default e Railway lo salva come null). Svuotato il «config file» del
+  worker. Tolti i 4 toml (anche `backend/railway.worker.toml`, che
+  `migrate` non vedeva per il nome).
+  [PR #168](https://github.com/lorenzomelchionna/gestionale_nsh/pull/168)
+  → `develop`; rilascio **1.2.4**
+  ([PR #169](https://github.com/lorenzomelchionna/gestionale_nsh/pull/169),
+  commit `33cbc26`, auto-merge). **Deploy confermato** il 2026-10-08 alle
+  14:15 UTC senza toml: i tre servizi costruiti da `Dockerfile`, backend
+  con `alembic upgrade head` + bootstrap all'avvio, `/health` → 1.2.4,
+  worker «ready» con beat, nessun 5xx. Regola in `CLAUDE.md` → «Railway».
 
 ### Segnalazione — 2026-10-06: «nei giorni straordinari non va»
 

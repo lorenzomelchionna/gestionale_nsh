@@ -13,6 +13,7 @@ import os
 from datetime import datetime, date, time, timedelta, timezone
 from sqlalchemy import select, func
 from app.database import AsyncSessionLocal
+from app.logging_config import maschera_email
 from app.models.user import User, UserRole
 from app.models.booking_config import BookingConfig
 from app.models.service import Service
@@ -29,7 +30,10 @@ from app.utils.auth import hash_password_sync
 async def ensure_admin(db, email, password):
     result = await db.execute(select(User).where(User.email == email))
     if result.scalar_one_or_none() is not None:
-        print(f"• Admin già esistente: {email}")
+        # Masked like every other address in the logs: this line runs on every
+        # boot, so in full it put the owner's address in the log stream on
+        # every deploy. Masked it still says which admin it found.
+        print(f"• Admin già esistente: {maschera_email(email)}")
         return
 
     # The demand for a password belongs here and not at the top of the script,
@@ -39,7 +43,7 @@ async def ensure_admin(db, email, password):
     # scripts/set_admin_password.py afterwards.
     if not password:
         raise SystemExit(
-            f"ADMIN_PASSWORD non impostata e l'admin {email} non esiste. "
+            f"ADMIN_PASSWORD non impostata e l'admin {maschera_email(email)} non esiste. "
             "Il bootstrap non inventa una password per un account amministratore "
             "in produzione: impostala fra le variabili d'ambiente."
         )
@@ -49,7 +53,7 @@ async def ensure_admin(db, email, password):
         password_hash=hash_password_sync(password),
         role=UserRole.admin,
     ))
-    print(f"✓ Admin creato: {email}")
+    print(f"✓ Admin creato: {maschera_email(email)}")
 
 
 async def ensure_booking_config(db):

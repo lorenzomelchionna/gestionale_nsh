@@ -72,3 +72,35 @@ class TestQuandoLAdminVaCreato:
         assert utente.email == "nuovo@nsh-test.it"
         assert utente.role == UserRole.admin
         assert await verify_password("una-password-scelta-apposta", utente.password_hash)
+
+
+class TestNeiLogNienteIndirizzoPerIntero:
+    """Il bootstrap gira a ogni deploy e stampa su stdout, cioè nei log di
+    Railway: fino al 2026-10-08 ci scriveva l'email dell'admin in chiaro,
+    unico punto dei log a non mascherarla."""
+
+    async def test_admin_esistente(self, db, capsys):
+        db.add(User(
+            email=ESISTENTE,
+            password_hash=await hash_password("la-password-vera-ruotata"),
+            role=UserRole.admin,
+        ))
+        await db.commit()
+
+        await ensure_admin(db, ESISTENTE, None)
+
+        uscita = capsys.readouterr().out
+        assert ESISTENTE not in uscita
+        assert "t***e@nsh-test.it" in uscita
+
+    async def test_admin_creato(self, db, capsys):
+        await ensure_admin(db, "nuovo@nsh-test.it", "una-password-scelta-apposta")
+
+        uscita = capsys.readouterr().out
+        assert "nuovo@nsh-test.it" not in uscita
+        assert "n***o@nsh-test.it" in uscita
+
+    async def test_nel_rifiuto(self, db):
+        with pytest.raises(SystemExit) as e:
+            await ensure_admin(db, "nuovo@nsh-test.it", None)
+        assert "nuovo@nsh-test.it" not in str(e.value)

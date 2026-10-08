@@ -30,6 +30,14 @@
 
 import { defineRailway, github, postgres, preserve, project, redis, service, volume } from "railway/iac";
 
+// Il mittente delle email, uguale per backend e worker. Scritto qui e non
+// `preserve()` perché i due servizi si erano separati: l'11/08 il dominio è
+// stato autenticato su Brevo e la variabile cambiata sul solo backend, così
+// conferme, promemoria e auguri — mandati dal worker — sono usciti per due
+// mesi dall'indirizzo Gmail del salone, che Brevo riscrive in
+// `…@11490705.brevosend.com`. Non è un segreto.
+const MITTENTE = "noreply@newstylehair.it";
+
 export default defineRailway(() => {
   const gestionale_nsh = github("lorenzomelchionna/gestionale_nsh", { checkSuites: false, rootDirectory: "/backend" });
 
@@ -46,7 +54,7 @@ export default defineRailway(() => {
     replicas: { "sfo": 1 },
     deploy: { restartPolicyMaxRetries: 3 },
     networking: { privateNetworkEndpoint: "celery-worker" },
-    env: { ACCESS_TOKEN_EXPIRE_MINUTES: preserve(), ALGORITHM: preserve(), APP_ENV: preserve(), BREVO_API_KEY: preserve(), DATABASE_URL: preserve(), EMAILS_FROM_EMAIL: preserve(), EMAILS_FROM_NAME: preserve(), FRONTEND_URL: preserve(), REDIS_URL: preserve(), REFRESH_TOKEN_EXPIRE_DAYS: preserve(), SECRET_KEY: preserve(), SEED_DEMO: preserve(), SMTP_HOST: preserve(), SMTP_PASSWORD: preserve(), SMTP_PORT: preserve(), SMTP_USER: preserve(), TWILIO_ACCOUNT_SID: preserve(), TWILIO_AUTH_TOKEN: preserve(), TWILIO_TEMPLATE_CONFERMA: preserve(), TWILIO_TEMPLATE_PROMEMORIA: preserve(), TWILIO_TEMPLATE_VERIFICA: preserve(), TWILIO_WHATSAPP_FROM: preserve() },
+    env: { ACCESS_TOKEN_EXPIRE_MINUTES: preserve(), ALGORITHM: preserve(), APP_ENV: preserve(), BREVO_API_KEY: preserve(), DATABASE_URL: preserve(), EMAILS_FROM_EMAIL: MITTENTE, EMAILS_FROM_NAME: preserve(), FRONTEND_URL: preserve(), REDIS_URL: preserve(), REFRESH_TOKEN_EXPIRE_DAYS: preserve(), SECRET_KEY: preserve(), SEED_DEMO: preserve(), SMTP_HOST: preserve(), SMTP_PASSWORD: preserve(), SMTP_PORT: preserve(), SMTP_USER: preserve(), TWILIO_ACCOUNT_SID: preserve(), TWILIO_AUTH_TOKEN: preserve(), TWILIO_TEMPLATE_CONFERMA: preserve(), TWILIO_TEMPLATE_PROMEMORIA: preserve(), TWILIO_TEMPLATE_VERIFICA: preserve(), TWILIO_WHATSAPP_FROM: preserve() },
   });
   const backend = service("backend", {
     source: gestionale_nsh,
@@ -56,7 +64,7 @@ export default defineRailway(() => {
     replicas: { "sfo": 1 },
     deploy: { restartPolicyMaxRetries: 3 },
     networking: { privateNetworkEndpoint: "gestionalensh" },
-    env: { ACCESS_TOKEN_EXPIRE_MINUTES: preserve(), ADMIN_EMAIL: preserve(), ALGORITHM: preserve(), APP_ENV: preserve(), BREVO_API_KEY: preserve(), DATABASE_URL: preserve(), EMAILS_FROM_EMAIL: preserve(), EMAILS_FROM_NAME: preserve(), FRONTEND_URL: preserve(), POSTGRES_DB: preserve(), POSTGRES_PASSWORD: preserve(), POSTGRES_USER: preserve(), REDIS_URL: preserve(), REFRESH_TOKEN_EXPIRE_DAYS: preserve(), SECRET_KEY: preserve(), SEED_DEMO: preserve(), SMTP_HOST: preserve(), SMTP_PASSWORD: preserve(), SMTP_PORT: preserve(), SMTP_USER: preserve(), TWILIO_ACCOUNT_SID: preserve(), TWILIO_AUTH_TOKEN: preserve(), TWILIO_TEMPLATE_CONFERMA: preserve(), TWILIO_TEMPLATE_PROMEMORIA: preserve(), TWILIO_TEMPLATE_VERIFICA: preserve(), TWILIO_WHATSAPP_FROM: preserve() },
+    env: { ACCESS_TOKEN_EXPIRE_MINUTES: preserve(), ADMIN_EMAIL: preserve(), ALGORITHM: preserve(), APP_ENV: preserve(), BREVO_API_KEY: preserve(), DATABASE_URL: preserve(), EMAILS_FROM_EMAIL: MITTENTE, EMAILS_FROM_NAME: preserve(), FRONTEND_URL: preserve(), POSTGRES_DB: preserve(), POSTGRES_PASSWORD: preserve(), POSTGRES_USER: preserve(), REDIS_URL: preserve(), REFRESH_TOKEN_EXPIRE_DAYS: preserve(), SECRET_KEY: preserve(), SEED_DEMO: preserve(), SMTP_HOST: preserve(), SMTP_PASSWORD: preserve(), SMTP_PORT: preserve(), SMTP_USER: preserve(), TWILIO_ACCOUNT_SID: preserve(), TWILIO_AUTH_TOKEN: preserve(), TWILIO_TEMPLATE_CONFERMA: preserve(), TWILIO_TEMPLATE_PROMEMORIA: preserve(), TWILIO_TEMPLATE_VERIFICA: preserve(), TWILIO_WHATSAPP_FROM: preserve() },
   });
   const frontend = service("frontend", {
     source: github("lorenzomelchionna/gestionale_nsh", { checkSuites: false, rootDirectory: "/frontend" }),

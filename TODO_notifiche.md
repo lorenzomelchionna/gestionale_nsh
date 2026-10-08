@@ -1857,6 +1857,42 @@ commit**, versione a piè di pagina in **gestionale e portale**, note in
   scritte per chi non è sviluppatore a ogni rilascio (il CHANGELOG usa gli
   oggetti dei commit, in inglese tecnico).
 
+### Segnalazione — 2026-10-08: «li carico faccio salva e non escono, si è fermato a 20»
+
+Flavia, caricando prodotti nel magazzino.
+
+- [x] **Gli elenchi del gestionale mostravano solo la prima pagina.** I
+  prodotti erano salvati, ma la schermata chiedeva solo la pagina 1 (20
+  righe) senza modo di sfogliare: dal 21° in ordine alfabetico non
+  comparivano. Nessun dato perso. Stesso tetto silenzioso su Cassa e Spese
+  (50 per periodo, totali sommati nel browser → sbagliati oltre il 50°
+  incasso), calendario (200 appuntamenti) e scelta della cliente nel nuovo
+  appuntamento (500). Ora il frontend legge tutte le pagine
+  (`tutteLePagine` in `services/api.ts`); il backend ha l'`id` come ultimo
+  criterio d'ordine su ogni elenco, perché con righe a pari merito Postgres
+  le metteva su due pagine o su nessuna (clienti ora in ordine per cognome).
+  `tests/test_elenchi_completi.py` (6): senza i criteri di riserva ne
+  falliscono 4. Suite 925 verde, build ok, verificato nel browser con 110
+  prodotti (2 pagine, tutti visibili). Non ho potuto contare i record di
+  produzione: il tunnel al DB è stato bloccato dal controllo di sicurezza
+  automatico.
+  [PR #166](https://github.com/lorenzomelchionna/gestionale_nsh/pull/166)
+  → `develop`; rilascio **1.2.3**
+  ([PR #167](https://github.com/lorenzomelchionna/gestionale_nsh/pull/167),
+  commit `0dbfd9d`, CI 10/10), la prima unita dall'auto-merge (13:42:57
+  UTC). Il primo giro di «Versione» era rosso: `scripts/test_release.py`
+  simulava file disallineati scrivendo «1.2.3», che a questa versione
+  coincideva con la vera — ora usa 0.0.1 (`b3af3b6`). Tag e
+  [Release](https://github.com/lorenzomelchionna/gestionale_nsh/releases/tag/v1.2.3)
+  automatici. **Deploy confermato** il 2026-10-08 alle 13:44 UTC: backend,
+  frontend e worker `SUCCESS` su `0dbfd9d`, `/health` → 1.2.3, bundle 1.2.3
+  servito, nessun errore nei log. Flavia deve ricaricare la pagina.
+- [ ] **Railway: «Config as Code» (`railway.toml`) deprecato** — la CLI
+  avvisa che i file attuali funzionano fino al **2026-12-01**, poi va
+  migrato (`railway config migrate`, Infrastructure as Code). Da fare prima
+  di quella data, altrimenti i deploy potrebbero perdere lo `startCommand`
+  (e con lui `alembic upgrade head`).
+
 ### Segnalazione — 2026-10-06: «nei giorni straordinari non va»
 
 Flavia: per sabato 10/10 un giorno straordinario dalle 07:30 alle 20:00, ma

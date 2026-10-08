@@ -84,7 +84,6 @@ new_style_hair/
 │   ├── seed.py           # Drop + ricrea tabelle con dati demo (solo dev)
 │   ├── bootstrap.py      # Bootstrap idempotente per produzione
 │   ├── worker-start.sh   # Entrypoint Celery worker (Railway)
-│   ├── railway.toml      # Config deploy Railway
 │   └── requirements.txt
 ├── frontend/
 │   ├── src/
@@ -243,10 +242,31 @@ test stanno in `requirements-dev.txt`, fuori da `requirements.txt`.
 
 ## Database
 
-- **Migrations**: Alembic configurato con migration iniziale in `backend/alembic/versions/`. In produzione si usa `alembic upgrade head` (eseguito automaticamente dal startCommand Railway).
+- **Migrations**: Alembic configurato con migration iniziale in `backend/alembic/versions/`. In produzione si usa `alembic upgrade head` (eseguito automaticamente dal comando d'avvio del servizio `backend`, definito in `.railway/railway.ts`).
 - **Reset DB locale**: `cd backend && python seed.py` (drop + ricrea con dati demo)
 - **Bootstrap produzione**: `python bootstrap.py` crea admin + BookingConfig (idempotente). Se `SEED_DEMO=true` popola anche dati demo.
 - **Nota**: strategia di migrazione produzione da implementare (fase 2 del roadmap).
+
+## Railway
+
+Le impostazioni dei servizi (comando d'avvio del backend con le migration,
+healthcheck, riavvio su errore) stanno in `.railway/railway.ts`
+(Infrastructure as Code). I `railway.toml` sono stati tolti il 2026-10-08:
+Config as Code è deprecato e Railway smette di leggerlo il 2026-12-01.
+
+Due cose non ovvie, scritte anche in testa al file:
+
+- **Railway non legge `.railway/` durante il deploy.** Un merge che cambia
+  il file non cambia la produzione: serve `railway config plan` (sola
+  lettura) e poi `railway config apply`, a mano.
+- **Un servizio che non compare nel file viene cancellato dall'apply**,
+  Postgres e Redis compresi. Mai `railway config migrate --apply`: il file
+  che genera contiene solo i servizi che avevano un toml.
+
+```bash
+cd .railway && npm ci && cd ..   # SDK, una volta
+railway config plan
+```
 
 ## Log
 

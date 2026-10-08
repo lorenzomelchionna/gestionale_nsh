@@ -8,6 +8,10 @@ cambiamento incompatibile il primo.
 Le voci le scrive `scripts/release.py prepare` dai commit di ogni rilascio;
 vedi «CI e flusso di rilascio» in `CLAUDE.md`.
 
+## [1.2.4] — 2026-10-08
+
+Solo manutenzione: documentazione, test, configurazione.
+
 ## [1.2.3] — 2026-10-08
 
 ### Correzioni

@@ -49,6 +49,37 @@ export const mediaUrl = (percorso: string | null | undefined): string | undefine
   return `${API_BASE}${percorso}`
 }
 
+/**
+ * Un elenco paginato, **tutto**: la prima pagina, poi le altre in parallelo.
+ *
+ * Le rotte di elenco del backend sono paginate (20 prodotti per volta, 50
+ * incassi…), ma le schermate che le usavano chiedevano solo la prima pagina e
+ * non avevano modo di sfogliare: oltre quella soglia i record c'erano nel
+ * database e sullo schermo no. Il 2026-10-08 Flavia: «li carico faccio salva
+ * e non escono, si è fermato a 20» — il 21° prodotto in ordine alfabetico
+ * finiva a pagina 2. Lo stesso valeva, in silenzio, per la Cassa e le Spese,
+ * che sommano lato browser solo quello che ricevono: oltre il cinquantesimo
+ * incasso del periodo il totale era sbagliato.
+ *
+ * Restituisce la stessa forma di una pagina, con dentro tutti gli elementi,
+ * così chi la usa continua a leggere `data.items`. `perPagina` è il massimo
+ * che la rotta accetta: meno giri, e nessun 422.
+ */
+async function tutteLePagine<T>(
+  url: string, params: object | undefined, perPagina: number,
+): Promise<PaginatedResponse<T>> {
+  const pagina = (page: number) =>
+    api.get<PaginatedResponse<T>>(url, { params: { ...params, page, page_size: perPagina } })
+      .then(r => r.data)
+  const prima = await pagina(1)
+  if (prima.pages <= 1) return prima
+  const altre = await Promise.all(
+    Array.from({ length: prima.pages - 1 }, (_, i) => pagina(i + 2)),
+  )
+  const items = [prima, ...altre].flatMap(p => p.items)
+  return { ...prima, items, page: 1, page_size: items.length, pages: 1 }
+}
+
 // ── Token management ──────────────────────────────────────────────
 
 let accessToken: string | null = localStorage.getItem('access_token')
@@ -109,8 +140,8 @@ export const getMe = () =>
 
 // ── Collaborators ─────────────────────────────────────────────────
 
-export const getCollaborators = (params?: { page?: number; active_only?: boolean }) =>
-  api.get<PaginatedResponse<Collaborator>>('/admin/collaborators', { params }).then(r => r.data)
+export const getCollaborators = (params?: { active_only?: boolean }) =>
+  tutteLePagine<Collaborator>('/admin/collaborators', params, 100)
 
 export const getCollaborator = (id: number) =>
   api.get<Collaborator>(`/admin/collaborators/${id}`).then(r => r.data)
@@ -138,6 +169,10 @@ export const updateCollaboratorServices = (id: number, service_ids: number[]) =>
 
 export const getClients = (params?: { page?: number; page_size?: number; search?: string; active_only?: boolean }) =>
   api.get<PaginatedResponse<Client>>('/admin/clients', { params }).then(r => r.data)
+
+/** Tutte le clienti attive, per sceglierne una senza cercarla sul server. */
+export const getAllClients = () =>
+  tutteLePagine<Client>('/admin/clients', undefined, 500)
 
 export const getClient = (id: number) =>
   api.get<Client>(`/admin/clients/${id}`).then(r => r.data)
@@ -184,8 +219,8 @@ export const createClientPortalAccount = (id: number) =>
 
 // ── Services ──────────────────────────────────────────────────────
 
-export const getServices = (params?: { page?: number; active_only?: boolean }) =>
-  api.get<PaginatedResponse<Service>>('/admin/services', { params }).then(r => r.data)
+export const getServices = (params?: { active_only?: boolean }) =>
+  tutteLePagine<Service>('/admin/services', params, 200)
 
 export const createService = (data: Partial<Service>) =>
   api.post<Service>('/admin/services', data).then(r => r.data)
@@ -208,6 +243,16 @@ export const getAppointments = (params?: {
   page?: number; page_size?: number
 }) =>
   api.get<PaginatedResponse<Appointment>>('/admin/appointments', { params }).then(r => r.data)
+
+/**
+ * Tutti gli appuntamenti di un intervallo, per il calendario. Con una sola
+ * pagina da 200 una settimana piena di tutto il salone poteva restare
+ * tagliata: gli appuntamenti oltre il duecentesimo non comparivano e quelle
+ * ore sembravano libere.
+ */
+export const getAppointmentsInRange = (params: {
+  date_from: string; date_to: string; collaborator_id?: number
+}) => tutteLePagine<Appointment>('/admin/appointments', params, 200)
 
 export const getPendingAppointments = () =>
   api.get<Appointment[]>('/admin/appointments/pending').then(r => r.data)
@@ -261,7 +306,7 @@ export const getAvailability = (params: {
 // ── Products ──────────────────────────────────────────────────────
 
 export const getProducts = (params?: { low_stock?: boolean; active_only?: boolean }) =>
-  api.get<PaginatedResponse<Product>>('/admin/products', { params }).then(r => r.data)
+  tutteLePagine<Product>('/admin/products', params, 100)
 
 export const createProduct = (data: Partial<Product>) =>
   api.post<Product>('/admin/products', data).then(r => r.data)
@@ -291,7 +336,7 @@ export const deleteProductImage = (id: number) =>
 // ── Payments ──────────────────────────────────────────────────────
 
 export const getPayments = (params?: { date_from?: string; date_to?: string }) =>
-  api.get<PaginatedResponse<Payment>>('/admin/payments', { params }).then(r => r.data)
+  tutteLePagine<Payment>('/admin/payments', params, 200)
 
 export const createPayment = (data: {
   appointment_id?: number; client_id?: number;
@@ -303,7 +348,7 @@ export const createPayment = (data: {
 // ── Expenses ──────────────────────────────────────────────────────
 
 export const getExpenses = (params?: { date_from?: string; date_to?: string; category?: string }) =>
-  api.get<PaginatedResponse<Expense>>('/admin/expenses', { params }).then(r => r.data)
+  tutteLePagine<Expense>('/admin/expenses', params, 200)
 
 export const createExpense = (data: Partial<Expense>) =>
   api.post<Expense>('/admin/expenses', data).then(r => r.data)

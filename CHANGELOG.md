@@ -8,6 +8,12 @@ cambiamento incompatibile il primo.
 Le voci le scrive `scripts/release.py prepare` dai commit di ogni rilascio;
 vedi «CI e flusso di rilascio» in `CLAUDE.md`.
 
+## [1.2.3] — 2026-10-08
+
+### Correzioni
+
+- lists show every record, not just the first page
+
 ## [1.2.2] — 2026-10-06
 
 ### Correzioni

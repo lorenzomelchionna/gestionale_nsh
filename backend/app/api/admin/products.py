@@ -67,7 +67,7 @@ async def list_products(
     # made it happen every time. Ordering also makes pagination stable, since
     # `offset` over an unordered set can repeat or skip rows between pages.
     result = await db.execute(
-        q.order_by(Product.name).offset((page - 1) * page_size).limit(page_size)
+        q.order_by(Product.name, Product.id).offset((page - 1) * page_size).limit(page_size)
     )
     return PaginatedResponse(
         items=[ProductOut.model_validate(p) for p in result.scalars().all()],

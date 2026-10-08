@@ -33,7 +33,7 @@ async def list_payments(
     if date_to:
         q = q.where(Payment.date <= istante_da_ingresso(date_to))
     total = (await db.execute(select(func.count()).select_from(q.subquery()))).scalar_one()
-    result = await db.execute(q.order_by(Payment.date.desc()).offset((page - 1) * page_size).limit(page_size))
+    result = await db.execute(q.order_by(Payment.date.desc(), Payment.id.desc()).offset((page - 1) * page_size).limit(page_size))
     return PaginatedResponse(
         items=[PaymentOut.model_validate(p) for p in result.scalars().all()],
         total=total, page=page, page_size=page_size, pages=-(-total // page_size),

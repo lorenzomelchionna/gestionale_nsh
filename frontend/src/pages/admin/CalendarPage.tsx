@@ -10,9 +10,9 @@ import {
   Calendar as CalendarIcon, UserPlus, Euro, Banknote, CreditCard,
 } from 'lucide-react'
 import {
-  getAppointments, getCollaborators, confirmAppointment,
+  getAppointmentsInRange, getCollaborators, confirmAppointment,
   rejectAppointment, completeAppointment, cancelAppointment, checkoutAppointment,
-  createAppointment, getClients, getServices, updateAppointment, getAbsences, getBookingConfig,
+  createAppointment, getAllClients, getServices, updateAppointment, getAbsences, getBookingConfig,
   createClient, getAbsencesInRange, getExtraDaysInRange,
 } from '@/services/api'
 import { errorText } from '@/components/admin/ClientFormSheet'
@@ -260,11 +260,10 @@ export default function CalendarPage() {
 
   const { data: apptsData } = useQuery({
     queryKey: ['appointments', dateFrom, dateTo, selectedCollaboratorId],
-    queryFn: () => getAppointments({
+    queryFn: () => getAppointmentsInRange({
       date_from: dateFrom,
       date_to: dateTo,
       collaborator_id: selectedCollaboratorId ?? undefined,
-      page_size: 200,
     }),
   })
 
@@ -1728,7 +1727,7 @@ function CreateAppointmentModal({ initialSlot, collaborators, closedWeekdays, on
 
   const { data: clientsData } = useQuery({
     queryKey: ['clients-all'],
-    queryFn: () => getClients({ page_size: 500, active_only: true }),
+    queryFn: () => getAllClients(),
   })
 
   const { data: absencesData } = useQuery({

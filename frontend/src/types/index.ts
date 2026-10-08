@@ -143,6 +143,8 @@ export interface Appointment {
   /** Incassato per i servizi, e come ('contanti' | 'carta' | 'misto'); null se non ancora. */
   paid_amount?: number | null
   paid_method?: string | null
+  /** Incassato per i prodotti venduti a questa visita; null se nessuno. */
+  products_paid_amount?: number | null
   service_names?: string[]
   /** Allineati a `service_names`; null per un servizio senza colore. */
   service_colors?: (string | null)[]

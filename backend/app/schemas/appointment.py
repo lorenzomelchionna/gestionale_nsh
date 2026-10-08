@@ -48,6 +48,15 @@ class AppointmentComplete(BaseModel):
     visit_notes: Optional[str] = None
 
 
+class ProdottoVenduto(BaseModel):
+    """Una riga di «Prodotti venduti» nell'incasso di una visita."""
+    product_id: int
+    quantity: int = Field(ge=1, le=100)
+    # Precompilato col prezzo di vendita, ma modificabile come l'importo dei
+    # servizi: uno sconto sul prodotto si fa qui, non a mano in Cassa.
+    unit_price: float = Field(ge=0, le=10000)
+
+
 class AppointmentCheckout(BaseModel):
     """Corpo di `POST /appointments/{id}/checkout`: chiudere la visita e incassarla.
 
@@ -59,6 +68,10 @@ class AppointmentCheckout(BaseModel):
     # prodotto aggiunto, un servizio cambiato all'ultimo.
     amount: float = Field(gt=0, le=10000)
     visit_notes: Optional[str] = None
+    # Venduti alla fine della visita (richiesta del 2026-10-08): incassati
+    # con lo stesso metodo, in un pagamento di tipo «prodotto» separato da
+    # quello dei servizi, e scalati dal magazzino.
+    products: List[ProdottoVenduto] = Field(default_factory=list, max_length=30)
 
 
 class AppointmentReject(BaseModel):
@@ -110,6 +123,8 @@ class AppointmentOutWithNames(AppointmentOut):
     # `None` se non ancora. `misto` anche quando sono due incassi diversi.
     paid_amount: Optional[float] = None
     paid_method: Optional[str] = None
+    # I prodotti venduti a questa visita: totale incassato, `None` se nessuno.
+    products_paid_amount: Optional[float] = None
 
     @classmethod
     def from_appointment(cls, a) -> "AppointmentOutWithNames":
@@ -130,6 +145,9 @@ class AppointmentOutWithNames(AppointmentOut):
             out.paid_amount = round(sum(float(p.amount) for p in incassi), 2)
             metodi = {p.method.value for p in incassi}
             out.paid_method = metodi.pop() if len(metodi) == 1 else PaymentMethod.mixed.value
+        prodotti = [p for p in (a.payments or []) if p.type == PaymentType.product]
+        if prodotti:
+            out.products_paid_amount = round(sum(float(p.amount) for p in prodotti), 2)
         return out
 
 

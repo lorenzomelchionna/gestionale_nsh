@@ -22,6 +22,7 @@ import { EmptyState, Segmented } from '@/components/ui'
 import clsx from 'clsx'
 import { serviceBlockStyle } from '@/utils/serviceColor'
 import { useAuthStore } from '@/store/authStore'
+import ProdottiVenduti, { type RigaVendita, rigaValida, prezzoRiga, totaleProdotti } from '@/components/admin/ProdottiVenduti'
 
 interface DragState {
   id: number
@@ -384,10 +385,12 @@ export default function CalendarPage() {
   // Incassa: chiude la visita e registra il pagamento. Oltre al calendario
   // cambiano la Cassa e il cruscotto, che leggono i pagamenti.
   const checkoutMut = useMutation({
-    mutationFn: ({ id, ...data }: { id: number; method: 'contanti' | 'carta'; amount: number; visit_notes?: string }) =>
+    mutationFn: ({ id, ...data }: { id: number } & Parameters<typeof checkoutAppointment>[1]) =>
       checkoutAppointment(id, data),
     onSuccess: () => {
       invalidate()
+      // La giacenza dei prodotti venduti è cambiata.
+      qc.invalidateQueries({ queryKey: ['products'] })
       qc.invalidateQueries({ queryKey: ['client-appointments'] })
       qc.invalidateQueries({ queryKey: ['payments'] })
       qc.invalidateQueries({ queryKey: ['dashboard-stats'] })
@@ -1247,7 +1250,7 @@ function AppointmentModal({
   onConfirm: () => void
   onReject: (reason?: string) => void
   onComplete: (visitNotes?: string) => void
-  onCheckout: (data: { method: 'contanti' | 'carta'; amount: number; visit_notes?: string }) => void
+  onCheckout: (data: Parameters<typeof checkoutAppointment>[1]) => void
   checkoutPending: boolean
   checkoutError: string
   onCancel: (reason?: string) => void
@@ -1262,6 +1265,10 @@ function AppointmentModal({
   const canCheckout = isAdmin && !paid &&
     (appointment.status === 'confirmed' || appointment.status === 'completed')
   const amountValue = Number(payAmount.replace(',', '.'))
+  const [righeVendita, setRigheVendita] = useState<RigaVendita[]>([])
+  const venditaOk = righeVendita.every(rigaValida)
+  const totaleVendita = totaleProdotti(righeVendita)
+  const totaleIncasso = (amountValue > 0 ? amountValue : 0) + totaleVendita
   const [rejectReason, setRejectReason] = useState('')
   const [showRejectForm, setShowRejectForm] = useState(false)
   const [showCancelForm, setShowCancelForm] = useState(false)
@@ -1361,6 +1368,9 @@ function AppointmentModal({
             label="Incassato"
             value={`€${(appointment.paid_amount ?? 0).toFixed(2)} · ${appointment.paid_method ?? ''}`}
           />
+        )}
+        {appointment.products_paid_amount != null && (
+          <Row label="Prodotti" value={`€${appointment.products_paid_amount.toFixed(2)}`} />
         )}
       </div>
 
@@ -1521,13 +1531,14 @@ function AppointmentModal({
       )}
 
       {/* Incassa: l'importo è quello dei servizi ma si può cambiare (sconto,
-          prodotto aggiunto); il metodo va scelto, non c'è un predefinito —
+          servizio cambiato); i prodotti venduti si aggiungono sotto e vanno in
+          un incasso a parte. Il metodo va scelto, non c'è un predefinito —
           un «contanti» lasciato lì per distrazione sbaglierebbe la cassa. */}
       {showCheckout && (
         <div className="mt-4 border-t border-rule pt-4 space-y-3">
           <span className="kicker">Incassa</span>
           <div>
-            <label htmlFor="pay_amount" className="label block mb-1">Importo (€)</label>
+            <label htmlFor="pay_amount" className="label block mb-1">Servizi (€)</label>
             <input
               id="pay_amount"
               className="input text-lg tabular-nums"
@@ -1536,6 +1547,13 @@ function AppointmentModal({
               onChange={e => setPayAmount(e.target.value)}
             />
           </div>
+          <ProdottiVenduti righe={righeVendita} onChange={setRigheVendita} />
+          {righeVendita.length > 0 && (
+            <p className="text-sm flex justify-between border-t border-rule-soft pt-2">
+              <span className="text-ink-2">Prodotti €{totaleVendita.toFixed(2)}</span>
+              <span className="tabular-nums font-medium">Totale €{totaleIncasso.toFixed(2)}</span>
+            </p>
+          )}
           <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Metodo di pagamento">
             {([
               ['contanti', 'Contanti', Banknote],
@@ -1576,14 +1594,19 @@ function AppointmentModal({
                 method: payMethod,
                 amount: amountValue,
                 visit_notes: visitNotes.trim() || undefined,
+                products: righeVendita.length > 0
+                  ? righeVendita.map(r => ({
+                      product_id: r.product.id, quantity: r.quantity, unit_price: prezzoRiga(r),
+                    }))
+                  : undefined,
               })}
-              disabled={!payMethod || !(amountValue > 0) || checkoutPending}
+              disabled={!payMethod || !(amountValue > 0) || !venditaOk || checkoutPending}
               className="btn-primary btn-sm flex-1 disabled:opacity-50"
             >
               <Euro className="w-4 h-4" />
               {checkoutPending
                 ? 'Incasso…'
-                : `Incassa €${(amountValue > 0 ? amountValue : 0).toFixed(2)}${payMethod ? ` · ${payMethod}` : ''}`}
+                : `Incassa €${totaleIncasso.toFixed(2)}${payMethod ? ` · ${payMethod}` : ''}`}
             </button>
           </div>
         </div>

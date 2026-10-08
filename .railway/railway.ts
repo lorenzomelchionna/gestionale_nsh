@@ -17,6 +17,10 @@
 // Le variabili sono tutte `preserve()`: i valori restano su Railway e non
 // finiscono in questo repository, che è pubblico.
 //
+// Il riavvio è `ON_FAILURE`, il default di Railway: scriverlo qui lo farebbe
+// risultare sempre «da cambiare» nel plan, perché Railway il default non lo
+// salva (null). Si dichiarano solo i 3 tentativi.
+//
 // Il Dockerfile non si dichiara: Railway usa da solo quello nella cartella
 // del servizio (`backend/Dockerfile`, `frontend/Dockerfile`).
 //
@@ -40,7 +44,7 @@ export default defineRailway(() => {
     source: gestionale_nsh,
     start: "sh worker-start.sh",
     replicas: { "sfo": 1 },
-    deploy: { restartPolicyType: "ON_FAILURE", restartPolicyMaxRetries: 3 },
+    deploy: { restartPolicyMaxRetries: 3 },
     networking: { privateNetworkEndpoint: "celery-worker" },
     env: { ACCESS_TOKEN_EXPIRE_MINUTES: preserve(), ALGORITHM: preserve(), APP_ENV: preserve(), BREVO_API_KEY: preserve(), DATABASE_URL: preserve(), EMAILS_FROM_EMAIL: preserve(), EMAILS_FROM_NAME: preserve(), FRONTEND_URL: preserve(), REDIS_URL: preserve(), REFRESH_TOKEN_EXPIRE_DAYS: preserve(), SECRET_KEY: preserve(), SEED_DEMO: preserve(), SMTP_HOST: preserve(), SMTP_PASSWORD: preserve(), SMTP_PORT: preserve(), SMTP_USER: preserve(), TWILIO_ACCOUNT_SID: preserve(), TWILIO_AUTH_TOKEN: preserve(), TWILIO_TEMPLATE_CONFERMA: preserve(), TWILIO_TEMPLATE_PROMEMORIA: preserve(), TWILIO_TEMPLATE_VERIFICA: preserve(), TWILIO_WHATSAPP_FROM: preserve() },
   });
@@ -50,7 +54,7 @@ export default defineRailway(() => {
     healthcheck: "/health",
     healthcheckTimeout: 30,
     replicas: { "sfo": 1 },
-    deploy: { restartPolicyType: "ON_FAILURE", restartPolicyMaxRetries: 3 },
+    deploy: { restartPolicyMaxRetries: 3 },
     networking: { privateNetworkEndpoint: "gestionalensh" },
     env: { ACCESS_TOKEN_EXPIRE_MINUTES: preserve(), ADMIN_EMAIL: preserve(), ALGORITHM: preserve(), APP_ENV: preserve(), BREVO_API_KEY: preserve(), DATABASE_URL: preserve(), EMAILS_FROM_EMAIL: preserve(), EMAILS_FROM_NAME: preserve(), FRONTEND_URL: preserve(), POSTGRES_DB: preserve(), POSTGRES_PASSWORD: preserve(), POSTGRES_USER: preserve(), REDIS_URL: preserve(), REFRESH_TOKEN_EXPIRE_DAYS: preserve(), SECRET_KEY: preserve(), SEED_DEMO: preserve(), SMTP_HOST: preserve(), SMTP_PASSWORD: preserve(), SMTP_PORT: preserve(), SMTP_USER: preserve(), TWILIO_ACCOUNT_SID: preserve(), TWILIO_AUTH_TOKEN: preserve(), TWILIO_TEMPLATE_CONFERMA: preserve(), TWILIO_TEMPLATE_PROMEMORIA: preserve(), TWILIO_TEMPLATE_VERIFICA: preserve(), TWILIO_WHATSAPP_FROM: preserve() },
   });
@@ -59,7 +63,7 @@ export default defineRailway(() => {
     healthcheck: "/",
     healthcheckTimeout: 30,
     replicas: { "sfo": 1 },
-    deploy: { restartPolicyType: "ON_FAILURE", restartPolicyMaxRetries: 3 },
+    deploy: { restartPolicyMaxRetries: 3 },
     domains: ["www.newstylehair.it"],
     networking: { privateNetworkEndpoint: "happy-benevolence" },
     env: { VITE_API_URL: preserve() },

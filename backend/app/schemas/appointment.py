@@ -3,6 +3,7 @@ from typing import Literal, Optional, List
 from pydantic import BaseModel, Field
 from app.models.appointment import AppointmentStatus, AppointmentOrigin
 from app.models.payment import PaymentMethod, PaymentType
+from app.schemas.product import ProdottoVenduto
 
 
 class AppointmentServiceOut(BaseModel):
@@ -46,15 +47,6 @@ class AppointmentComplete(BaseModel):
     """
 
     visit_notes: Optional[str] = None
-
-
-class ProdottoVenduto(BaseModel):
-    """Una riga di «Prodotti venduti» nell'incasso di una visita."""
-    product_id: int
-    quantity: int = Field(ge=1, le=100)
-    # Precompilato col prezzo di vendita, ma modificabile come l'importo dei
-    # servizi: uno sconto sul prodotto si fa qui, non a mano in Cassa.
-    unit_price: float = Field(ge=0, le=10000)
 
 
 class AppointmentCheckout(BaseModel):

@@ -344,6 +344,8 @@ export const createPayment = (data: {
   appointment_id?: number; client_id?: number;
   amount: number; method: string; type: string; notes?: string;
   cash_amount?: number | null; card_amount?: number | null;
+  /** Vendita al banco: scalati dal magazzino; l'importo deve essere la loro somma. */
+  products?: { product_id: number; quantity: number; unit_price: number }[]
 }) =>
   api.post<Payment>('/admin/payments', data).then(r => r.data)
 

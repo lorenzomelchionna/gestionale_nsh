@@ -10,6 +10,7 @@ from app.schemas.payment import PaymentCreate, PaymentOut
 from app.schemas.common import PaginatedResponse
 from app.dependencies import require_admin
 from app.utils.tempo import istante_da_ingresso
+from app.services.vendite import scala_venduti
 
 router = APIRouter(prefix="/payments", tags=["Payments"])
 
@@ -46,7 +47,22 @@ async def create_payment(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(require_admin)],
 ):
-    payment = Payment(**payload.model_dump())
+    """Un incasso registrato a mano in Cassa.
+
+    Con `products` è una vendita al banco, senza visita: i prodotti si
+    scalano dal magazzino nella stessa transazione, e se uno non basta non
+    si registra nemmeno l'incasso. La nota dice cosa è stato venduto, prima
+    di quella eventualmente scritta.
+    """
+    dati = payload.model_dump(exclude={"products"})
+    if payload.products:
+        _, descrizione = await scala_venduti(
+            db, payload.products, appointment_id=payload.appointment_id,
+            nota="Vendita in Cassa",
+        )
+        scritta = (payload.notes or "").strip()
+        dati["notes"] = (f"{descrizione} — {scritta}" if scritta else descrizione)[:500]
+    payment = Payment(**dati)
     db.add(payment)
     await db.flush()
     await db.refresh(payment)

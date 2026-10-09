@@ -100,3 +100,12 @@ class ProductMovementOut(BaseModel):
     notes: Optional[str] = None
     appointment_id: Optional[int] = None
     created_at: datetime
+
+
+class ProdottoVenduto(BaseModel):
+    """Una riga di «Prodotti venduti»: all'incasso di una visita o in Cassa."""
+    product_id: int
+    quantity: int = Field(ge=1, le=100)
+    # Precompilato col prezzo di vendita, ma modificabile come l'importo dei
+    # servizi: uno sconto sul prodotto si fa qui, non a mano in Cassa.
+    unit_price: float = Field(ge=0, le=10000)

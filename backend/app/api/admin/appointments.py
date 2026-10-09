@@ -17,7 +17,7 @@ from app.schemas.appointment import (
     AppointmentOut, AppointmentOutWithNames, AppointmentReject, AppointmentReschedule,
 )
 from app.models.payment import Payment, PaymentMethod, PaymentType
-from app.models.product import MovementType, Product, ProductMovement
+from app.services.vendite import scala_venduti
 from app.schemas.common import PaginatedResponse
 from app.dependencies import get_current_user, require_admin
 from app.utils.tempo import istante_da_ingresso
@@ -354,47 +354,11 @@ async def _vendi_prodotti(db: AsyncSession, a: Appointment, payload: Appointment
     Tutto dentro la stessa transazione dell'incasso dei servizi: se un
     prodotto non basta, la richiesta fallisce intera — niente servizi
     incassati con mezza vendita, niente giacenza scalata senza il pagamento.
-
-    La giacenza blocca, per scelta del salone (2026-10-08): più di quanti ne
-    risultano non se ne vendono. Se il conto non torna si corregge prima con
-    un carico; un magazzino che va sotto zero smette di dire qualcosa.
     """
-    # Due righe dello stesso prodotto sono una riga sola: il controllo della
-    # giacenza va fatto sul totale, non su ciascuna metà.
-    righe: dict[int, tuple[int, float]] = {}
-    for r in payload.products:
-        q, prezzo = righe.get(r.product_id, (0, r.unit_price))
-        righe[r.product_id] = (q + r.quantity, prezzo)
-
-    # Bloccati in ordine di id, come il calendario blocca l'appuntamento:
-    # due incassi insieme sullo stesso shampoo leggerebbero entrambi «2 pz»
-    # e li venderebbero entrambi. L'ordine fisso evita lo stallo fra due
-    # incassi che si contendono gli stessi prodotti in ordine diverso.
-    prodotti = {
-        p.id: p for p in (await db.execute(
-            select(Product).where(Product.id.in_(righe)).order_by(Product.id).with_for_update()
-        )).scalars()
-    }
-    totale = 0.0
-    descrizione = []
-    for product_id, (quantita, prezzo) in righe.items():
-        p = prodotti.get(product_id)
-        if p is None or not p.is_active:
-            raise HTTPException(status_code=400, detail="Prodotto non disponibile per la vendita")
-        if p.quantity < quantita:
-            raise HTTPException(
-                status_code=409,
-                detail=f"Quantità insufficiente: {p.name} — a magazzino {p.quantity}, richiesti {quantita}.",
-            )
-        p.quantity -= quantita
-        db.add(ProductMovement(
-            product_id=p.id, type=MovementType.sale, quantity=quantita,
-            appointment_id=a.id, notes=f"Vendita all'incasso della visita #{a.id}",
-        ))
-        totale += quantita * prezzo
-        descrizione.append(f"{quantita}× {p.name}")
-
-    totale = round(totale, 2)
+    totale, descrizione = await scala_venduti(
+        db, payload.products, appointment_id=a.id,
+        nota=f"Vendita all'incasso della visita #{a.id}",
+    )
     # Un pagamento a parte, di tipo «prodotto»: il cruscotto separa già gli
     # incassi dei servizi da quelli della rivendita, e la nota dice in Cassa
     # cosa è stato venduto. Niente pagamento da zero se è tutto omaggio: la
@@ -406,7 +370,7 @@ async def _vendi_prodotti(db: AsyncSession, a: Appointment, payload: Appointment
             amount=totale,
             method=PaymentMethod(payload.method),
             type=PaymentType.product,
-            notes=", ".join(descrizione)[:500],
+            notes=descrizione[:500],
         ))
 
 

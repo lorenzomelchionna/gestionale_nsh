@@ -8,6 +8,12 @@ cambiamento incompatibile il primo.
 Le voci le scrive `scripts/release.py prepare` dai commit di ogni rilascio;
 vedi «CI e flusso di rilascio» in `CLAUDE.md`.
 
+## [1.3.1] — 2026-10-09
+
+### Novità
+
+- sell products from Cassa, without an appointment
+
 ## [1.3.0] — 2026-10-08
 
 ### Novità

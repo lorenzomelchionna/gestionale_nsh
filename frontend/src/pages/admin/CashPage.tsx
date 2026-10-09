@@ -6,6 +6,7 @@ import { getPayments, createPayment } from '@/services/api'
 import type { Payment } from '@/types'
 import Sheet from '@/components/ui/Sheet'
 import { PageHeader, EmptyState } from '@/components/ui'
+import ProdottiVenduti, { type RigaVendita, rigaValida, prezzoRiga, totaleProdotti } from '@/components/admin/ProdottiVenduti'
 
 const METHOD_LABELS: Record<string, string> = { contanti: 'Contanti', carta: 'Carta', misto: 'Misto' }
 const TYPE_LABELS: Record<string, string> = { servizio: 'Servizio', prodotto: 'Prodotto' }
@@ -46,7 +47,15 @@ export default function CashPage() {
   })
 
   const inv = () => qc.invalidateQueries({ queryKey: ['payments'] })
-  const createMut = useMutation({ mutationFn: createPayment, onSuccess: () => { inv(); setShowCreate(false) } })
+  const createMut = useMutation({
+    mutationFn: createPayment,
+    onSuccess: () => {
+      inv()
+      // Una vendita al banco cambia la giacenza.
+      qc.invalidateQueries({ queryKey: ['products'] })
+      setShowCreate(false)
+    },
+  })
 
   const payments = data?.items ?? []
   const total = payments.reduce((s, p) => s + p.amount, 0)
@@ -224,6 +233,16 @@ function PaymentFormModal({ onClose, onSave, loading, error }: {
     amount: '', method: 'contanti', type: 'servizio', notes: '',
     cashAmount: '', cardAmount: '',
   })
+  // Vendita al banco (richiesta del 2026-10-09): chi entra solo a comprare.
+  // Con dei prodotti scelti l'importo è la loro somma, e non si scrive.
+  const [righe, setRighe] = useState<RigaVendita[]>([])
+  const vendita = form.type === 'prodotto' && righe.length > 0
+  const totaleVendita = totaleProdotti(righe)
+  const venditaOk = righe.every(rigaValida) && totaleVendita > 0
+  const importo = vendita ? totaleVendita : Number(form.amount)
+  const splitOk = form.method !== 'misto' || Math.abs(
+    (parseFloat(form.cashAmount) || 0) + (parseFloat(form.cardAmount) || 0) - importo,
+  ) <= 0.01
 
   const set = (k: keyof FormData, v: string) => {
     setForm(prev => {
@@ -240,8 +259,9 @@ function PaymentFormModal({ onClose, onSave, loading, error }: {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    if (vendita && (!venditaOk || !splitOk)) return
     const payload: any = {
-      amount: Number(form.amount),
+      amount: vendita ? Number(totaleVendita.toFixed(2)) : Number(form.amount),
       method: form.method,
       type: form.type,
       notes: form.notes || undefined,
@@ -249,6 +269,11 @@ function PaymentFormModal({ onClose, onSave, loading, error }: {
     if (form.method === 'misto') {
       payload.cash_amount = Number(form.cashAmount)
       payload.card_amount = Number(form.cardAmount)
+    }
+    if (vendita) {
+      payload.products = righe.map(r => ({
+        product_id: r.product.id, quantity: r.quantity, unit_price: prezzoRiga(r),
+      }))
     }
     onSave(payload)
   }
@@ -263,13 +288,37 @@ function PaymentFormModal({ onClose, onSave, loading, error }: {
       footer={
         <>
           <button type="button" onClick={onClose} className="btn-secondary btn-sm">Annulla</button>
-          <button type="submit" form="payment-form" disabled={loading} className="btn-primary btn-sm">
+          <button
+            type="submit" form="payment-form"
+            disabled={loading || (vendita && (!venditaOk || !splitOk))}
+            className="btn-primary btn-sm disabled:opacity-50"
+          >
             Salva
           </button>
         </>
       }
     >
       <form id="payment-form" onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className="label">Tipo</label>
+          <select className="input" value={form.type} onChange={e => set('type', e.target.value)}>
+            <option value="servizio">Servizio</option>
+            <option value="prodotto">Prodotto</option>
+          </select>
+        </div>
+
+        {form.type === 'prodotto' && (
+          <>
+            <ProdottiVenduti righe={righe} onChange={setRighe} />
+            {vendita && (
+              <p className="flex items-baseline justify-between gap-3 border-t border-rule-soft pt-2.5">
+                <span className="kicker">Totale prodotti</span>
+                <span className="amount">€{totaleVendita.toFixed(2)}</span>
+              </p>
+            )}
+          </>
+        )}
+
         <div>
           <label className="label">Metodo</label>
           <select className="input" value={form.method} onChange={e => set('method', e.target.value)}>
@@ -304,14 +353,20 @@ function PaymentFormModal({ onClose, onSave, loading, error }: {
                 />
               </div>
             </div>
-            {form.amount && (
+            {vendita ? (
+              !splitOk && (
+                <p className="text-xs text-danger">
+                  Contanti + carta deve fare €{totaleVendita.toFixed(2)}, il totale dei prodotti.
+                </p>
+              )
+            ) : form.amount && (
               <p className="flex items-baseline justify-between gap-3 border-t border-rule-soft pt-2.5">
                 <span className="kicker">Totale</span>
                 <span className="amount">€{Number(form.amount).toFixed(2)}</span>
               </p>
             )}
           </div>
-        ) : (
+        ) : vendita ? null : (
           <div>
             <label className="label">Importo (€) *</label>
             <input
@@ -322,13 +377,6 @@ function PaymentFormModal({ onClose, onSave, loading, error }: {
           </div>
         )}
 
-        <div>
-          <label className="label">Tipo</label>
-          <select className="input" value={form.type} onChange={e => set('type', e.target.value)}>
-            <option value="servizio">Servizio</option>
-            <option value="prodotto">Prodotto</option>
-          </select>
-        </div>
         <div>
           <label className="label">Note</label>
           <input className="input" value={form.notes} onChange={e => set('notes', e.target.value)} />

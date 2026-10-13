@@ -1857,6 +1857,37 @@ commit**, versione a piè di pagina in **gestionale e portale**, note in
   scritte per chi non è sviluppatore a ogni rilascio (il CHANGELOG usa gli
   oggetti dei commit, in inglese tecnico).
 
+### Richiesta — 2026-10-13: modificare o annullare un appuntamento confermato
+
+Decisioni di Lorenzo: si cambia **tutto** (servizi, collaboratore, giorno,
+ora); la modifica è una **richiesta** e il confermato resta valido finché il
+salone non accetta; vale il **preavviso** delle impostazioni
+(`min_cancel_hours`) per modificare e annullare; il salone avvisato di tutto.
+
+- [x] Richiesta = appuntamento «in attesa» con `replaces_appointment_id`
+  (migration `c4e9b1f7a2d6`); `services/modifiche.py`: conferma (o
+  alternativa accettata) annulla l'originale nella stessa transazione, 409
+  se l'originale è finito; originale annullato/rifiutato chiude le sue
+  richieste; una sola aperta. `POST /api/public/appointments/{id}/change`;
+  `sostituisce` sugli orari liberi (solo con la sessione della proprietaria).
+  Email allo staff (admin + collaboratori di prima e di dopo): «Richiesta di
+  modifica» con prima/dopo, «Annullato dalla cliente» (confermato, richiesta
+  ritirata, modifica ritirata) — prima l'annullamento non avvisava nessuno.
+  Portale: Modifica/Annulla (con conferma) entro il preavviso, modifica in
+  attesa dentro la scheda con «Ritira», rifiuto spiegato, telefono oltre il
+  limite; flusso di prenotazione in modalità modifica. Gestionale: «In
+  attesa» e calendario mostrano cosa sostituisce. `tests/test_modifica_
+  appuntamento.py` (29), falsificato con 25 mutazioni; suite 995 verde;
+  migration su/giù/su da DB vuoto; percorso completo verificato nel browser.
+  [PR #181](https://github.com/lorenzomelchionna/gestionale_nsh/pull/181)
+  → `develop`; rilascio **1.4.0**
+  ([PR #182](https://github.com/lorenzomelchionna/gestionale_nsh/pull/182),
+  commit `f4c8d5c`). **Deploy confermato** il 2026-10-13 alle 14:10 UTC:
+  migration applicata all'avvio, tre servizi `SUCCESS`, `/health` → 1.4.0,
+  rotta nuova presente, nessun 5xx, worker «ready».
+- [ ] (Non chiesto) messaggio alla cliente quando il salone rifiuta una
+  richiesta o una modifica: oggi nessun rifiuto ne manda uno.
+
 ### Segnalazione — 2026-10-13: «Token non valido» su «Invia richiesta»
 
 Screenshot del portale (prenotazione di un taglio uomo per sabato 17/10).
@@ -2108,6 +2139,16 @@ Le due correzioni nate da qui sono nella 1.2.0 (sezione sotto); restano:
   29/07). Mascherati il 6/10, ma restano nella storia di git. Da
   decidere con Lorenzo: rendere il repository privato, e/o riscrivere la
   storia (distruttivo: `main` blocca il force push di proposito).
+  **2026-10-13: Lorenzo ha valutato il privato e per ora resta pubblico.**
+  Analisi pronta per quando si riprende: 0 fork, 0 stelle, 0 osservatori
+  (non si toglie niente a nessuno). Sul piano Free un repository privato
+  perde l'applicazione della protezione di `main` (i 4 check obbligatori
+  restano salvati ma non bloccano) e l'auto-merge, e ha 2.000 minuti di
+  Actions al mese contro i ~1.700 consumati negli ultimi 30 giorni (317
+  run, ~5,3 min fatturabili ciascuno su un campione di 30). Con GitHub Pro
+  (~4 $/mese) protezione e auto-merge restano e i minuti salgono a 3.000.
+  Railway e Dependabot funzionano uguale. Comando, dopo l'eventuale Pro:
+  `gh repo edit --visibility private --accept-visibility-change-consequences`.
 
 ### Richiesta — 2026-10-06: limiti per persona e numero sulla schermata del codice
 

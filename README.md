@@ -184,3 +184,11 @@ alembic upgrade head && python bootstrap.py && uvicorn ...
 ```
 
 `bootstrap.py` è idempotente: crea admin + BookingConfig se mancanti, e (se `SEED_DEMO=true`) popola dati demo solo se la tabella servizi è vuota.
+
+## Licenza
+
+Codice proprietario: © 2026 Lorenzo Melchionna e New Style Hair S.r.l.
+Semplificata, **tutti i diritti riservati**. Il repository è pubblico solo per
+essere consultato: non è concessa nessuna licenza d'uso, e senza
+autorizzazione scritta non si può usare, copiare, modificare o distribuire.
+Il testo completo è in [`LICENSE`](LICENSE).

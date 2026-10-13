@@ -1,7 +1,8 @@
 {
   "name": "new-style-hair-frontend",
   "private": true,
-  "version": "1.4.0",
+  "license": "UNLICENSED",
+  "version": "1.4.1",
   "type": "module",
   "scripts": {
     "dev": "vite",

@@ -117,6 +117,12 @@ class AppointmentOutWithNames(AppointmentOut):
     paid_method: Optional[str] = None
     # I prodotti venduti a questa visita: totale incassato, `None` se nessuno.
     products_paid_amount: Optional[float] = None
+    # Una richiesta di modifica della cliente: il «prima», per decidere senza
+    # dover andare a cercare l'appuntamento originale in calendario.
+    replaces_appointment_id: Optional[int] = None
+    replaces_start_time: Optional[datetime] = None
+    replaces_collaborator_name: Optional[str] = None
+    replaces_service_names: List[str] = []
 
     @classmethod
     def from_appointment(cls, a) -> "AppointmentOutWithNames":
@@ -140,6 +146,16 @@ class AppointmentOutWithNames(AppointmentOut):
         prodotti = [p for p in (a.payments or []) if p.type == PaymentType.product]
         if prodotti:
             out.products_paid_amount = round(sum(float(p.amount) for p in prodotti), 2)
+        prima = a.sostituisce if a.replaces_appointment_id else None
+        if prima is not None:
+            out.replaces_start_time = prima.start_time
+            out.replaces_collaborator_name = (
+                f"{prima.collaborator.first_name} {prima.collaborator.last_name}"
+                if prima.collaborator else ""
+            )
+            out.replaces_service_names = [
+                s.service.name for s in prima.appointment_services if s.service is not None
+            ]
         return out
 
 
@@ -181,9 +197,17 @@ class PortalAppointmentOut(BaseModel):
     alternative_time: Optional[datetime] = None
     created_at: datetime
 
+    # La richiesta di modifica di un altro suo appuntamento, se lo è.
+    replaces_appointment_id: Optional[int] = None
+
     collaborator_name: str = ""
     service_names: List[str] = []
+    # Gli id, oltre ai nomi: per ripartire da qui quando la cliente modifica.
+    service_ids: List[int] = []
     total_price: float = 0.0
+    # Fin quando può modificare o annullare da sola (preavviso delle
+    # impostazioni); `None` = nessun limite. La riempie la rotta che elenca.
+    change_deadline: Optional[datetime] = None
 
     @classmethod
     def from_appointment(cls, a) -> "PortalAppointmentOut":
@@ -194,5 +218,6 @@ class PortalAppointmentOut(BaseModel):
         out.service_names = [
             s.service.name for s in a.appointment_services if s.service is not None
         ]
+        out.service_ids = [s.service_id for s in a.appointment_services]
         out.total_price = sum(s.price_snapshot for s in a.appointment_services)
         return out

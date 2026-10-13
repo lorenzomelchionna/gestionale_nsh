@@ -145,6 +145,14 @@ export interface Appointment {
   paid_method?: string | null
   /** Incassato per i prodotti venduti a questa visita; null se nessuno. */
   products_paid_amount?: number | null
+  /** Richiesta di modifica di un altro appuntamento: quale, e il suo «prima». */
+  replaces_appointment_id?: number | null
+  replaces_start_time?: string | null
+  replaces_collaborator_name?: string | null
+  replaces_service_names?: string[]
+  /** Dal portale: gli id dei servizi, e fin quando si può modificare o annullare. */
+  service_ids?: number[]
+  change_deadline?: string | null
   service_names?: string[]
   /** Allineati a `service_names`; null per un servizio senza colore. */
   service_colors?: (string | null)[]

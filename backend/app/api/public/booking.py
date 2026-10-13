@@ -2,6 +2,7 @@
 from typing import Annotated, List, Optional
 from datetime import date, datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
@@ -21,7 +22,8 @@ from app.schemas.collaborator import CollaboratorOut, CollaboratorScheduleOut
 from app.schemas.appointment import AppointmentCreate, PortalAppointmentOut
 from app.schemas.waitlist import WaitlistCreate, WaitlistOut
 from app.schemas.common import MessageResponse
-from app.dependencies import get_current_client
+from app.dependencies import bearer_facoltativo, get_current_client, get_client_facoltativo
+from app.services import modifiche
 from app.utils.tempo import istante, oggi_salone
 from app.services.availability import CHIUSURA_PORTALE, busy_slot_offsets, get_available_slots
 
@@ -80,6 +82,58 @@ def _trigger_new_booking_alert(appointment_id: int):
         notify_new_booking.delay(appointment_id)
     except Exception as e:
         print(f"[NOTIFY] Could not queue staff alert for appointment {appointment_id}: {e}")
+
+
+def _trigger_change_alert(appointment_id: int):
+    """Come l'avviso di una prenotazione nuova, per una richiesta di modifica."""
+    try:
+        from app.tasks.reminders import notify_change_request
+        notify_change_request.delay(appointment_id)
+    except Exception as e:
+        print(f"[NOTIFY] Could not queue change alert for appointment {appointment_id}: {e}")
+
+
+def _trigger_cancellation_alert(appointment_id: int, tipo: str):
+    """Avvisa il salone che la cliente ha annullato (o ritirato una richiesta).
+
+    Prima del 2026-10-13 l'annullamento dal portale non avvisava nessuno: l'ora
+    si liberava in calendario e basta, e il salone se ne accorgeva vedendola
+    vuota.
+    """
+    try:
+        from app.tasks.reminders import notify_client_cancellation
+        notify_client_cancellation.delay(appointment_id, tipo)
+    except Exception as e:
+        print(f"[NOTIFY] Could not queue cancellation alert for appointment {appointment_id}: {e}")
+
+
+async def _da_sostituire(
+    db: AsyncSession, credenziali, appointment_id: Optional[int],
+) -> Optional[int]:
+    """L'appuntamento da non contare come occupato, mentre la cliente lo sposta.
+
+    Senza, chi ha le 10:00 con Marco non potrebbe spostarsi alle 10:30 con
+    Marco: il suo stesso appuntamento risulterebbe d'intralcio. Ma gli orari
+    liberi sono pubblici, e «togli l'appuntamento #N dal conto» detto da
+    chiunque descriverebbe l'agenda del salone a chi prova i numeri: vale solo
+    con la sessione della cliente a cui appartiene. Senza sessione valida è un
+    401 — che il portale rinnova da solo — non un'esclusione ignorata in
+    silenzio.
+    """
+    if appointment_id is None:
+        return None
+    account = await get_client_facoltativo(credenziali, db, obbligatorio=True)
+    client = await _cliente_del_portale(db, account)
+    appt = (await db.execute(
+        select(Appointment).where(
+            Appointment.id == appointment_id,
+            Appointment.client_id == (client.id if client else -1),
+            Appointment.status == AppointmentStatus.confirmed,
+        )
+    )).scalar_one_or_none()
+    if appt is None:
+        raise HTTPException(status_code=404, detail="Appuntamento non trovato")
+    return appt.id
 
 
 # ── Public (no auth) ──────────────────────────────────────────────
@@ -193,6 +247,8 @@ async def public_availability(
     target_date: date = Query(...),
     service_id: Optional[int] = Query(None),
     service_ids: Optional[List[int]] = Query(None),
+    sostituisce: Optional[int] = Query(None),
+    credenziali: Annotated[Optional[HTTPAuthorizationCredentials], Depends(bearer_facoltativo)] = None,
 ):
     # Validate booking config
     cfg_result = await db.execute(select(BookingConfig).limit(1))
@@ -209,8 +265,10 @@ async def public_availability(
     services = await _servizi_richiesti(db, service_id, service_ids)
     await _bookable_collaborator(db, collaborator_id, [s.id for s in services])
 
+    escluso = await _da_sostituire(db, credenziali, sostituisce)
     slots = await get_available_slots(
         db, collaborator_id, target_date, sum(s.duration_slots for s in services),
+        exclude_appointment_id=escluso,
         busy_offsets=busy_slot_offsets(services), chiusura=CHIUSURA_PORTALE,
     )
     return [s.isoformat() for s in slots]
@@ -224,6 +282,8 @@ async def public_availability_calendar(
     end_date: date = Query(...),
     service_id: Optional[int] = Query(None),
     service_ids: Optional[List[int]] = Query(None),
+    sostituisce: Optional[int] = Query(None),
+    credenziali: Annotated[Optional[HTTPAuthorizationCredentials], Depends(bearer_facoltativo)] = None,
 ):
     """
     How many slots each day of a range holds.
@@ -249,6 +309,7 @@ async def public_availability_calendar(
     await _bookable_collaborator(db, collaborator_id, [s.id for s in services])
     durata = sum(s.duration_slots for s in services)
     posa = busy_slot_offsets(services)
+    escluso = await _da_sostituire(db, credenziali, sostituisce)
 
     # La data del salone: `date.today()` è quella del processo, che su
     # Railway è UTC, quindi fra mezzanotte e le due risponderebbe «ieri».
@@ -267,7 +328,7 @@ async def public_availability_calendar(
         else:
             slots = await get_available_slots(
                 db, collaborator_id, day, durata, busy_offsets=posa,
-                chiusura=CHIUSURA_PORTALE,
+                chiusura=CHIUSURA_PORTALE, exclude_appointment_id=escluso,
             )
             out.append(DayAvailability(date=day, slots=len(slots)))
         day += timedelta(days=1)
@@ -281,6 +342,7 @@ async def valida_prenotazione(
     collaborator_id: int,
     start_time: datetime,
     service_ids: List[int],
+    exclude_appointment_id: Optional[int] = None,
 ) -> tuple[list[Service], datetime, datetime]:
     """Tutto quello che una prenotazione dal portale deve rispettare, prima di
     sapere chi la fa: servizi, collaboratore, orario libero.
@@ -337,6 +399,7 @@ async def valida_prenotazione(
     # che il portale non mostra resterebbe prenotabile con una chiamata a mano.
     slots = await get_available_slots(
         db, collaborator_id, start.date(), duration_slots,
+        exclude_appointment_id=exclude_appointment_id,
         busy_offsets=busy_slot_offsets(services), chiusura=CHIUSURA_PORTALE,
     )
     if start not in slots:
@@ -382,9 +445,15 @@ async def registra_prenotazione(
     start: datetime,
     end: datetime,
     notes: Optional[str],
+    sostituisce: Optional[Appointment] = None,
 ) -> PortalAppointmentOut:
-    """Scrive la richiesta già validata, avvisa il salone, la restituisce."""
+    """Scrive la richiesta già validata, avvisa il salone, la restituisce.
+
+    Con `sostituisce` è una richiesta di modifica di quell'appuntamento: stessa
+    richiesta «in attesa», avviso diverso al salone.
+    """
     appt = Appointment(
+        replaces_appointment_id=sostituisce.id if sostituisce else None,
         client_id=client.id,
         collaborator_id=collaborator_id,
         start_time=start,
@@ -410,7 +479,10 @@ async def registra_prenotazione(
     # confirm endpoint. What has to leave now is the other direction — telling
     # the salon a stranger is waiting for an answer.
     await db.commit()
-    _trigger_new_booking_alert(appt.id)
+    if sostituisce is not None:
+        _trigger_change_alert(appt.id)
+    else:
+        _trigger_new_booking_alert(appt.id)
 
     # Rileggere invece di proiettare `appt`: la risposta ora include il nome
     # del collaboratore e quelli dei servizi, che sono relazioni non caricate
@@ -459,7 +531,76 @@ async def my_appointments(
         .order_by(Appointment.start_time.desc())
     )
     appointments = result.scalars().all()
-    return [PortalAppointmentOut.from_appointment(a) for a in appointments]
+    out = []
+    for a in appointments:
+        p = PortalAppointmentOut.from_appointment(a)
+        p.change_deadline = await modifiche.scadenza_modifiche(db, a)
+        out.append(p)
+    return out
+
+
+@router.post(
+    "/appointments/{appointment_id}/change",
+    response_model=PortalAppointmentOut, status_code=status.HTTP_201_CREATED,
+)
+async def request_change(
+    appointment_id: int,
+    payload: AppointmentCreate,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_account: Annotated[ClientAccount, Depends(get_current_client)],
+):
+    """Chiede di modificare un appuntamento confermato: servizi, collaboratore,
+    giorno, ora — anche tutto insieme.
+
+    È una richiesta «in attesa» come una prenotazione nuova, e l'originale
+    resta confermato finché il salone non accetta (vedi `services/modifiche`).
+    Stesso preavviso dell'annullamento. Una sola modifica aperta per
+    appuntamento: due richieste parallele sullo stesso posto, accettate
+    entrambe, lascerebbero la cliente con due appuntamenti.
+    """
+    client = await _cliente_del_portale(db, current_account)
+    if not client:
+        raise HTTPException(status_code=400, detail="Profilo cliente non trovato")
+    # Bloccato: due richieste insieme non devono vedere entrambe «nessuna
+    # modifica aperta».
+    vecchio = (await db.execute(
+        select(Appointment)
+        .where(Appointment.id == appointment_id, Appointment.client_id == client.id)
+        .with_for_update()
+    )).scalar_one_or_none()
+    if vecchio is None:
+        raise HTTPException(status_code=404, detail="Appuntamento non trovato")
+    if vecchio.status != AppointmentStatus.confirmed:
+        raise HTTPException(status_code=400, detail="Si può modificare solo un appuntamento confermato")
+    await modifiche.controlla_preavviso(db, vecchio, "Modifica")
+    if await modifiche.richieste_aperte(db, vecchio.id):
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Hai già chiesto di modificare questo appuntamento: aspetta la risposta "
+                "del salone, oppure ritira la richiesta."
+            ),
+        )
+
+    services, start, end = await valida_prenotazione(
+        db, payload.collaborator_id, payload.start_time, payload.service_ids,
+        exclude_appointment_id=vecchio.id,
+    )
+    vecchi_servizi = [s.service_id for s in (await db.execute(
+        select(AppointmentService)
+        .where(AppointmentService.appointment_id == vecchio.id)
+        .order_by(AppointmentService.id)
+    )).scalars()]
+    if (
+        start == vecchio.start_time and payload.collaborator_id == vecchio.collaborator_id
+        and [s.id for s in services] == vecchi_servizi
+    ):
+        raise HTTPException(status_code=400, detail="La modifica è uguale all'appuntamento attuale")
+    await controlla_richieste_in_attesa(db, client)
+    return await registra_prenotazione(
+        db, client, payload.collaborator_id, services, start, end, payload.notes,
+        sostituisce=vecchio,
+    )
 
 
 @router.post("/appointments/{appointment_id}/cancel", response_model=MessageResponse)
@@ -480,21 +621,25 @@ async def cancel_my_appointment(
     if not appt:
         raise HTTPException(status_code=404, detail="Appuntamento non trovato")
 
-    if appt.status in (AppointmentStatus.completed, AppointmentStatus.cancelled):
+    if appt.status in modifiche.FINITI:
         raise HTTPException(status_code=400, detail="Impossibile cancellare questo appuntamento")
 
-    # Check min cancel hours
-    cfg_result = await db.execute(select(BookingConfig).limit(1))
-    cfg = cfg_result.scalar_one_or_none()
-    if cfg:
-        min_notice = timedelta(hours=cfg.min_cancel_hours)
-        if appt.start_time - datetime.now(timezone.utc) < min_notice:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Cancellazione non consentita con meno di {cfg.min_cancel_hours}h di preavviso"
-            )
+    await modifiche.controlla_preavviso(db, appt, "Cancellazione")
 
+    # Deciso prima di cambiare lo stato: dopo, sono tutti «annullati».
+    tipo = (
+        "modifica" if appt.replaces_appointment_id
+        else "confermato" if appt.status == AppointmentStatus.confirmed
+        else "richiesta"
+    )
     appt.status = AppointmentStatus.cancelled
+    appt.alternative_time = None
+    # Annullato l'appuntamento, le sue modifiche in attesa non hanno più
+    # niente da sostituire.
+    await modifiche.annulla_richieste_aperte(db, appt)
+    # Prima il commit, poi l'avviso: il worker legge dalla sua transazione.
+    await db.commit()
+    _trigger_cancellation_alert(appt.id, tipo)
     return MessageResponse(message="Appuntamento cancellato")
 
 
@@ -524,6 +669,9 @@ async def accept_alternative(
     appt.end_time = appt.alternative_time + duration
     appt.alternative_time = None
     appt.status = AppointmentStatus.confirmed
+    # Una modifica a cui il salone ha proposto un altro orario: accettandolo,
+    # la modifica è confermata e l'originale va annullato come per la conferma.
+    await modifiche.applica_sostituzione(db, appt)
     return MessageResponse(message="Proposta accettata")
 
 

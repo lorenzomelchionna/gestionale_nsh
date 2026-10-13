@@ -8,6 +8,12 @@ cambiamento incompatibile il primo.
 Le voci le scrive `scripts/release.py prepare` dai commit di ogni rilascio;
 vedi «CI e flusso di rilascio» in `CLAUDE.md`.
 
+## [1.4.0] — 2026-10-13
+
+### Novità
+
+- clients can change or cancel a confirmed appointment, salon notified
+
 ## [1.3.2] — 2026-10-13
 
 ### Correzioni

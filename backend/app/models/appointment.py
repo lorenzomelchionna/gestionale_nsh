@@ -45,6 +45,13 @@ class Appointment(Base):
     visit_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # Post-visit notes
     rejection_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     alternative_time: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Una richiesta di modifica fatta dalla cliente (2026-10-13) è un
+    # appuntamento nuovo «in attesa» che punta a quello confermato che
+    # sostituirebbe: il vecchio vale finché il salone non accetta. Vedi
+    # `app/services/modifiche.py`.
+    replaces_appointment_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("appointments.id", ondelete="SET NULL"), nullable=True, index=True,
+    )
 
     reminder_sent: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     whatsapp_reminder_sent: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
@@ -67,6 +74,10 @@ class Appointment(Base):
         "AppointmentService", back_populates="appointment", cascade="all, delete-orphan"
     )
     payments: Mapped[List["Payment"]] = relationship("Payment", back_populates="appointment")
+    # L'appuntamento che questa richiesta di modifica sostituirebbe.
+    sostituisce: Mapped[Optional["Appointment"]] = relationship(
+        "Appointment", remote_side="Appointment.id", foreign_keys=[replaces_appointment_id],
+    )
 
 
 class AppointmentService(Base):
@@ -106,4 +117,8 @@ def appointment_detail_loads():
         selectinload(Appointment.appointment_services).selectinload(AppointmentService.service),
         # Per «incassato»: il calendario deve sapere se è già stato pagato.
         selectinload(Appointment.payments),
+        # Per una richiesta di modifica, il «prima»: quando, con chi, cosa.
+        selectinload(Appointment.sostituisce).selectinload(Appointment.collaborator),
+        selectinload(Appointment.sostituisce)
+        .selectinload(Appointment.appointment_services).selectinload(AppointmentService.service),
     )

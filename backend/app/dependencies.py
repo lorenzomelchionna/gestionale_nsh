@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, Optional
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,6 +10,10 @@ from app.models.client import ClientAccount
 from app.utils.auth import decode_token
 
 bearer_scheme = HTTPBearer()
+# Per le rotte pubbliche che con la sessione della cliente fanno qualcosa in
+# più (gli orari liberi mentre sposta un suo appuntamento): senza header non
+# rispondono 403 come `bearer_scheme`, restano pubbliche.
+bearer_facoltativo = HTTPBearer(auto_error=False)
 
 # Staff and client tokens are signed with the same key, and `sub` is an id from
 # a different table in each case (users vs client_accounts). Without checking
@@ -100,3 +104,23 @@ async def get_current_client(
 
     imposta_attore("client", account.id)
     return account
+
+
+async def get_client_facoltativo(
+    credentials: Optional[HTTPAuthorizationCredentials],
+    db: AsyncSession,
+    obbligatorio: bool = False,
+) -> Optional[ClientAccount]:
+    """La cliente, se la richiesta ne porta la sessione.
+
+    Senza header: `None`, o 401 se `obbligatorio`. Con un header che non
+    regge: 401 sempre, come `get_current_client` — un token scaduto non deve
+    trasformarsi in silenzio in «anonimo», perché il portale rinnova la
+    sessione proprio quando riceve un 401.
+    """
+    if credentials is None:
+        if obbligatorio:
+            token_rifiutato(motivo="sessione_assente")
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token non valido")
+        return None
+    return await get_current_client(credentials, db)

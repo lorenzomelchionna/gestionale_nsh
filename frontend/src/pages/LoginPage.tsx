@@ -92,6 +92,10 @@ export default function LoginPage() {
   // Where to land after signing in — set when the portal bounced someone here
   // mid-booking, so they resume instead of restarting.
   const next = destinazioneInterna(params.get('next'))
+  // Rimandata qui dal portale perché la sessione non si poteva più rinnovare
+  // (vedi `publicApi`): lo si dice, altrimenti sembra di essere stati
+  // buttati fuori senza motivo nel mezzo di una prenotazione.
+  const sessioneScaduta = params.get('sessione') === 'scaduta'
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -104,7 +108,7 @@ export default function LoginPage() {
         staffLogin(tokens, await getMe())
         navigate('/admin')
       } else {
-        clientLogin(tokens.access_token, email)
+        clientLogin(tokens.access_token, email, tokens.refresh_token)
         navigate(next || '/booking')
       }
     } catch (err) {
@@ -186,7 +190,7 @@ export default function LoginPage() {
         // Un account che aveva già il telefono verificato — registrato prima
         // che questo passo esistesse, o già completato — entra subito, come
         // succedeva sempre prima di questa funzionalità.
-        finishSignIn(result.access_token)
+        finishSignIn(result.access_token, result.refresh_token)
         return
       }
       // L'indirizzo è confermato, ma la sessione arriva solo dopo anche il
@@ -241,8 +245,8 @@ export default function LoginPage() {
 
   // Aggiorna sessione e destinazione — l'unico punto in cui la registrazione
   // è davvero finita, che sia dopo uno o due codici a seconda dell'account.
-  const finishSignIn = (accessToken: string) => {
-    clientLogin(accessToken, email)
+  const finishSignIn = (accessToken: string, refreshToken: string) => {
+    clientLogin(accessToken, email, refreshToken)
     navigate(next || '/booking', { state: { justRegistered: true } })
   }
 
@@ -252,7 +256,7 @@ export default function LoginPage() {
     setLoading(true)
     try {
       const tokens = await verifyPhone(email, code.trim())
-      finishSignIn(tokens.access_token)
+      finishSignIn(tokens.access_token, tokens.refresh_token)
     } catch (err) {
       const detail = (err as { response?: { data?: { detail?: string } } })
         ?.response?.data?.detail
@@ -419,6 +423,13 @@ export default function LoginPage() {
                   </button>
                 ))}
               </div>
+
+              {sessioneScaduta && mode === 'signin' && (
+                <p role="status" className="text-[13px] border-l-2 border-primary bg-primary/[0.08] px-3 py-2.5">
+                  La sessione è scaduta: accedi di nuovo per continuare
+                  {next?.startsWith('/booking/new') ? ' — la prenotazione che stavi facendo è stata salvata.' : '.'}
+                </p>
+              )}
 
               <form
                 onSubmit={mode === 'signin' ? handleSignIn : handleRegister}

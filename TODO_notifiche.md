@@ -1881,8 +1881,24 @@ l'incasso, non dalla Cassa senza appuntamento).
   commit `c3473ab`). **Deploy confermato** il 2026-10-08 alle 20:40 UTC:
   tre servizi `SUCCESS`, `/health` → 1.3.0, bundle con «Prodotti venduti»,
   migration + bootstrap ok, worker «ready», nessun 5xx.
-- [ ] (Non chiesto ora) vendere prodotti dopo l'incasso o senza
-  appuntamento, dalla Cassa.
+- [x] **Vendere dalla Cassa, senza appuntamento** (richiesta del
+  2026-10-09, chi entra solo a comprare). «Registra incasso» col tipo
+  «Prodotto» mostra lo stesso selettore; l'importo è la somma dei prodotti
+  (anche in misto, controllato in pagina e dal server: 422 se non torna o
+  se il tipo non è «prodotto»); giacenza scalata con movimento «Vendita in
+  Cassa». Regole del magazzino spostate in `app/services/vendite.py`,
+  comuni a visita e Cassa. `tests/test_prodotti_in_cassa.py` (13),
+  falsificato con 10 mutazioni; suite 953 verde; verificato nel browser
+  (misto 10+15 bloccato, 10+18 registrato, giacenza 20→18).
+  [PR #174](https://github.com/lorenzomelchionna/gestionale_nsh/pull/174)
+  → `develop`; rilascio **1.3.1** — patch per scelta di Lorenzo (completa
+  la 1.3.0), con `release.py prepare --bump patch`
+  ([PR #175](https://github.com/lorenzomelchionna/gestionale_nsh/pull/175),
+  commit `3d4462a`; PR aperta a mano perché il push dello script è rimasto
+  appeso dopo essere arrivato). **Deploy confermato** il 2026-10-09 alle
+  08:08 UTC: tre servizi `SUCCESS`, `/health` → 1.3.1, bundle nuovo,
+  nessun 5xx, worker «ready».
+- [ ] (Non chiesto) vendere prodotti su una visita già incassata.
 
 ### Segnalazione — 2026-10-08: «li carico faccio salva e non escono, si è fermato a 20»
 

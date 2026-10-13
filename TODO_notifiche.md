@@ -1857,6 +1857,36 @@ commit**, versione a piè di pagina in **gestionale e portale**, note in
   scritte per chi non è sviluppatore a ogni rilascio (il CHANGELOG usa gli
   oggetti dei commit, in inglese tecnico).
 
+### Segnalazione — 2026-10-13: «Token non valido» su «Invia richiesta»
+
+Screenshot del portale (prenotazione di un taglio uomo per sabato 17/10).
+
+- [x] **La sessione delle clienti non si rinnovava.** Access token da 30
+  minuti; il refresh da 7 giorni che il login restituisce veniva scartato
+  dal portale e non c'era una rotta per usarlo. Dopo mezz'ora la cliente
+  risultava collegata ma ogni richiesta tornava 401 (`motivo=
+  non_valido_per_il_portale` nei log). Ultimi 14 giorni: 9 invii di
+  prenotazione, 2 riusciti, **7 rifiutati** così, da 2 clienti che non
+  hanno più prenotato online (11/10 ×2; 12/10 ×4 + 13/10 ×1, stesso IP).
+  Correzione: `POST /api/public/auth/refresh` (solo refresh cliente, anche
+  con id coincidente a uno staff; solo account attivo e verificato); il
+  portale salva il refresh, rinnova al primo 401 e riprova; se non può,
+  `/login?sessione=scaduta` con avviso e ritorno; prenotazione in corso
+  salvata in `sessionStorage`. `tests/test_sessione_portale.py` (11),
+  falsificato con 7 mutazioni; suite 965 verde; verificato nel browser
+  (401 → refresh 200 → 201; sessione vecchia → login con avviso, bozza
+  ripresa al passo «Conferma»).
+  [PR #179](https://github.com/lorenzomelchionna/gestionale_nsh/pull/179)
+  → `develop`; rilascio **1.3.2**
+  ([PR #180](https://github.com/lorenzomelchionna/gestionale_nsh/pull/180),
+  commit `6368dea`). **Deploy confermato** il 2026-10-13 alle 11:55 UTC:
+  tre servizi `SUCCESS`, `/health` → 1.3.2, rotta presente (401 su token
+  finto), bundle con il rinnovo, nessun 5xx, worker «ready».
+- [ ] Le clienti con sessione aperta prima della 1.3.2 non hanno il refresh:
+  al primo invio vedranno una volta «La sessione è scaduta». Le due che non
+  sono riuscite a prenotare l'11–13/10 vanno eventualmente ricontattate dal
+  salone.
+
 ### Richiesta — 2026-10-08: vendere prodotti all'incasso della visita
 
 Decisioni di Lorenzo: prezzo di listino **modificabile**, la giacenza

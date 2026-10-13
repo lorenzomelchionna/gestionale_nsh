@@ -211,6 +211,74 @@ async def _async_notify_new_booking(appointment_id: int):
         await task_engine.dispose()
 
 
+@celery_app.task(name="app.tasks.reminders.notify_change_request")
+def notify_change_request(appointment_id: int):
+    """Avvisa lo staff di una richiesta di modifica dal portale."""
+    _run_async(_async_notify_change_request(appointment_id))
+
+
+async def _async_notify_change_request(appointment_id: int):
+    from app.database import create_task_session_factory
+    from app.models.appointment import Appointment, appointment_detail_loads
+    from app.utils.notifications import notify_staff_change_request
+
+    task_engine, session_factory = create_task_session_factory()
+    try:
+        async with session_factory() as db:
+            async def carica(i):
+                return (await db.execute(
+                    select(Appointment).options(*appointment_detail_loads()).where(Appointment.id == i)
+                )).scalar_one_or_none()
+
+            nuovo = await carica(appointment_id)
+            vecchio = await carica(nuovo.replaces_appointment_id) if nuovo and nuovo.replaces_appointment_id else None
+            if not nuovo or not vecchio:
+                log.warning(
+                    "richiesta di modifica sparita prima di poterla annunciare",
+                    extra={"id_appuntamento": appointment_id},
+                )
+                return
+            if not await notify_staff_change_request(db, nuovo, vecchio):
+                log.error(
+                    "nessun indirizzo dello staff a cui annunciare la richiesta di modifica",
+                    extra={"id_appuntamento": appointment_id},
+                )
+    finally:
+        await task_engine.dispose()
+
+
+@celery_app.task(name="app.tasks.reminders.notify_client_cancellation")
+def notify_client_cancellation(appointment_id: int, tipo: str = "confermato"):
+    """Avvisa lo staff che la cliente ha annullato o ritirato dal portale."""
+    _run_async(_async_notify_client_cancellation(appointment_id, tipo))
+
+
+async def _async_notify_client_cancellation(appointment_id: int, tipo: str):
+    from app.database import create_task_session_factory
+    from app.models.appointment import Appointment, appointment_detail_loads
+    from app.utils.notifications import notify_staff_client_cancellation
+
+    task_engine, session_factory = create_task_session_factory()
+    try:
+        async with session_factory() as db:
+            appt = (await db.execute(
+                select(Appointment).options(*appointment_detail_loads()).where(Appointment.id == appointment_id)
+            )).scalar_one_or_none()
+            if not appt:
+                log.warning(
+                    "appuntamento annullato sparito prima di poterlo annunciare",
+                    extra={"id_appuntamento": appointment_id},
+                )
+                return
+            if not await notify_staff_client_cancellation(db, appt, tipo):
+                log.error(
+                    "nessun indirizzo dello staff a cui annunciare l'annullamento",
+                    extra={"id_appuntamento": appointment_id},
+                )
+    finally:
+        await task_engine.dispose()
+
+
 # Backwards compat alias (old call site used send_whatsapp_confirmation)
 @celery_app.task(name="app.tasks.reminders.send_whatsapp_confirmation")
 def send_whatsapp_confirmation(appointment_id: int):

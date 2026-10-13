@@ -1355,6 +1355,12 @@ function AppointmentModal({
         <Row label="Orario" value={`${format(apptStart, 'dd/MM/yyyy HH:mm')} → ${format(apptEnd, 'HH:mm')}`} />
         <Row label="Totale" value={`€${(appointment.total_price ?? 0).toFixed(2)}`} />
         <Row label="Origine" value={appointment.origin === 'online' ? 'Prenotazione online' : 'Inserito dal salone'} />
+        {appointment.replaces_start_time && (
+          <Row
+            label="Modifica di"
+            value={`${format(parseISO(appointment.replaces_start_time), 'dd/MM/yyyy HH:mm')}${appointment.replaces_collaborator_name ? ` · ${appointment.replaces_collaborator_name}` : ''}${appointment.status === 'pending' ? ' — si annulla confermando questa' : ''}`}
+          />
+        )}
         <div className="flex gap-3 py-2.5 border-b border-rule-soft">
           <span className="kicker w-28 shrink-0 pt-1">Stato</span>
           <span className={clsx('status-badge', `status-${appointment.status}`)}>

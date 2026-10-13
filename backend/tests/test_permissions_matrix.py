@@ -142,6 +142,7 @@ EXPECTED_GUARDS = {
     ("POST", "/api/public/appointments"): "client",
     ("POST", "/api/public/appointments/{appointment_id}/accept-alternative"): "client",
     ("POST", "/api/public/appointments/{appointment_id}/cancel"): "client",
+    ("POST", "/api/public/appointments/{appointment_id}/change"): "client",
     ("POST", "/api/public/appointments/{appointment_id}/reject-alternative"): "client",
     ("POST", "/api/public/auth/forgot-password"): "public",
     ("POST", "/api/public/auth/login"): "public",

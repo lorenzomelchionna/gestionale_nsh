@@ -18,6 +18,7 @@ from app.schemas.appointment import (
 )
 from app.models.payment import Payment, PaymentMethod, PaymentType
 from app.services.vendite import scala_venduti
+from app.services import modifiche
 from app.schemas.common import PaginatedResponse
 from app.dependencies import get_current_user, require_admin
 from app.utils.tempo import istante_da_ingresso
@@ -220,6 +221,7 @@ async def delete_appointment(
 ):
     a = await _load_appointment(db, appointment_id)
     a.status = AppointmentStatus.cancelled
+    await modifiche.annulla_richieste_aperte(db, a)
 
 
 @router.post("/{appointment_id}/confirm", response_model=AppointmentOutWithNames)
@@ -232,6 +234,9 @@ async def confirm_appointment(
     if a.status != AppointmentStatus.pending:
         raise HTTPException(status_code=400, detail="Solo gli appuntamenti 'in attesa' possono essere confermati")
     a.status = AppointmentStatus.confirmed
+    # Una richiesta di modifica della cliente: confermarla annulla
+    # l'appuntamento che sostituisce, nella stessa transazione.
+    await modifiche.applica_sostituzione(db, a)
     # The row already exists here, so the worker would find it — but with the
     # old status. Committing first also means a request that fails afterwards
     # cannot leave the client holding a confirmation for an appointment that
@@ -253,6 +258,7 @@ async def cancel_appointment(
         raise HTTPException(status_code=400, detail="Appuntamento già terminato")
     a.status = AppointmentStatus.cancelled
     a.rejection_reason = payload.reason
+    await modifiche.annulla_richieste_aperte(db, a)
     await db.flush()
     return _enrich(await _load_appointment(db, appointment_id))
 
@@ -269,6 +275,7 @@ async def reject_appointment(
         raise HTTPException(status_code=400, detail="Stato non valido per il rifiuto")
     a.status = AppointmentStatus.rejected
     a.rejection_reason = payload.reason
+    await modifiche.annulla_richieste_aperte(db, a)
     await db.flush()
     return _enrich(await _load_appointment(db, appointment_id))
 

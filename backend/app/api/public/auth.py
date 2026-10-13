@@ -9,7 +9,7 @@ from sqlalchemy import func, select
 from typing import Union
 from app.audit import (
     EMAIL_VERIFICATA, LOGIN_BLOCCATO, LOGIN_KO, NUMERO_CORRETTO, REGISTRAZIONE,
-    RESET_CHIESTO, RESET_ESEGUITO, TELEFONO_VERIFICATO, VERIFICA_FALLITA,
+    RESET_CHIESTO, RESET_ESEGUITO, TELEFONO_VERIFICATO, TOKEN_RIFIUTATO, VERIFICA_FALLITA,
     evento, login_fallito, login_riuscito,
 )
 from app.database import get_db
@@ -22,13 +22,15 @@ from app.schemas.client import (
     EmailVerification, PhoneChange, PhoneChangeResult, PhoneVerification,
     PhoneVerificationRequired, PhoneResendResult, ResendResult, VerificationRequired,
 )
-from app.schemas.common import TokenResponse, MessageResponse
+from app.schemas.common import TokenResponse, MessageResponse, RinnovoSessione
 from app.services.email_verification import (
     CODE_TTL_MINUTES, VerificationError, check_code, issue_code,
 )
 from app.services import client_merge, phone_verification
 from app.services.chat import collega_conversazione
-from app.utils.auth import hash_password, verify_password, create_access_token, create_refresh_token
+from app.utils.auth import (
+    hash_password, verify_password, create_access_token, create_refresh_token, decode_token,
+)
 from app.utils.nomi import chiave_nome
 from app.utils.email import send_verification_code_email
 from app.utils.whatsapp import send_verification_code_whatsapp
@@ -445,6 +447,51 @@ async def verify_phone(
     access = create_access_token(account.id, {"type": "client"})
     refresh = create_refresh_token(account.id, {"type": "client"})
     return TokenResponse(access_token=access, refresh_token=refresh)
+
+
+@router.post("/refresh", response_model=TokenResponse)
+@limiter.limit("30/minute")
+async def refresh(
+    request: Request, payload: RinnovoSessione, db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Rinnova la sessione di una cliente, prima che scada.
+
+    Mancava, e il portale quindi buttava via il refresh token che il login
+    gli dava: dopo 30 minuti la cliente risultava ancora collegata ma ogni
+    richiesta tornava «Token non valido», anche «Invia richiesta». Fra l'11 e
+    il 13/10 sette prenotazioni rifiutate così, da due clienti che non sono
+    più riuscite a prenotare online.
+
+    Accetta solo refresh token *cliente* — lo scambio dello staff rifiuta
+    quelli cliente, questo rifiuta quelli staff, per lo stesso motivo — e
+    rilascia solo se varrebbero ancora le condizioni del login: account
+    attivo, email e telefono verificati. Disattivare un account toglie il
+    rinnovo, non solo il prossimo login.
+    """
+    data = decode_token(payload.refresh_token)
+    if not data or not data.get("refresh") or data.get("sub") is None:
+        evento(TOKEN_RIFIUTATO, motivo="refresh_non_valido", punto="rinnovo_portale")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Sessione scaduta")
+    if data.get("type") != "client":
+        evento(
+            TOKEN_RIFIUTATO, logging.WARNING,
+            motivo="refresh_staff_su_rinnovo_portale", punto="rinnovo_portale",
+        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Sessione scaduta")
+
+    account = (await db.execute(
+        select(ClientAccount).where(ClientAccount.id == int(data["sub"]))
+    )).scalar_one_or_none()
+    if (
+        account is None or not account.is_active
+        or not account.email_verified or not account.phone_verified
+    ):
+        evento(TOKEN_RIFIUTATO, motivo="account_non_utilizzabile", punto="rinnovo_portale")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Sessione scaduta")
+
+    access = create_access_token(account.id, {"type": "client"})
+    refresh_nuovo = create_refresh_token(account.id, {"type": "client"})
+    return TokenResponse(access_token=access, refresh_token=refresh_nuovo)
 
 
 @router.post("/resend-code", response_model=ResendResult)

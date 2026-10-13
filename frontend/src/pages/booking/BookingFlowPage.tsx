@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { format, parseISO, addMinutes } from 'date-fns'
 import { it } from 'date-fns/locale'
@@ -36,15 +36,37 @@ function detailOf(e: unknown, fallback: string): string {
   return typeof detail === 'string' ? detail : fallback
 }
 
+/**
+ * La prenotazione a metà, salvata nella scheda del browser.
+ *
+ * Serve per la sessione scaduta (2026-10-13): «Invia richiesta» con la
+ * sessione che non si rinnova porta all'accesso, e al ritorno la cliente
+ * deve trovare servizi, collaboratore, giorno e ora dove li aveva lasciati,
+ * non ricominciare da capo. `sessionStorage` e non `localStorage`: muore
+ * con la scheda, e un'ora scelta settimane fa non deve ricomparire.
+ */
+const BOZZA = 'prenotazione-in-corso'
+type Bozza = { serviceIds: number[]; collabId: number | null; date: string; slot: string; step: Step }
+
+const leggiBozza = (): Bozza | null => {
+  try {
+    const b = JSON.parse(sessionStorage.getItem(BOZZA) ?? 'null')
+    return b && Array.isArray(b.serviceIds) && b.serviceIds.length > 0 ? b : null
+  } catch {
+    return null
+  }
+}
+
 export default function BookingFlowPage() {
-  const [step, setStep] = useState<Step>('service')
+  const bozza = useRef(leggiBozza())
+  const [step, setStep] = useState<Step>(bozza.current?.step ?? 'service')
   // In the order the client tapped them. That order is the one the services
   // run in, it changes processing times, and the same array goes to both the
   // availability query and the booking — so the two cannot disagree.
   const [selectedServices, setSelectedServices] = useState<Service[]>([])
   const [selectedCollab, setSelectedCollab] = useState<Collaborator | null>(null)
-  const [selectedDate, setSelectedDate] = useState('')
-  const [selectedSlot, setSelectedSlot] = useState('')
+  const [selectedDate, setSelectedDate] = useState(bozza.current?.date ?? '')
+  const [selectedSlot, setSelectedSlot] = useState(bozza.current?.slot ?? '')
   const navigate = useNavigate()
   const qc = useQueryClient()
   const token = useClientAuth(s => s.token)
@@ -68,8 +90,55 @@ export default function BookingFlowPage() {
   const { data: collaborators } = useQuery({
     queryKey: ['public-collaborators'],
     queryFn: publicGetCollaborators,
-    enabled: step === 'collaborator' || step === 'datetime',
+    // Anche a «Conferma», per la prenotazione ripresa dopo un nuovo accesso.
+    enabled: step === 'collaborator' || step === 'datetime' || step === 'confirm',
   })
+
+  // La bozza si ricompone appena arrivano servizi e collaboratori: ne ha
+  // solo gli id. Un servizio o un collaboratore spariti nel frattempo
+  // restano fuori, e si torna al passo da rifare.
+  // Ognuna delle due metà si ricompone una volta sola, in qualunque ordine
+  // arrivino le due liste.
+  const serviziRipresi = useRef(false)
+  const collabRipreso = useRef(false)
+  useEffect(() => {
+    const b = bozza.current
+    if (!b || !services || serviziRipresi.current) return
+    serviziRipresi.current = true
+    const scelti = b.serviceIds
+      .map(id => services.find(s => s.id === id))
+      .filter((s): s is Service => Boolean(s))
+    if (scelti.length !== b.serviceIds.length) {
+      collabRipreso.current = true
+      setSelectedCollab(null); setSelectedDate(''); setSelectedSlot('')
+      setStep('service')
+      return
+    }
+    setSelectedServices(scelti)
+  }, [services])
+  useEffect(() => {
+    const b = bozza.current
+    if (!b || b.collabId == null || !collaborators || collabRipreso.current) return
+    collabRipreso.current = true
+    const c = collaborators.find(x => x.id === b.collabId)
+    if (c) setSelectedCollab(c)
+    else { setSelectedDate(''); setSelectedSlot(''); setStep('collaborator') }
+  }, [collaborators])
+
+  useEffect(() => {
+    try {
+      if (step === 'done' || selectedServices.length === 0) {
+        if (step === 'done') sessionStorage.removeItem(BOZZA)
+        return
+      }
+      const b: Bozza = {
+        serviceIds: selectedServices.map(s => s.id),
+        collabId: selectedCollab?.id ?? null,
+        date: selectedDate, slot: selectedSlot, step,
+      }
+      sessionStorage.setItem(BOZZA, JSON.stringify(b))
+    } catch { /* storage non disponibile: si perde solo la comodità */ }
+  }, [step, selectedServices, selectedCollab, selectedDate, selectedSlot])
 
   const serviceIds = selectedServices.map(s => s.id)
   const totalSlots = selectedServices.reduce((n, s) => n + s.duration_slots, 0)

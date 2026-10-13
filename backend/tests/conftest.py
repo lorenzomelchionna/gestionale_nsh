@@ -192,6 +192,10 @@ def no_celery(monkeypatch):
     monkeypatch.setattr(
         gift_cards_api, "_trigger_gift_card_email", lambda gift_card_id: None
     )
+    monkeypatch.setattr(booking_api, "_trigger_change_alert", lambda appointment_id: None)
+    monkeypatch.setattr(
+        booking_api, "_trigger_cancellation_alert", lambda appointment_id, tipo: None
+    )
 
 
 # ── Domain fixtures ───────────────────────────────────────────────

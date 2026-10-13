@@ -240,6 +240,95 @@ async def send_new_booking_staff_email(to_email: str, appointment) -> None:
     await send_email(to_email, subject, body)
 
 
+def _riepilogo_staff(appointment) -> tuple[str, str, str, str]:
+    """Quando, con chi, cosa — già pronti e escapati, per le email allo staff."""
+    collab = appointment.collaborator
+    quando = ora_salone(appointment.start_time).strftime("%d/%m/%Y alle %H:%M")
+    con = f"{collab.first_name} {collab.last_name}" if collab else "—"
+    servizi = " + ".join(
+        s.service.name for s in appointment.appointment_services if s.service
+    ) or "—"
+    client = appointment.client
+    nome = f"{client.first_name} {client.last_name}" if client else "Cliente sconosciuto"
+    return esc(quando), esc(con), esc(servizi), nome
+
+
+async def send_change_request_staff_email(to_email: str, nuovo, vecchio) -> None:
+    """Una cliente chiede di modificare un appuntamento confermato (2026-10-13).
+
+    Il «prima» e il «dopo» uno accanto all'altro: è quello che serve per
+    decidere, e che altrimenti andrebbe ricostruito dal calendario. E detto
+    chiaro che l'originale vale finché non si accetta — se si rifiuta, la
+    cliente tiene il posto che aveva.
+    """
+    q_prima, con_prima, serv_prima, nome = _riepilogo_staff(vecchio)
+    q_dopo, con_dopo, serv_dopo, _ = _riepilogo_staff(nuovo)
+    client = nuovo.client
+    telefono = (
+        f"<p>Telefono: <strong>{esc(client.phone)}</strong></p>" if client and client.phone else ""
+    )
+    nota = (
+        f"<p>Note del cliente: <em>{esc(nuovo.notes)}</em></p>" if nuovo.notes else ""
+    )
+    pending_url = f"{settings.FRONTEND_URL.rstrip('/')}/admin/appointments/pending"
+    subject = f"Richiesta di modifica – {ora_salone(vecchio.start_time).strftime('%d/%m/%Y %H:%M')} – {nome}"
+    body = f"""
+    <h2>New Style Hair</h2>
+    <p><strong>{esc(nome)}</strong> chiede di modificare un appuntamento confermato.</p>
+    {telefono}
+    <table cellpadding="6" style="border-collapse:collapse">
+      <tr><th></th><th align="left">Prima</th><th align="left">Dopo</th></tr>
+      <tr><td>Quando</td><td>{q_prima}</td><td><strong>{q_dopo}</strong></td></tr>
+      <tr><td>Con</td><td>{con_prima}</td><td><strong>{con_dopo}</strong></td></tr>
+      <tr><td>Servizi</td><td>{serv_prima}</td><td><strong>{serv_dopo}</strong></td></tr>
+    </table>
+    {nota}
+    <p><a href="{esc(pending_url)}">Apri le richieste in attesa</a></p>
+    <p>L'appuntamento attuale resta valido finché la modifica non viene accettata.
+    Se la rifiuti, la cliente mantiene quello di prima.</p>
+    """
+    await send_email(to_email, subject, body)
+
+
+TIPI_ANNULLAMENTO = ("confermato", "richiesta", "modifica")
+
+
+async def send_client_cancellation_staff_email(to_email: str, appointment, tipo: str) -> None:
+    """La cliente ha annullato dal portale, o ritirato una richiesta (2026-10-13).
+
+    Tre casi con parole diverse, perché per il salone non pesano uguale: un
+    appuntamento confermato annullato libera un posto in agenda; una
+    richiesta ritirata o una modifica ritirata no.
+    """
+    quando, con, servizi, nome = _riepilogo_staff(appointment)
+    if tipo == "modifica":
+        titolo = "ha ritirato la richiesta di modifica"
+        coda = "L'appuntamento originale resta confermato."
+    elif tipo == "richiesta":
+        titolo = "ha ritirato una richiesta di prenotazione non ancora confermata"
+        coda = "Non serve più rispondere: l'orario è di nuovo libero."
+    else:
+        titolo = "ha annullato un appuntamento confermato"
+        coda = "L'orario è di nuovo libero in agenda."
+    client = appointment.client
+    telefono = (
+        f"<li>Telefono: <strong>{esc(client.phone)}</strong></li>" if client and client.phone else ""
+    )
+    subject = f"Annullato dalla cliente – {ora_salone(appointment.start_time).strftime('%d/%m/%Y %H:%M')} – {nome}"
+    body = f"""
+    <h2>New Style Hair</h2>
+    <p><strong>{esc(nome)}</strong> {titolo} dal portale.</p>
+    <ul>
+      {telefono}
+      <li>Quando: <strong>{quando}</strong></li>
+      <li>Con: <strong>{con}</strong></li>
+      <li>Servizi: <strong>{servizi}</strong></li>
+    </ul>
+    <p>{coda}</p>
+    """
+    await send_email(to_email, subject, body)
+
+
 async def send_password_reset_email(to_email: str, first_name: str, reset_url: str) -> None:
     """Email containing the password reset link."""
     subject = "Reset password – New Style Hair"

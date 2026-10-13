@@ -1,7 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { format, parseISO } from 'date-fns'
 import { it } from 'date-fns/locale'
-import { Link } from 'react-router-dom'
+import { useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { X, Check } from 'lucide-react'
 import {
   getMyAppointments, cancelMyAppointment, acceptAlternative, rejectAlternative,
@@ -9,6 +10,7 @@ import {
 } from '@/services/publicApi'
 import clsx from 'clsx'
 import type { Appointment, WaitlistEntry } from '@/types'
+import { TELEFONO } from '@/config/business'
 
 const STATUS_LABELS: Record<string, string> = {
   pending: 'In attesa',
@@ -53,9 +55,25 @@ export default function BookingAccountPage() {
 
   const activeWaitlist = waitlist.filter(w => w.status === 'waiting' || w.status === 'notified')
 
+  const navigate = useNavigate()
   const now = new Date()
+  // Le richieste di modifica (2026-10-13) si mostrano dentro l'appuntamento
+  // che cambierebbero, non come una prenotazione in più: per la cliente è
+  // ancora un appuntamento solo, con una domanda aperta.
+  const modificheAperte = new Map<number, Appointment>()
+  const modificheRifiutate = new Map<number, Appointment>()
+  for (const a of appointments ?? []) {
+    if (!a.replaces_appointment_id) continue
+    if (a.status === 'pending') modificheAperte.set(a.replaces_appointment_id, a)
+    if (a.status === 'rejected') {
+      const prima = modificheRifiutate.get(a.replaces_appointment_id)
+      if (!prima || prima.created_at < a.created_at) modificheRifiutate.set(a.replaces_appointment_id, a)
+    }
+  }
   const upcoming = appointments?.filter(a =>
     ['pending', 'confirmed', 'rescheduled'].includes(a.status) && parseISO(a.start_time) > now
+    && !(a.status === 'pending' && a.replaces_appointment_id
+         && appointments.some(o => o.id === a.replaces_appointment_id && o.status === 'confirmed'))
   ) ?? []
   const past = appointments?.filter(a =>
     a.status === 'completed' || parseISO(a.start_time) <= now
@@ -120,9 +138,15 @@ export default function BookingAccountPage() {
               <AppointmentCard
                 key={a.id}
                 appointment={a}
-                onCancel={() => cancelMut.mutate(a.id)}
+                now={now}
+                modifica={modificheAperte.get(a.id)}
+                rifiutata={modificheRifiutate.get(a.id)}
+                onModify={() => navigate(`/booking/new?modifica=${a.id}`)}
+                onCancel={id => cancelMut.mutate(id)}
+                cancelPending={cancelMut.isPending}
                 cancelError={
-                  cancelMut.isError && cancelMut.variables === a.id
+                  cancelMut.isError && (cancelMut.variables === a.id
+                    || cancelMut.variables === modificheAperte.get(a.id)?.id)
                     ? errorText(cancelMut.error)
                     : undefined
                 }
@@ -230,13 +254,32 @@ function WaitlistCard({ entry: w, onLeave, leaveError }: {
   )
 }
 
-function AppointmentCard({ appointment: a, onCancel, cancelError }: {
+function AppointmentCard({
+  appointment: a, now, modifica, rifiutata, onModify, onCancel, cancelPending, cancelError,
+}: {
   appointment: Appointment
-  onCancel?: () => void
+  now: Date
+  /** Una richiesta di modifica di questo appuntamento, ancora in attesa. */
+  modifica?: Appointment
+  /** L'ultima richiesta di modifica che il salone non ha accettato. */
+  rifiutata?: Appointment
+  onModify: () => void
+  onCancel: (id: number) => void
+  cancelPending: boolean
   cancelError?: string
 }) {
-  const canCancel = onCancel && a.status === 'confirmed'
+  // Annullare chiede conferma: prima bastava un tocco, anche per sbaglio, e
+  // l'appuntamento spariva.
+  const [conferma, setConferma] = useState(false)
   const services = a.service_names?.length ? a.service_names.join(' + ') : ''
+  // Entro il preavviso delle impostazioni (`change_deadline`): oltre, si
+  // telefona. Il server lo ricontrolla, qui serve a non offrire un tasto
+  // che risponderebbe di no.
+  const inTempo = !a.change_deadline || now < parseISO(a.change_deadline)
+  const confermato = a.status === 'confirmed'
+  const inAttesa = a.status === 'pending'
+  const mostraRifiuto = confermato && !modifica && rifiutata
+    && parseISO(rifiutata.created_at) > parseISO(a.created_at)
   return (
     <div className="panel px-5 py-4 flex flex-col gap-1.5">
       <div className="flex items-baseline justify-between gap-3">
@@ -265,11 +308,81 @@ function AppointmentCard({ appointment: a, onCancel, cancelError }: {
         )}
       </div>
 
-      {canCancel && (
-        <button onClick={onCancel} className="btn-danger-outline btn-sm w-full mt-2.5">
-          Annulla appuntamento
-        </button>
+      {modifica && (
+        <div className="border-l-2 border-primary bg-primary/[0.08] px-3 py-2.5 mt-2 flex flex-col gap-1.5">
+          <span className="text-[13px] text-foreground">
+            Hai chiesto di cambiarlo in:{' '}
+            <strong className="font-medium first-letter:uppercase">
+              {format(parseISO(modifica.start_time), "EEEE d MMMM 'alle' HH:mm", { locale: it })}
+            </strong>
+            {modifica.collaborator_name && ` con ${modifica.collaborator_name}`}
+            {modifica.service_names?.length ? ` · ${modifica.service_names.join(' + ')}` : ''}
+          </span>
+          <span className="text-[13px] text-muted-foreground">
+            In attesa del salone: fino ad allora vale l'appuntamento qui sopra.
+          </span>
+          <button
+            onClick={() => onCancel(modifica.id)}
+            disabled={cancelPending}
+            className="self-start text-[13px] text-danger hover:underline disabled:opacity-50"
+          >
+            Ritira la richiesta di modifica
+          </button>
+        </div>
       )}
+
+      {mostraRifiuto && (
+        <p className="text-[13px] text-muted-foreground border-l-2 border-rule px-3 py-2 mt-2">
+          Il salone non ha potuto accettare la modifica che avevi chiesto: resta
+          questo appuntamento.
+          {rifiutata.rejection_reason && <> Motivo: <em>{rifiutata.rejection_reason}</em></>}
+        </p>
+      )}
+
+      {(confermato || inAttesa) && !inTempo && (
+        <p className="text-[13px] text-muted-foreground mt-2">
+          Per modificarlo o annullarlo ormai serve chiamare il salone al{' '}
+          <a href={`tel:${TELEFONO.tel}`} className="text-primary-dark underline tabular-nums whitespace-nowrap">
+            {TELEFONO.visibile}
+          </a>.
+        </p>
+      )}
+
+      {(confermato || inAttesa) && inTempo && !conferma && (
+        <div className="flex gap-2 mt-2.5">
+          {confermato && !modifica && (
+            <button onClick={onModify} className="btn-secondary btn-sm flex-1">
+              Modifica
+            </button>
+          )}
+          <button onClick={() => setConferma(true)} className="btn-danger-outline btn-sm flex-1">
+            {inAttesa ? 'Ritira la richiesta' : 'Annulla appuntamento'}
+          </button>
+        </div>
+      )}
+
+      {conferma && (
+        <div className="flex flex-col gap-2 mt-2.5 border-t border-rule-soft pt-2.5">
+          <span className="text-[13px] text-foreground">
+            {inAttesa
+              ? 'Ritirare la richiesta? Il salone verrà avvisato.'
+              : 'Annullare l\'appuntamento? L\'orario verrà liberato e il salone avvisato.'}
+          </span>
+          <div className="flex gap-2">
+            <button onClick={() => setConferma(false)} className="btn-secondary btn-sm flex-1">
+              No
+            </button>
+            <button
+              onClick={() => { onCancel(a.id); setConferma(false) }}
+              disabled={cancelPending}
+              className="btn-danger btn-sm flex-1 disabled:opacity-50"
+            >
+              {inAttesa ? 'Sì, ritira' : 'Sì, annulla'}
+            </button>
+          </div>
+        </div>
+      )}
+
       {cancelError && (
         <p role="alert" className="text-[13px] text-danger border-l-2 border-danger bg-danger/[0.08] px-3 py-2.5 mt-1">
           {cancelError}

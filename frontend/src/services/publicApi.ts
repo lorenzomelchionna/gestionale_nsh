@@ -37,6 +37,8 @@ export interface DayAvailability {
 // as a list; axios's default `service_ids[]=1` would reach it as nothing.
 export const publicGetAvailabilityCalendar = (params: {
   service_ids: number[]; collaborator_id: number; start_date: string; end_date: string
+  /** Mentre la cliente sposta un suo appuntamento: non conta come occupato. */
+  sostituisce?: number
 }) =>
   publicApi
     .get<DayAvailability[]>('/availability/calendar', { params, paramsSerializer: { indexes: null } })
@@ -111,6 +113,8 @@ export const publicGetCollaborators = () =>
 /** Start times for the services together, in the order they will be booked. */
 export const publicGetAvailability = (params: {
   service_ids: number[]; collaborator_id: number; target_date: string
+  /** Mentre la cliente sposta un suo appuntamento: non conta come occupato. */
+  sostituisce?: number
 }) =>
   publicApi
     .get<string[]>('/availability', { params, paramsSerializer: { indexes: null } })
@@ -216,6 +220,14 @@ export const bookAsGuest = (data: GuestIdentity & {
 
 export const cancelMyAppointment = (id: number) =>
   publicApi.post(`/appointments/${id}/cancel`).then(r => r.data)
+
+/** Chiede di modificare un appuntamento confermato: nasce una richiesta «in
+ *  attesa», e quello confermato resta valido finché il salone non accetta. */
+export const requestChange = (id: number, data: {
+  client_id: number; collaborator_id: number;
+  start_time: string; end_time: string; service_ids: number[]
+}) =>
+  publicApi.post<Appointment>(`/appointments/${id}/change`, data).then(r => r.data)
 
 export const acceptAlternative = (id: number) =>
   publicApi.post(`/appointments/${id}/accept-alternative`).then(r => r.data)

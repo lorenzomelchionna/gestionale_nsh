@@ -18,6 +18,8 @@ interface Props {
   /** yyyy-MM-dd, or '' when nothing is chosen yet. */
   value: string
   onChange: (date: string) => void
+  /** L'appuntamento che la cliente sta spostando: non conta come occupato. */
+  sostituisce?: number
 }
 
 /**
@@ -29,7 +31,7 @@ interface Props {
  * rather than merely unhelpful when tapped.
  */
 export default function AvailabilityCalendar({
-  serviceIds, collaboratorId, value, onChange,
+  serviceIds, collaboratorId, value, onChange, sostituisce,
 }: Props) {
   const today = startOfToday()
   const [month, setMonth] = useState(() => (value ? new Date(value) : today))
@@ -42,13 +44,14 @@ export default function AvailabilityCalendar({
   const { data, isLoading } = useQuery({
     queryKey: [
       'availability-calendar', serviceIds, collaboratorId,
-      format(gridStart, 'yyyy-MM-dd'), format(gridEnd, 'yyyy-MM-dd'),
+      format(gridStart, 'yyyy-MM-dd'), format(gridEnd, 'yyyy-MM-dd'), sostituisce ?? null,
     ],
     queryFn: () => publicGetAvailabilityCalendar({
       service_ids: serviceIds,
       collaborator_id: collaboratorId,
       start_date: format(gridStart, 'yyyy-MM-dd'),
       end_date: format(gridEnd, 'yyyy-MM-dd'),
+      sostituisce,
     }),
   })
 

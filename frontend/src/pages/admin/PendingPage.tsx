@@ -82,7 +82,27 @@ function PendingCard({ appointment: a, busy, onConfirm, onReject }: {
             <span className="text-[10px] font-semibold bg-info/12 text-info px-1.5 py-0.5 rounded">
               online
             </span>
+            {a.replaces_appointment_id && (
+              <span className="text-[10px] font-semibold bg-warning/15 text-warning px-1.5 py-0.5 rounded">
+                modifica
+              </span>
+            )}
           </div>
+          {/* Una richiesta di modifica (2026-10-13): il «prima», così si decide
+              senza cercarlo in calendario. Fino alla conferma vale quello;
+              confermando, quello si annulla. */}
+          {a.replaces_appointment_id && a.replaces_start_time && (
+            <p className="text-[12px] text-muted-foreground border-l-2 border-warning/60 pl-2">
+              Al posto di:{' '}
+              <span className="line-through decoration-ink-3/60">
+                {format(parseISO(a.replaces_start_time), "EEE d MMM 'alle' HH:mm", { locale: it })}
+                {a.replaces_collaborator_name && ` · ${a.replaces_collaborator_name}`}
+                {a.replaces_service_names?.length ? ` · ${a.replaces_service_names.join(' + ')}` : ''}
+              </span>
+              <br />
+              Confermando, l'appuntamento di prima viene annullato; rifiutando, resta.
+            </p>
+          )}
           <p className="text-[13px] text-muted-foreground flex items-start gap-1.5">
             <CalendarDays className="w-3.5 h-3.5 mt-0.5 shrink-0" />
             <span>

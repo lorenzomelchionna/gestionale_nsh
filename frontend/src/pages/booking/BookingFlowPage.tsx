@@ -5,12 +5,12 @@ import { it } from 'date-fns/locale'
 import { Check, CalendarX, Loader2 } from 'lucide-react'
 import {
   publicGetServices, publicGetCollaborators, publicGetAvailability, bookAppointment,
-  requestGuestCode, bookAsGuest,
+  requestGuestCode, bookAsGuest, getMyAppointments, requestChange,
 } from '@/services/publicApi'
 import AvailabilityCalendar from '@/components/booking/AvailabilityCalendar'
 import { useClientAuth } from '@/components/layout/BookingLayout'
 import { TELEFONO } from '@/config/business'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import type { Service, Collaborator } from '@/types'
 import clsx from 'clsx'
 
@@ -46,11 +46,18 @@ function detailOf(e: unknown, fallback: string): string {
  * con la scheda, e un'ora scelta settimane fa non deve ricomparire.
  */
 const BOZZA = 'prenotazione-in-corso'
-type Bozza = { serviceIds: number[]; collabId: number | null; date: string; slot: string; step: Step }
+type Bozza = {
+  serviceIds: number[]; collabId: number | null; date: string; slot: string; step: Step
+  /** L'appuntamento che si stava modificando, o null per una prenotazione nuova. */
+  modifica?: number | null
+}
 
-const leggiBozza = (): Bozza | null => {
+const leggiBozza = (modifica: number | null): Bozza | null => {
   try {
     const b = JSON.parse(sessionStorage.getItem(BOZZA) ?? 'null')
+    // Una bozza di modifica vale solo per la stessa modifica, e una di
+    // prenotazione nuova solo per una prenotazione nuova.
+    if (b && (b.modifica ?? null) !== modifica) return null
     return b && Array.isArray(b.serviceIds) && b.serviceIds.length > 0 ? b : null
   } catch {
     return null
@@ -58,7 +65,13 @@ const leggiBozza = (): Bozza | null => {
 }
 
 export default function BookingFlowPage() {
-  const bozza = useRef(leggiBozza())
+  // `?modifica=<id>` (richiesta del 2026-10-13): la cliente sposta o cambia
+  // un appuntamento confermato. Stesso percorso di una prenotazione, ma parte
+  // da quello che aveva e alla fine manda una richiesta di modifica: quello
+  // confermato resta valido finché il salone non accetta.
+  const [params] = useSearchParams()
+  const modificaId = Number(params.get('modifica')) || null
+  const bozza = useRef(leggiBozza(modificaId))
   const [step, setStep] = useState<Step>(bozza.current?.step ?? 'service')
   // In the order the client tapped them. That order is the one the services
   // run in, it changes processing times, and the same array goes to both the
@@ -91,12 +104,41 @@ export default function BookingFlowPage() {
     queryKey: ['public-collaborators'],
     queryFn: publicGetCollaborators,
     // Anche a «Conferma», per la prenotazione ripresa dopo un nuovo accesso.
-    enabled: step === 'collaborator' || step === 'datetime' || step === 'confirm',
+    enabled: step === 'collaborator' || step === 'datetime' || step === 'confirm' || modificaId !== null,
   })
 
   // La bozza si ricompone appena arrivano servizi e collaboratori: ne ha
   // solo gli id. Un servizio o un collaboratore spariti nel frattempo
   // restano fuori, e si torna al passo da rifare.
+  const { data: miei, isLoading: mieiLoading } = useQuery({
+    queryKey: ['my-appointments'],
+    queryFn: getMyAppointments,
+    enabled: modificaId !== null && !!token,
+  })
+  const originale = modificaId !== null
+    ? miei?.find(a => a.id === modificaId && a.status === 'confirmed') ?? null
+    : null
+
+  // Senza sessione non si modifica niente: all'accesso, e poi di nuovo qui.
+  useEffect(() => {
+    if (modificaId !== null && !token) {
+      navigate(`/login?next=${encodeURIComponent(`/booking/new?modifica=${modificaId}`)}`)
+    }
+  }, [modificaId, token]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Si parte da com'è adesso: servizi e collaboratore già scelti, da cambiare
+  // o da confermare. Solo se non c'è una bozza, che vince perché è più nuova.
+  const precompilato = useRef(false)
+  useEffect(() => {
+    if (precompilato.current || bozza.current || !originale || !services || !collaborators) return
+    precompilato.current = true
+    const scelti = (originale.service_ids ?? [])
+      .map(id => services.find(s => s.id === id))
+      .filter((s): s is Service => Boolean(s))
+    setSelectedServices(scelti)
+    setSelectedCollab(collaborators.find(c => c.id === originale.collaborator_id) ?? null)
+  }, [originale, services, collaborators])
+
   // Ognuna delle due metà si ricompone una volta sola, in qualunque ordine
   // arrivino le due liste.
   const serviziRipresi = useRef(false)
@@ -134,22 +176,23 @@ export default function BookingFlowPage() {
       const b: Bozza = {
         serviceIds: selectedServices.map(s => s.id),
         collabId: selectedCollab?.id ?? null,
-        date: selectedDate, slot: selectedSlot, step,
+        date: selectedDate, slot: selectedSlot, step, modifica: modificaId,
       }
       sessionStorage.setItem(BOZZA, JSON.stringify(b))
     } catch { /* storage non disponibile: si perde solo la comodità */ }
-  }, [step, selectedServices, selectedCollab, selectedDate, selectedSlot])
+  }, [step, selectedServices, selectedCollab, selectedDate, selectedSlot, modificaId])
 
   const serviceIds = selectedServices.map(s => s.id)
   const totalSlots = selectedServices.reduce((n, s) => n + s.duration_slots, 0)
   const totalPrice = selectedServices.reduce((n, s) => n + s.price, 0)
 
   const { data: slots, isLoading: slotsLoading } = useQuery({
-    queryKey: ['public-slots', serviceIds, selectedCollab?.id, selectedDate],
+    queryKey: ['public-slots', serviceIds, selectedCollab?.id, selectedDate, modificaId],
     queryFn: () => publicGetAvailability({
       service_ids: serviceIds,
       collaborator_id: selectedCollab!.id,
       target_date: selectedDate,
+      sostituisce: modificaId ?? undefined,
     }),
     enabled: serviceIds.length > 0 && !!selectedCollab && !!selectedDate,
   })
@@ -171,6 +214,17 @@ export default function BookingFlowPage() {
     onSuccess: () => { setBookedAsGuest(false); setStep('done') },
     onError: onSlotRefused,
   })
+
+  const changeMut = useMutation({
+    mutationFn: (data: Parameters<typeof requestChange>[1]) => requestChange(modificaId!, data),
+    onSuccess: () => {
+      setBookedAsGuest(false)
+      qc.invalidateQueries({ queryKey: ['my-appointments'] })
+      setStep('done')
+    },
+    onError: onSlotRefused,
+  })
+  const inviaMut = modificaId !== null ? changeMut : bookMut
 
   const codeMut = useMutation({
     mutationFn: requestGuestCode,
@@ -229,13 +283,47 @@ export default function BookingFlowPage() {
       return
     }
     const end = addMinutes(start, totalSlots * MINUTES_PER_SLOT)
-    bookMut.mutate({
+    inviaMut.mutate({
       client_id: 0, // resolved server-side from the token
       collaborator_id: selectedCollab.id,
       start_time: start.toISOString(),
       end_time: end.toISOString(),
       service_ids: serviceIds,
     })
+  }
+
+  if (step === 'done' && modificaId !== null) {
+    return (
+      <div className="py-10 flex flex-col items-center text-center gap-5">
+        <div className="w-14 h-14 border border-primary flex items-center justify-center">
+          <Check className="w-6 h-6 text-primary-dark" />
+        </div>
+        <div>
+          <h2 className="text-title text-foreground">Richiesta di modifica inviata</h2>
+          <p className="text-muted-foreground mt-2 max-w-xs mx-auto">
+            Il tuo appuntamento attuale resta valido finché il salone non accetta
+            la modifica. Ti avvisiamo via email e WhatsApp.
+          </p>
+        </div>
+        <button onClick={() => navigate('/booking/account')} className="btn-primary sm:px-7">
+          Vai all'area personale
+        </button>
+      </div>
+    )
+  }
+
+  // Il link di una modifica che non si può più fare: già cambiata, annullata,
+  // passata, o di qualcun altro.
+  if (modificaId !== null && token && !mieiLoading && miei && !originale) {
+    return (
+      <div className="py-10 flex flex-col items-center text-center gap-4">
+        <CalendarX className="w-8 h-8 text-ink-3" />
+        <p className="text-muted-foreground max-w-xs">
+          Questo appuntamento non si può più modificare da qui.
+        </p>
+        <Link to="/booking/account" className="btn-primary sm:px-7">Vai all'area personale</Link>
+      </div>
+    )
   }
 
   if (step === 'done') {
@@ -304,6 +392,20 @@ export default function BookingFlowPage() {
 
   return (
     <div className="flex flex-col gap-6">
+      {originale && (
+        <div className="panel border-primary bg-primary/10 px-5 py-4 flex flex-col gap-1">
+          <span className="kicker text-primary-dark">Stai modificando</span>
+          <p className="text-[15px] text-foreground first-letter:uppercase">
+            {format(parseISO(originale.start_time), "EEEE d MMMM 'alle' HH:mm", { locale: it })}
+            {originale.collaborator_name && ` con ${originale.collaborator_name}`}
+          </p>
+          <p className="text-[13px] text-muted-foreground">
+            Cambia quello che vuoi. L'appuntamento attuale resta valido finché il
+            salone non accetta la modifica.
+          </p>
+        </div>
+      )}
+
       {/* The four steps named in a row, the live one in ink and the rest faint,
           over a rule that fills as the booking is answered. */}
       <div className="flex flex-col gap-3.5">
@@ -472,6 +574,7 @@ export default function BookingFlowPage() {
             <AvailabilityCalendar
               serviceIds={serviceIds}
               collaboratorId={selectedCollab.id}
+              sostituisce={modificaId ?? undefined}
               value={selectedDate}
               onChange={date => { setSelectedDate(date); setSelectedSlot('') }}
             />
@@ -665,7 +768,9 @@ export default function BookingFlowPage() {
           )}
 
           <p className="note">
-            {token
+            {modificaId !== null
+              ? 'È una richiesta di modifica: il tuo appuntamento attuale resta valido finché il salone non la accetta.'
+              : token
               ? 'La prenotazione verrà confermata dal salone. Ti avvisiamo via email e WhatsApp (se l\'email non arriva, controlla lo spam).'
               : 'La prenotazione verrà confermata dal salone. Ti avvisiamo su WhatsApp; per disdire o spostarla contatti il salone.'}
           </p>
@@ -673,21 +778,21 @@ export default function BookingFlowPage() {
           <button
             onClick={handleBook}
             disabled={token
-              ? bookMut.isPending
+              ? inviaMut.isPending
               : guestBookMut.isPending || !codeSent || guestCode.length < 6}
             className="btn-primary w-full disabled:opacity-50"
           >
-            {bookMut.isPending || guestBookMut.isPending
+            {inviaMut.isPending || guestBookMut.isPending
               ? <><Loader2 className="w-4 h-4 animate-spin" /> Invio richiesta…</>
-              : 'Invia richiesta'}
+              : modificaId !== null ? 'Invia richiesta di modifica' : 'Invia richiesta'}
           </button>
 
-          {(token ? bookMut : guestBookMut).isError && (
+          {(token ? inviaMut : guestBookMut).isError && (
             <p
               role="alert"
               className="text-[13px] text-danger border-l-2 border-danger bg-danger/[0.08] px-3 py-2.5"
             >
-              {detailOf((token ? bookMut : guestBookMut).error, 'Errore durante la prenotazione')}
+              {detailOf((token ? inviaMut : guestBookMut).error, 'Errore durante la prenotazione')}
             </p>
           )}
         </div>

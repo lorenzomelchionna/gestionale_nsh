@@ -142,6 +142,22 @@ async def notify_staff_new_booking(db: AsyncSession, appointment) -> list[str]:
     Returns the addresses written to, so the caller can log an empty salon
     instead of assuming it worked.
     """
+    sent: list[str] = []
+    for address in await _indirizzi_staff(db, appointment.collaborator):
+        try:
+            await email_util.send_new_booking_staff_email(address, appointment)
+            sent.append(address)
+        except Exception:
+            _fallita("nuova_prenotazione_staff", "email", id_appuntamento=appointment.id)
+    return sent
+
+
+async def _indirizzi_staff(db: AsyncSession, *collaboratori) -> list[str]:
+    """Gli admin attivi, più i collaboratori indicati — senza doppioni.
+
+    Gli stessi destinatari della prenotazione nuova: chi può rispondere (la
+    conferma è un'azione da staff) e chi si ritrova l'agenda cambiata.
+    """
     from app.models.user import User, UserRole
 
     recipients: list[str] = []
@@ -155,18 +171,38 @@ async def notify_staff_new_booking(db: AsyncSession, appointment) -> list[str]:
             seen.add(user.email.lower())
             recipients.append(user.email)
 
-    collab = appointment.collaborator
-    if collab and collab.email and collab.email.lower() not in seen:
-        seen.add(collab.email.lower())
-        recipients.append(collab.email)
+    for collab in collaboratori:
+        if collab and collab.email and collab.email.lower() not in seen:
+            seen.add(collab.email.lower())
+            recipients.append(collab.email)
+    return recipients
 
+
+async def notify_staff_change_request(db: AsyncSession, nuovo, vecchio) -> list[str]:
+    """Una cliente chiede di modificare un appuntamento confermato.
+
+    Al collaboratore di prima e a quello di dopo, se sono diversi: uno perde
+    un appuntamento, l'altro ne trova uno.
+    """
     sent: list[str] = []
-    for address in recipients:
+    for address in await _indirizzi_staff(db, vecchio.collaborator, nuovo.collaborator):
         try:
-            await email_util.send_new_booking_staff_email(address, appointment)
+            await email_util.send_change_request_staff_email(address, nuovo, vecchio)
             sent.append(address)
         except Exception:
-            _fallita("nuova_prenotazione_staff", "email", id_appuntamento=appointment.id)
+            _fallita("richiesta_modifica_staff", "email", id_appuntamento=nuovo.id)
+    return sent
+
+
+async def notify_staff_client_cancellation(db: AsyncSession, appointment, tipo: str) -> list[str]:
+    """La cliente ha annullato o ritirato dal portale."""
+    sent: list[str] = []
+    for address in await _indirizzi_staff(db, appointment.collaborator):
+        try:
+            await email_util.send_client_cancellation_staff_email(address, appointment, tipo)
+            sent.append(address)
+        except Exception:
+            _fallita("annullamento_cliente_staff", "email", id_appuntamento=appointment.id)
     return sent
 
 

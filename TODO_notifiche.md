@@ -2149,6 +2149,11 @@ Le due correzioni nate da qui sono nella 1.2.0 (sezione sotto); restano:
   (~4 $/mese) protezione e auto-merge restano e i minuti salgono a 3.000.
   Railway e Dependabot funzionano uguale. Comando, dopo l'eventuale Pro:
   `gh repo edit --visibility private --accept-visibility-change-consequences`.
+  Al posto del privato, licenza esplicita: `LICENSE` «tutti i diritti
+  riservati» (Lorenzo Melchionna e New Style Hair S.r.l. Semplificata, IT +
+  EN), sezione nel README, `"license": "UNLICENSED"` nel frontend. Su `main`
+  con la **1.4.1** ([PR #183](https://github.com/lorenzomelchionna/gestionale_nsh/pull/183),
+  commit `38c564d`, 2026-10-13 14:44 UTC); GitHub la riconosce («Other»).
 
 ### Richiesta — 2026-10-06: limiti per persona e numero sulla schermata del codice
 

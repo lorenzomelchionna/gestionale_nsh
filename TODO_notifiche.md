@@ -2139,6 +2139,16 @@ Le due correzioni nate da qui sono nella 1.2.0 (sezione sotto); restano:
   29/07). Mascherati il 6/10, ma restano nella storia di git. Da
   decidere con Lorenzo: rendere il repository privato, e/o riscrivere la
   storia (distruttivo: `main` blocca il force push di proposito).
+  **2026-10-13: Lorenzo ha valutato il privato e per ora resta pubblico.**
+  Analisi pronta per quando si riprende: 0 fork, 0 stelle, 0 osservatori
+  (non si toglie niente a nessuno). Sul piano Free un repository privato
+  perde l'applicazione della protezione di `main` (i 4 check obbligatori
+  restano salvati ma non bloccano) e l'auto-merge, e ha 2.000 minuti di
+  Actions al mese contro i ~1.700 consumati negli ultimi 30 giorni (317
+  run, ~5,3 min fatturabili ciascuno su un campione di 30). Con GitHub Pro
+  (~4 $/mese) protezione e auto-merge restano e i minuti salgono a 3.000.
+  Railway e Dependabot funzionano uguale. Comando, dopo l'eventuale Pro:
+  `gh repo edit --visibility private --accept-visibility-change-consequences`.
 
 ### Richiesta — 2026-10-06: limiti per persona e numero sulla schermata del codice
 

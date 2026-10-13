@@ -8,6 +8,12 @@ cambiamento incompatibile il primo.
 Le voci le scrive `scripts/release.py prepare` dai commit di ogni rilascio;
 vedi «CI e flusso di rilascio» in `CLAUDE.md`.
 
+## [1.3.2] — 2026-10-13
+
+### Correzioni
+
+- client portal session renews instead of failing with «Token non valido»
+
 ## [1.3.1] — 2026-10-09
 
 ### Novità

@@ -1989,8 +1989,12 @@ Flavia, caricando prodotti nel magazzino.
   per backend e worker; applicato (1 modifica, worker), worker ripartito alle
   14:21 UTC. Prova d'invio dal worker non fatta: SSH in produzione bloccato
   dal controllo di sicurezza.
-  - [ ] **Verificare su Brevo** che la prima email del worker dopo le 14:21
-    UTC del 08/10 abbia mittente `noreply@newstylehair.it`.
+  - [x] **Verificato su Brevo** il 2026-10-13: dalle 14:21 UTC del 08/10,
+    44 invii e tutti da `noreply@newstylehair.it` — fra cui 10 «Nuova
+    prenotazione online», 9 «Prenotazione confermata», 7 promemoria e 3
+    auguri, cioè le email del worker. Nessuno più da `brevosend.com`.
+    Esiti (escluse le email di verifica): 29 consegnate, 0 rimbalzi,
+    bloccate o in errore.
 - [x] **Email dell'admin in chiaro nei log del bootstrap** — mascherata
   (`maschera_email`, anche nel rifiuto senza `ADMIN_PASSWORD`); 3 test.
   Tolto anche il `Dockerfile` della radice, non usato da nessuno.

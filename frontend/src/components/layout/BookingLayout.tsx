@@ -6,34 +6,10 @@ import Logo from '@/components/ui/Logo'
 import { INDIRIZZO, PARTITA_IVA, RAGIONE_SOCIALE, TELEFONO } from '@/config/business'
 import { VERSIONE } from '@/config/version'
 
-// Simple client auth store (separate from admin)
-import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
-
-interface ClientAuthState {
-  token: string | null
-  email: string | null
-  login: (token: string, email: string) => void
-  logout: () => void
-}
-
-export const useClientAuth = create<ClientAuthState>()(
-  persist(
-    (set) => ({
-      token: null,
-      email: null,
-      login: (token, email) => {
-        localStorage.setItem('client_token', token)
-        set({ token, email })
-      },
-      logout: () => {
-        localStorage.removeItem('client_token')
-        set({ token: null, email: null })
-      },
-    }),
-    { name: 'client-auth' }
-  )
-)
+// La sessione cliente sta in `store/clientAuthStore`, perché la usa anche
+// `publicApi` per rinnovarla; riesportata qui per chi la importava da qui.
+import { useClientAuth } from '@/store/clientAuthStore'
+export { useClientAuth }
 
 const clientTabs = [
   { to: '/booking', end: true, label: 'Home' },

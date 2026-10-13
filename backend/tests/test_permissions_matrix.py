@@ -145,6 +145,7 @@ EXPECTED_GUARDS = {
     ("POST", "/api/public/appointments/{appointment_id}/reject-alternative"): "client",
     ("POST", "/api/public/auth/forgot-password"): "public",
     ("POST", "/api/public/auth/login"): "public",
+    ("POST", "/api/public/auth/refresh"): "public",
     ("POST", "/api/public/auth/register"): "public",
     # Both public by necessity: they are how someone who cannot yet log in
     # proves the address is theirs. The control is the emailed code.

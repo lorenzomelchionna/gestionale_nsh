@@ -1,5 +1,5 @@
 from typing import Generic, List, TypeVar
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 T = TypeVar("T")
 
@@ -20,3 +20,8 @@ class TokenResponse(BaseModel):
     access_token: str
     refresh_token: str
     token_type: str = "bearer"
+
+
+class RinnovoSessione(BaseModel):
+    """Corpo di `POST /api/public/auth/refresh`."""
+    refresh_token: str = Field(max_length=2000)

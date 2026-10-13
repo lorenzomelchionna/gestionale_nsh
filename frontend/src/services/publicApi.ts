@@ -1,5 +1,6 @@
 import axios from 'axios'
 import type { Service, Collaborator, Appointment, TokenResponse, WaitlistEntry, WaitlistCreate } from '@/types'
+import { CHIAVE_ACCESSO, CHIAVE_RINNOVO, useClientAuth } from '@/store/clientAuthStore'
 
 const API_BASE = import.meta.env.VITE_API_URL || ''
 
@@ -43,10 +44,63 @@ export const publicGetAvailabilityCalendar = (params: {
 
 // Inject client token
 publicApi.interceptors.request.use((config) => {
-  const token = localStorage.getItem('client_token')
+  const token = localStorage.getItem(CHIAVE_ACCESSO)
   if (token) config.headers.Authorization = `Bearer ${token}`
   return config
 })
+
+/** Un rinnovo alla volta: se scadono insieme tre richieste, il rinnovo è uno
+ *  e le altre lo aspettano, invece di consumare tre refresh in parallelo. */
+let rinnovoInCorso: Promise<string> | null = null
+
+const rinnovaSessione = (): Promise<string> => {
+  if (!rinnovoInCorso) {
+    const refresh = localStorage.getItem(CHIAVE_RINNOVO)
+    rinnovoInCorso = (refresh
+      ? axios.post<TokenResponse>(`${API_BASE}/api/public/auth/refresh`, { refresh_token: refresh })
+          .then(r => {
+            useClientAuth.getState().rinnova(r.data.access_token, r.data.refresh_token)
+            return r.data.access_token
+          })
+      : Promise.reject(new Error('nessun refresh token'))
+    ).finally(() => { rinnovoInCorso = null })
+  }
+  return rinnovoInCorso
+}
+
+/**
+ * Sessione scaduta: si rinnova e si riprova, senza che la cliente se ne
+ * accorga. Se non si può — refresh scaduto dopo 7 giorni, account chiuso, o
+ * una sessione aperta prima del 2026-10-13, che il refresh non l'ha mai
+ * salvato — si chiude la sessione e si va all'accesso con un messaggio
+ * chiaro e il ritorno alla pagina da cui si veniva. Prima la cliente
+ * restava lì con «Token non valido», e riprovare non serviva a niente.
+ *
+ * Solo per richieste partite *con* un token: un 401 senza token (il login
+ * sbagliato, per dire) è una risposta da mostrare, non una sessione scaduta.
+ */
+publicApi.interceptors.response.use(
+  res => res,
+  async (error) => {
+    const originale = error.config
+    const conToken = Boolean(originale?.headers?.Authorization)
+    if (error.response?.status !== 401 || !conToken || originale._ripetuta) {
+      return Promise.reject(error)
+    }
+    originale._ripetuta = true
+    try {
+      const nuovo = await rinnovaSessione()
+      originale.headers.Authorization = `Bearer ${nuovo}`
+      return publicApi(originale)
+    } catch {
+      useClientAuth.getState().logout()
+      const qui = window.location.pathname + window.location.search
+      window.location.assign(`/login?sessione=scaduta&next=${encodeURIComponent(qui)}`)
+      // La pagina sta per cambiare: niente messaggio d'errore nel frattempo.
+      return new Promise(() => {})
+    }
+  },
+)
 
 export const publicGetServices = () =>
   publicApi.get<Service[]>('/services').then(r => r.data)

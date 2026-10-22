@@ -6,7 +6,7 @@ from sqlalchemy import select, func, or_
 from app.audit import REGISTRAZIONE, RESET_ESEGUITO, evento
 from app.database import get_db
 from app.logging_config import maschera_email
-from app.models.client import Client, ClientAccount
+from app.models.client import Client, ClientAccount, scheda_in_uso
 from app.models.appointment import Appointment, appointment_detail_loads
 from app.models.user import User
 from app.schemas.client import (
@@ -45,7 +45,7 @@ async def list_clients(
     page_size: int = Query(20, ge=1, le=500),
     search: str = Query(""),
 ):
-    q = select(Client).where(Client.is_active == True)
+    q = select(Client).where(scheda_in_uso())
     if search:
         term = f"%{search}%"
         q = q.where(

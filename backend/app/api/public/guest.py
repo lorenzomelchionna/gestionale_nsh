@@ -23,7 +23,7 @@ from app.api.public.booking import (
 from app.database import get_db
 from app.logging_config import maschera_telefono
 from app.models.booking_config import BookingConfig
-from app.models.client import Client
+from app.models.client import Client, scheda_in_uso
 from app.rate_limit import limiter
 from app.schemas.appointment import PortalAppointmentOut
 from app.schemas.guest import GuestBooking, GuestCodeRequest, GuestCodeSent, GuestIdentity
@@ -51,10 +51,10 @@ async def _scheda_per(db: AsyncSession, chi: GuestIdentity) -> Client:
     """
     chiave = chiave_nome(chi.first_name, chi.last_name)
     stesso_numero = (await db.execute(
-        select(Client).where(
-            Client.phone == chi.phone,
-            Client.is_active == True,  # noqa: E712 — confronto SQL
-        )
+        # Non la scheda di una registrazione mai finita: avendo un account
+        # vincerebbe sulle altre, e la prenotazione finirebbe su una scheda
+        # che il gestionale non mostra.
+        select(Client).where(Client.phone == chi.phone, scheda_in_uso())
     )).scalars().all()
     sue = [c for c in stesso_numero if chiave_nome(c.first_name, c.last_name) == chiave]
     if sue:

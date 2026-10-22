@@ -110,7 +110,7 @@ def send_birthday_greetings():
 
 async def _async_send_birthday_greetings():
     from app.database import create_task_session_factory
-    from app.models.client import Client
+    from app.models.client import Client, scheda_in_uso
     from app.utils.notifications import notify_birthday
 
     today = datetime.now(timezone.utc).date()
@@ -121,6 +121,10 @@ async def _async_send_birthday_greetings():
             result = await db.execute(
                 select(Client).where(
                     and_(
+                        # Solo schede in uso: prima anche quelle disattivate e
+                        # quelle di registrazioni mai finite, cioè due auguri
+                        # alla stessa persona.
+                        scheda_in_uso(),
                         Client.birth_date.isnot(None),
                         extract("month", Client.birth_date) == today.month,
                         extract("day", Client.birth_date) == today.day,

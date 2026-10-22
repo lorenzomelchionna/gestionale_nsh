@@ -1458,6 +1458,10 @@ Da fare (le credenziali vanno considerate lette):
   ricollegare GitHub se serve, poi «Deploy Latest Commit» (Ctrl/Cmd+K sul
   servizio) per backend, frontend e worker — insieme alla rotazione delle
   chiavi.
+- [ ] **Rilascio 1.4.3 preparato** ([PR #188](https://github.com/lorenzomelchionna/gestionale_nsh/pull/188),
+  senza auto-merge): Pillow 13.0.0 (undici avvisi sulla 12.3) e
+  follow-redirects 1.16.1 (due «high»), [PR #187](https://github.com/lorenzomelchionna/gestionale_nsh/pull/187).
+  Da unire prima del primo deploy dopo l'incidente, così porta tutto.
 
 ## Sicurezza — audit 2026-08-03
 

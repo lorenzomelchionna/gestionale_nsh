@@ -8,6 +8,12 @@ cambiamento incompatibile il primo.
 Le voci le scrive `scripts/release.py prepare` dai commit di ogni rilascio;
 vedi «CI e flusso di rilascio» in `CLAUDE.md`.
 
+## [1.4.2] — 2026-10-22
+
+### Correzioni
+
+- half-finished sign-ups no longer show as duplicate clients
+
 ## [1.4.1] — 2026-10-13
 
 Solo manutenzione: documentazione, test, configurazione.

@@ -1404,6 +1404,56 @@ quella che si legge non è mai quella aggiornata — quindi ne resta una.
 
 ---
 
+## Sicurezza — incidente Railway del 2026-10-21
+
+Railway ha comunicato (email del 22/10, confermata su status.railway.com —
+non dai link dell'email) che un terzo potrebbe aver letto le variabili
+d'ambiente dei clienti, in alcuni casi decifrate. Railway ha invalidato
+tutti i token API (CLI rifatta con `railway login`) e ha le build bloccate
+per Hobby/Free: le credenziali nuove non arrivano ai servizi finché i
+deploy non ripartono per il nostro piano.
+
+Controlli fatti il 2026-10-22 (nessun segno di abuso):
+- [x] **Log del gestionale 15–22/10**: accessi admin da 4 IP — il salone
+  (`185.178.11.129`, ogni giorno lavorativo) e tre IP con poche richieste,
+  tutti entrati con un login vero o con un rinnovo del refresh salvato nel
+  browser (il percorso dell'app), nessuno con un token comparso dal nulla.
+  Eventi di sicurezza normali (rinnovi, limiti al resend del codice dal
+  Wi-Fi del salone, una sessione scaduta da giorni).
+  Lorenzo ha riconosciuto i tre IP: il suo Mac (login del 22/10) e il suo
+  cellulare (sessioni rinnovate del 19/10). Ogni accesso admin del
+  periodo ha quindi un autore noto.
+- [x] **Twilio**: 188 messaggi, 30–40 al giorno nei giorni lavorativi,
+  nessun picco dopo il 21/10, tutti dal numero del salone, max 5 allo
+  stesso destinatario; nessuna chiave API né sottoaccount creati.
+- [x] **Brevo**: 87 email, tutte da `noreply@newstylehair.it` con gli
+  oggetti dei nostri modelli.
+- [x] **GitHub**: solo Dependabot dal 14/10, nessuna chiave di deploy né
+  webhook, `main` fermo al 13/10.
+- [x] **Postgres/Redis**: nessun proxy pubblico, solo rete privata.
+
+Da fare (le credenziali vanno considerate lette):
+- [ ] `SECRET_KEY` — la più grave: permette di firmare un accesso admin.
+  Nuova, generata e impostata senza mostrarla, al primo deploy possibile
+  (scollega tutti: staff e clienti rifanno l'accesso).
+- [ ] Twilio: token secondario → su Railway (backend + worker) → deploy →
+  promuoverlo a primario (il vecchio smette di valere).
+- [ ] Brevo: chiave nuova → su Railway (backend + worker) → deploy →
+  cancellare la vecchia.
+- [ ] `SMTP_PASSWORD`: le email passano da Brevo, lo SMTP è solo ripiego:
+  revocare subito la password per app nell'account Google e togliere la
+  variabile.
+- [ ] Postgres e Redis: password nuove seguendo le guide di Railway, a
+  incidente rientrato (rischio basso: non raggiungibili da internet).
+- [ ] Ricontrollare la connessione GitHub di Railway quando le build
+  ripartono (Railway ha reimpostato le credenziali).
+- [ ] **Rilascio 1.4.2 in attesa** ([PR #186](https://github.com/lorenzomelchionna/gestionale_nsh/pull/186),
+  aperta senza auto-merge): doppioni dalle registrazioni a metà
+  (`scheda_in_uso()`) e scelta «Accedi / Continua senza account» prima del
+  codice WhatsApp ([PR #185](https://github.com/lorenzomelchionna/gestionale_nsh/pull/185)).
+  Da unire quando Railway riapre le build per il piano Hobby/Free, nello
+  stesso deploy della `SECRET_KEY` nuova e delle chiavi Twilio/Brevo.
+
 ## Sicurezza — audit 2026-08-03
 
 Sette revisioni indipendenti sul codice, ognuna passata da un revisore ostile
@@ -2149,6 +2199,11 @@ Le due correzioni nate da qui sono nella 1.2.0 (sezione sotto); restano:
   (~4 $/mese) protezione e auto-merge restano e i minuti salgono a 3.000.
   Railway e Dependabot funzionano uguale. Comando, dopo l'eventuale Pro:
   `gh repo edit --visibility private --accept-visibility-change-consequences`.
+  Al posto del privato, licenza esplicita: `LICENSE` «tutti i diritti
+  riservati» (Lorenzo Melchionna e New Style Hair S.r.l. Semplificata, IT +
+  EN), sezione nel README, `"license": "UNLICENSED"` nel frontend. Su `main`
+  con la **1.4.1** ([PR #183](https://github.com/lorenzomelchionna/gestionale_nsh/pull/183),
+  commit `38c564d`, 2026-10-13 14:44 UTC); GitHub la riconosce («Other»).
 
 ### Richiesta — 2026-10-06: limiti per persona e numero sulla schermata del codice
 

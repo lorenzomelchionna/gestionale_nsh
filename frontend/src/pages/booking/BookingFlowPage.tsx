@@ -92,6 +92,11 @@ export default function BookingFlowPage() {
   const [codeSentTo, setCodeSentTo] = useState('')
   const [codeNotice, setCodeNotice] = useState('')
   const [bookedAsGuest, setBookedAsGuest] = useState(false)
+  // Il modulo col codice WhatsApp compare solo se la cliente sceglie di
+  // prenotare senza account (2026-10-22). Prima compariva da solo a chiunque
+  // non avesse fatto l'accesso, e chi un account ce l'aveva — ma sul telefono
+  // non era collegata — si vedeva chiedere un codice senza capire perché.
+  const [senzaAccount, setSenzaAccount] = useState(false)
   const codeSent = codeSentTo !== '' && codeSentTo === guest.phone.trim()
   const guestReady = guest.first_name.trim() !== '' && guest.last_name.trim() !== '' && guest.phone.trim() !== ''
 
@@ -654,13 +659,32 @@ export default function BookingFlowPage() {
             </div>
           </div>
 
-          {!token && (
+          {!token && !senzaAccount && (
+            <div className="panel border-primary px-5 py-4 flex flex-col gap-3">
+              <span className="kicker text-primary-dark">Hai già un account?</span>
+              <p className="text-[13px] text-muted-foreground">
+                Accedi per inviare la richiesta: niente codice da inserire, e trovi
+                il tuo appuntamento nell'area personale, dove puoi anche spostarlo o
+                annullarlo. Quello che hai scelto resta salvato.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Link to="/login?next=%2Fbooking%2Fnew" className="btn-primary flex-1 text-center">
+                  Accedi
+                </Link>
+                <button type="button" onClick={() => setSenzaAccount(true)} className="btn-secondary flex-1">
+                  Continua senza account
+                </button>
+              </div>
+            </div>
+          )}
+
+          {!token && senzaAccount && (
             <div className="panel px-5 py-4 flex flex-col gap-4">
               <div className="flex flex-col gap-1.5">
-                <span className="kicker">I tuoi dati</span>
+                <span className="kicker">Prenota senza account</span>
                 <p className="text-[13px] text-muted-foreground">
-                  Non serve un account: nome, cognome e il numero WhatsApp su cui
-                  ti mandiamo un codice.{' '}
+                  Nome, cognome e il numero WhatsApp: ti mandiamo un codice, per
+                  essere sicuri che il numero sia tuo e che la conferma arrivi a te.{' '}
                   <Link to="/login?next=%2Fbooking%2Fnew" className="text-primary-dark hover:underline">
                     Hai un account? Accedi
                   </Link>
@@ -767,33 +791,39 @@ export default function BookingFlowPage() {
             </div>
           )}
 
-          <p className="note">
-            {modificaId !== null
-              ? 'È una richiesta di modifica: il tuo appuntamento attuale resta valido finché il salone non la accetta.'
-              : token
-              ? 'La prenotazione verrà confermata dal salone. Ti avvisiamo via email e WhatsApp (se l\'email non arriva, controlla lo spam).'
-              : 'La prenotazione verrà confermata dal salone. Ti avvisiamo su WhatsApp; per disdire o spostarla contatti il salone.'}
-          </p>
-
-          <button
-            onClick={handleBook}
-            disabled={token
-              ? inviaMut.isPending
-              : guestBookMut.isPending || !codeSent || guestCode.length < 6}
-            className="btn-primary w-full disabled:opacity-50"
-          >
-            {inviaMut.isPending || guestBookMut.isPending
-              ? <><Loader2 className="w-4 h-4 animate-spin" /> Invio richiesta…</>
-              : modificaId !== null ? 'Invia richiesta di modifica' : 'Invia richiesta'}
-          </button>
-
-          {(token ? inviaMut : guestBookMut).isError && (
-            <p
-              role="alert"
-              className="text-[13px] text-danger border-l-2 border-danger bg-danger/[0.08] px-3 py-2.5"
-            >
-              {detailOf((token ? inviaMut : guestBookMut).error, 'Errore durante la prenotazione')}
+          {/* Il pulsante solo dopo la scelta fra accesso e «senza account»:
+              prima sarebbe un tasto spento senza un perché. */}
+          {(token || senzaAccount) && (
+            <>
+            <p className="note">
+              {modificaId !== null
+                ? 'È una richiesta di modifica: il tuo appuntamento attuale resta valido finché il salone non la accetta.'
+                : token
+                ? 'La prenotazione verrà confermata dal salone. Ti avvisiamo via email e WhatsApp (se l\'email non arriva, controlla lo spam).'
+                : 'La prenotazione verrà confermata dal salone. Ti avvisiamo su WhatsApp; per disdire o spostarla contatti il salone.'}
             </p>
+
+            <button
+              onClick={handleBook}
+              disabled={token
+                ? inviaMut.isPending
+                : guestBookMut.isPending || !codeSent || guestCode.length < 6}
+              className="btn-primary w-full disabled:opacity-50"
+            >
+              {inviaMut.isPending || guestBookMut.isPending
+                ? <><Loader2 className="w-4 h-4 animate-spin" /> Invio richiesta…</>
+                : modificaId !== null ? 'Invia richiesta di modifica' : 'Invia richiesta'}
+            </button>
+
+            {(token ? inviaMut : guestBookMut).isError && (
+              <p
+                role="alert"
+                className="text-[13px] text-danger border-l-2 border-danger bg-danger/[0.08] px-3 py-2.5"
+              >
+                {detailOf((token ? inviaMut : guestBookMut).error, 'Errore durante la prenotazione')}
+              </p>
+            )}
+            </>
           )}
         </div>
       )}

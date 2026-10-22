@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import require_admin
-from app.models.client import Client
+from app.models.client import Client, scheda_in_uso
 from app.models.appointment import Appointment
 from app.models.product import ProductMovement, MovementType
 
@@ -59,7 +59,7 @@ class SendResponse(BaseModel):
 
 async def _resolve_recipients(db: AsyncSession, f: MessageFilter) -> list[Client]:
     """Return the list of active clients matching the given filter."""
-    base = select(Client).where(Client.is_active == True)
+    base = select(Client).where(scheda_in_uso())
 
     if f.type == "all":
         result = await db.execute(base)

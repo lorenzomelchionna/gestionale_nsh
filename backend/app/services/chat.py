@@ -18,7 +18,7 @@ from app.config import settings
 from app.models.chat import (
     ChatMessage, Conversation, MessageDirection, MessageStatus,
 )
-from app.models.client import Client
+from app.models.client import Client, scheda_in_uso
 
 REPLY_WINDOW_HOURS = 24
 
@@ -125,7 +125,7 @@ async def find_client_by_phone(db: AsyncSession, phone: str) -> Optional[Client]
     if not target:
         return None
     clients = (await db.execute(
-        select(Client).where(Client.is_active == True)  # noqa: E712 — confronto SQL
+        select(Client).where(scheda_in_uso())
     )).scalars().all()
     matches = [c for c in clients if c.phone and normalise_phone(c.phone) == target]
     return matches[0] if len(matches) == 1 else None

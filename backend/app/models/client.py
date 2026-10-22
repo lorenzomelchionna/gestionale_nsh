@@ -77,3 +77,35 @@ class Client(Base):
     communications: Mapped[List["Communication"]] = relationship("Communication", back_populates="client")
     payments: Mapped[List["Payment"]] = relationship("Payment", back_populates="client")
     waitlist_entries: Mapped[List["WaitlistEntry"]] = relationship("WaitlistEntry", back_populates="client", cascade="all, delete-orphan")
+
+
+def scheda_in_uso():
+    """Le schede che il gestionale tratta come clienti (condizione SQL).
+
+    Attive, e o senza account (le crea il salone, o chi prenota senza
+    registrarsi) o con un account che ha finito la registrazione: email e
+    telefono verificati, le stesse condizioni del login.
+
+    Il perché (2026-10-22, «alcune clienti escono due volte» nella scelta
+    della cliente di un appuntamento nuovo): `register` crea subito la scheda
+    dell'account, e la riunisce a quella del salone solo quando il numero è
+    dimostrato col codice WhatsApp. Chi si registra e non finisce lascia una
+    seconda scheda col suo nome, attiva, mai unita — e compariva ovunque: nella
+    scelta della cliente, nei messaggi, negli auguri (due volte alla stessa
+    persona), e nella chat, che con due schede sullo stesso numero non ne
+    collegava nessuna. Finché la registrazione non è completa quella scheda
+    non è una cliente: non ha appuntamenti, perché senza verifica non si
+    accede. Completata la verifica, si unisce o compare da sola.
+    """
+    from sqlalchemy import and_, or_
+    return and_(
+        Client.is_active == True,  # noqa: E712 — confronto SQL
+        or_(
+            Client.account_id.is_(None),
+            Client.account.has(and_(
+                ClientAccount.email_verified == True,  # noqa: E712
+                ClientAccount.phone_verified == True,  # noqa: E712
+            )),
+        ),
+    )
+

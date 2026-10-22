@@ -1420,6 +1420,9 @@ Controlli fatti il 2026-10-22 (nessun segno di abuso):
   browser (il percorso dell'app), nessuno con un token comparso dal nulla.
   Eventi di sicurezza normali (rinnovi, limiti al resend del codice dal
   Wi-Fi del salone, una sessione scaduta da giorni).
+  Lorenzo ha riconosciuto i tre IP: il suo Mac (login del 22/10) e il suo
+  cellulare (sessioni rinnovate del 19/10). Ogni accesso admin del
+  periodo ha quindi un autore noto.
 - [x] **Twilio**: 188 messaggi, 30–40 al giorno nei giorni lavorativi,
   nessun picco dopo il 21/10, tutti dal numero del salone, max 5 allo
   stesso destinatario; nessuna chiave API né sottoaccount creati.

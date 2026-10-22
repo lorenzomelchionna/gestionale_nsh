@@ -1447,6 +1447,12 @@ Da fare (le credenziali vanno considerate lette):
   incidente rientrato (rischio basso: non raggiungibili da internet).
 - [ ] Ricontrollare la connessione GitHub di Railway quando le build
   ripartono (Railway ha reimpostato le credenziali).
+- [ ] **Rilascio 1.4.2 in attesa** ([PR #186](https://github.com/lorenzomelchionna/gestionale_nsh/pull/186),
+  aperta senza auto-merge): doppioni dalle registrazioni a metà
+  (`scheda_in_uso()`) e scelta «Accedi / Continua senza account» prima del
+  codice WhatsApp ([PR #185](https://github.com/lorenzomelchionna/gestionale_nsh/pull/185)).
+  Da unire quando Railway riapre le build per il piano Hobby/Free, nello
+  stesso deploy della `SECRET_KEY` nuova e delle chiavi Twilio/Brevo.
 
 ## Sicurezza — audit 2026-08-03
 

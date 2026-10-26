@@ -1451,8 +1451,21 @@ Da fare (le credenziali vanno considerate lette):
   aperta senza auto-merge): doppioni dalle registrazioni a metà
   (`scheda_in_uso()`) e scelta «Accedi / Continua senza account» prima del
   codice WhatsApp ([PR #185](https://github.com/lorenzomelchionna/gestionale_nsh/pull/185)).
-  Da unire quando Railway riapre le build per il piano Hobby/Free, nello
-  stesso deploy della `SECRET_KEY` nuova e delle chiavi Twilio/Brevo.
+  **Unita su `main` il 2026-10-22 alle 09:57 UTC** su richiesta di
+  Lorenzo (commit `9431535`, tag v1.4.2), ma **nessun deploy partito**:
+  build ferme per Hobby e collegamento GitHub di Railway reimpostato
+  dall'incidente. In produzione resta la 1.4.1. Quando le build riaprono:
+  ricollegare GitHub se serve, poi «Deploy Latest Commit» (Ctrl/Cmd+K sul
+  servizio) per backend, frontend e worker — insieme alla rotazione delle
+  chiavi.
+- [ ] **Rilascio 1.4.3 preparato** ([PR #188](https://github.com/lorenzomelchionna/gestionale_nsh/pull/188),
+  senza auto-merge): Pillow 13.0.0 (undici avvisi sulla 12.3) e
+  follow-redirects 1.16.1 (due «high»), [PR #187](https://github.com/lorenzomelchionna/gestionale_nsh/pull/187).
+  Aggiunto il 26/10, dopo l'audit del lunedì rosso su `main`: tolte zod,
+  react-hook-form e @hookform/resolvers, dichiarate ma mai usate (zod
+  aveva un «high», GHSA-mrhx-c7xc-m3w5, corretto solo nella 4.x)
+  ([PR #190](https://github.com/lorenzomelchionna/gestionale_nsh/pull/190)).
+  Da unire prima del primo deploy dopo l'incidente, così porta tutto.
 
 ## Sicurezza — audit 2026-08-03
 

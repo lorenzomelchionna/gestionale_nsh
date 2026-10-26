@@ -1461,6 +1461,10 @@ Da fare (le credenziali vanno considerate lette):
 - [ ] **Rilascio 1.4.3 preparato** ([PR #188](https://github.com/lorenzomelchionna/gestionale_nsh/pull/188),
   senza auto-merge): Pillow 13.0.0 (undici avvisi sulla 12.3) e
   follow-redirects 1.16.1 (due «high»), [PR #187](https://github.com/lorenzomelchionna/gestionale_nsh/pull/187).
+  Aggiunto il 26/10, dopo l'audit del lunedì rosso su `main`: tolte zod,
+  react-hook-form e @hookform/resolvers, dichiarate ma mai usate (zod
+  aveva un «high», GHSA-mrhx-c7xc-m3w5, corretto solo nella 4.x)
+  ([PR #190](https://github.com/lorenzomelchionna/gestionale_nsh/pull/190)).
   Da unire prima del primo deploy dopo l'incidente, così porta tutto.
 
 ## Sicurezza — audit 2026-08-03

@@ -1465,6 +1465,8 @@ Da fare (le credenziali vanno considerate lette):
   react-hook-form e @hookform/resolvers, dichiarate ma mai usate (zod
   aveva un «high», GHSA-mrhx-c7xc-m3w5, corretto solo nella 4.x)
   ([PR #190](https://github.com/lorenzomelchionna/gestionale_nsh/pull/190)).
+  Aggiunto il 02/11, altro audit rosso: follow-redirects 1.16.2
+  (GHSA-mrwp-f3q8-3g9p, «high», riguardava anche la 1.16.1).
   Da unire prima del primo deploy dopo l'incidente, così porta tutto.
 
 ## Sicurezza — audit 2026-08-03

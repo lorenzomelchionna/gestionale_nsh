@@ -14,6 +14,7 @@ vedi «CI e flusso di rilascio» in `CLAUDE.md`.
 
 - deps: Pillow 13.0.0 and follow-redirects 1.16.1 for new advisories
 - deps: drop unused zod, react-hook-form and @hookform/resolvers (zod GHSA-mrhx-c7xc-m3w5)
+- deps: follow-redirects 1.16.2 (GHSA-mrwp-f3q8-3g9p)
 
 ## [1.4.2] — 2026-10-22
 

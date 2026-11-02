@@ -63,7 +63,12 @@ pytz==2024.2
 # `formats=("JPEG","PNG","WEBP")` a `Image.open`, e quei decoder non vengono
 # nemmeno provati — ma non tutti: PYSEC-2026-3451 riguarda le API sulle
 # coordinate e PYSEC-2026-3493 il codec `raw`, che stanno sul nostro percorso.
-pillow==12.3.0
+# 13.0.0 dal 2026-10-22: undici avvisi nuovi sulla 12.3 (fra cui un heap
+# overflow e un ciclo infinito su immagini costruite apposta), corretti solo
+# nella 13. L'API che usiamo — `Image.open(formats=...)`, `thumbnail`,
+# `LANCZOS`, `DecompressionBombError` — non è cambiata: `test_product_images`
+# passa invariato.
+pillow==13.0.0
 
 # Monitoring
 sentry-sdk[fastapi]==2.66.1

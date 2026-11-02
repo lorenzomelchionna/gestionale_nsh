@@ -1467,7 +1467,12 @@ Da fare (le credenziali vanno considerate lette):
   ([PR #190](https://github.com/lorenzomelchionna/gestionale_nsh/pull/190)).
   Aggiunto il 02/11, altro audit rosso: follow-redirects 1.16.2
   (GHSA-mrwp-f3q8-3g9p, «high», riguardava anche la 1.16.1).
-  Da unire prima del primo deploy dopo l'incidente, così porta tutto.
+  **Rilasciata il 2026-11-02** (commit `e770cd0`) su richiesta di Lorenzo,
+  senza aspettare le chiavi. Railway ha fatto il deploy da solo: il
+  collegamento GitHub funziona. **Deploy confermato** alle 13:34 UTC, tre
+  servizi `SUCCESS`, `/health` → 1.4.3. In produzione anche le correzioni
+  della 1.4.2. **La rotazione delle chiavi qui sopra resta da fare**: non
+  risulta completata.
 
 ## Sicurezza — audit 2026-08-03
 

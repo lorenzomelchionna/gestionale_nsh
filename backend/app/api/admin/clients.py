@@ -17,7 +17,7 @@ from app.schemas.appointment import AppointmentOutWithNames
 from app.schemas.common import PaginatedResponse
 from app.dependencies import get_current_user, require_admin
 from app.services import client_merge, portal_account
-from app.services.chat import collega_conversazione
+from app.services.chat import collega_conversazione, ricollega_numero
 from app.utils.auth import hash_password
 
 router = APIRouter(prefix="/clients", tags=["Clients"])
@@ -132,6 +132,10 @@ async def delete_client(
     if not client:
         raise HTTPException(status_code=404, detail="Cliente non trovato")
     client.is_active = False
+    await db.flush()
+    # Eliminare il doppione è uno dei due modi di sistemarlo: la chat del
+    # numero passa subito alla scheda rimasta.
+    await ricollega_numero(db, client.phone)
 
 
 @router.get("/{client_id}/merge-preview", response_model=MergePreview)
@@ -166,6 +170,9 @@ async def merge_clients(
         esito = await client_merge.esegui(db, client_id, payload.source_id)
     except client_merge.MergeRefused as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+    # La chat che col doppione non sapeva quale nome prendere ora ne ha uno.
+    await ricollega_numero(db, esito.destinazione.phone)
 
     # Il singolo passaggio di questo codice in cui i dati di una persona
     # diventano quelli di un'altra. Se un domani una cliente si ritrova

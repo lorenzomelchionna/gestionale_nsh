@@ -9,7 +9,7 @@ import {
 import { Link, useSearchParams } from 'react-router-dom'
 import {
   getConversations, getConversation, replyToConversation, setConversationArchived,
-  getChatStatus, getChatMedia, deleteConversation,
+  getChatStatus, getChatMedia, deleteConversation, linkConversationClient,
 } from '@/services/api'
 import { useAuthStore } from '@/store/authStore'
 import Sheet from '@/components/ui/Sheet'
@@ -277,6 +277,20 @@ function Thread({ conversationId, onBack, onChanged }: {
     },
   })
 
+  // Più schede col numero (un doppione, o il fisso di casa): il nome non si
+  // sceglie da solo. Senza collegamento la scelta si apre da sé; con, resta
+  // a portata di «cambia» per correggere un errore.
+  const schede = conv?.schede_stesso_numero ?? []
+  const [sceltaAperta, setSceltaAperta] = useState(false)
+  const linkMut = useMutation({
+    mutationFn: (clientId: number) => linkConversationClient(conversationId, clientId),
+    onSuccess: (aggiornata) => {
+      qc.setQueryData(['conversation', conversationId], aggiornata)
+      setSceltaAperta(false)
+      onChanged()
+    },
+  })
+
   // Cancellare è per sempre, quindi solo l'admin e sempre dopo una conferma;
   // per togliere una chat dalla lista c'è già «Archivia», che si annulla.
   const isAdmin = useAuthStore(s => s.user?.role === 'admin')
@@ -323,6 +337,18 @@ function Thread({ conversationId, onBack, onChanged }: {
               <span> · su WhatsApp «{conv.contact_name}»</span>
             )}
             {!conv.client_id && conv.contact_name && <span> · nome dal profilo WhatsApp</span>}
+            {conv.client_id && schede.length > 1 && (
+              <>
+                {' · '}
+                <button
+                  type="button"
+                  onClick={() => setSceltaAperta(v => !v)}
+                  className="underline underline-offset-2 hover:text-foreground"
+                >
+                  numero su {schede.length} schede, cambia
+                </button>
+              </>
+            )}
           </p>
         </div>
         {conv.client_id && (
@@ -364,6 +390,43 @@ function Thread({ conversationId, onBack, onChanged }: {
           </button>
         )}
       </div>
+
+      {((!conv.client_id && schede.length > 1) || sceltaAperta) && (
+        <div className="border-b border-rule bg-warning/15 px-3 py-2.5 text-[13px] space-y-2 shrink-0">
+          <p className="text-foreground">
+            Questo numero è su <strong>{schede.length} schede</strong>. Chi sta scrivendo?
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {schede.map(s => (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => linkMut.mutate(s.id)}
+                disabled={linkMut.isPending || s.id === conv.client_id}
+                className={clsx('btn-sm', s.id === conv.client_id ? 'btn-primary' : 'btn-secondary')}
+              >
+                {/* Il numero di scheda: un doppione ha lo stesso nome, e
+                    senza non si saprebbe quale dei due si sta scegliendo. */}
+                {s.nome} <span className="opacity-60 tabular-nums">#{s.id}</span>
+              </button>
+            ))}
+          </div>
+          <p className="text-[12px] text-muted-foreground">
+            Se sono la stessa persona è un doppione: apri una delle schede
+            {schede.map((s, i) => (
+              <span key={s.id}>
+                {i === 0 ? ' (' : ', '}
+                <Link to={`/admin/clients/${s.id}`} className="underline underline-offset-2">{s.nome} #{s.id}</Link>
+                {i === schede.length - 1 ? ')' : ''}
+              </span>
+            ))}
+            {isAdmin ? ' e usa «Unisci duplicato»: la chat prende il nome da sola.' : ' e chiedi all\'amministratore di unirle.'}
+          </p>
+          {linkMut.isError && (
+            <p role="alert" className="text-danger">Collegamento non riuscito. Riprova.</p>
+          )}
+        </div>
+      )}
 
       {confirmDelete && (
         <Sheet

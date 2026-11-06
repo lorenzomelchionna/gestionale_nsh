@@ -8,6 +8,12 @@ cambiamento incompatibile il primo.
 Le voci le scrive `scripts/release.py prepare` dai commit di ogni rilascio;
 vedi «CI e flusso di rilascio» in `CLAUDE.md`.
 
+## [1.4.4] — 2026-11-06
+
+### Correzioni
+
+- chat: let the salon pick the client when a number is on several records
+
 ## [1.4.3] — 2026-10-22
 
 ### Correzioni

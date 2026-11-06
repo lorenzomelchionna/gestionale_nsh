@@ -369,3 +369,122 @@ class TestAvvisi:
     async def test_niente_messaggi(self, client, admin_tokens):
         r = (await client.get("/api/admin/chat/unread-count", headers=auth(admin_tokens))).json()
         assert r == {"unread": 0, "ultimo": None}
+
+
+class TestDueSchedeSulNumero:
+    """Segnalazione di Flavia del 2026-11-06: la chat resta col nome del
+    profilo WhatsApp anche se la cliente ha la sua scheda, e la cliente
+    «esce a doppio». Le schede in uso con quel numero erano due — un
+    doppione — e con due il codice non sceglie: è la regola del fisso di casa
+    (madre e figlia), giusta. Mancava il resto: dire al salone quali sono, far
+    scegliere a lui, e collegare appena il doppione sparisce."""
+
+    async def _due_schede(self, client, db, admin_tokens):
+        giusta = Client(first_name="Vincenza", last_name="Rossi", phone=PHONE)
+        doppione = Client(first_name="Vincenza", last_name="Rossi", phone=PHONE)
+        db.add_all([giusta, doppione])
+        await db.commit()
+        await _arriva(client, sid="SM1", body="posso prenotare?", profilo="Tutankhamon")
+        conv = await _conversazione(client, admin_tokens)
+        assert conv["client_id"] is None and conv["display_name"] == "Tutankhamon"
+        return conv, giusta, doppione
+
+    async def _dettaglio(self, client, tokens, conv_id) -> dict:
+        r = await client.get(f"/api/admin/chat/conversations/{conv_id}", headers=auth(tokens))
+        assert r.status_code == 200, r.text
+        return r.json()
+
+    async def test_la_chat_dice_quali_schede_hanno_il_numero(self, client, db, admin_tokens):
+        conv, giusta, doppione = await self._due_schede(client, db, admin_tokens)
+        dettaglio = await self._dettaglio(client, admin_tokens, conv["id"])
+        assert [s["id"] for s in dettaglio["schede_stesso_numero"]] == [giusta.id, doppione.id]
+        assert dettaglio["schede_stesso_numero"][0]["nome"] == "Vincenza Rossi"
+
+    async def test_le_schede_spente_non_si_propongono(self, client, db, admin_tokens):
+        db.add(Client(first_name="Vecchia", last_name="Scheda", phone=PHONE, is_active=False))
+        await db.commit()
+        conv, giusta, doppione = await self._due_schede(client, db, admin_tokens)
+        dettaglio = await self._dettaglio(client, admin_tokens, conv["id"])
+        assert [s["id"] for s in dettaglio["schede_stesso_numero"]] == [giusta.id, doppione.id]
+
+    async def test_il_salone_sceglie(self, client, db, collab_tokens, admin_tokens):
+        """Anche un collaboratore: è lui che risponde e sa chi scrive."""
+        conv, giusta, _ = await self._due_schede(client, db, admin_tokens)
+        r = await client.put(
+            f"/api/admin/chat/conversations/{conv['id']}/client",
+            headers=auth(collab_tokens), json={"client_id": giusta.id},
+        )
+        assert r.status_code == 200, r.text
+        assert r.json()["client_id"] == giusta.id
+        assert r.json()["display_name"] == "Vincenza Rossi"
+        assert (await _conversazione(client, admin_tokens))["display_name"] == "Vincenza Rossi"
+
+    async def test_la_scelta_resta_ai_messaggi_successivi(self, client, db, admin_tokens):
+        conv, _, doppione = await self._due_schede(client, db, admin_tokens)
+        await client.put(
+            f"/api/admin/chat/conversations/{conv['id']}/client",
+            headers=auth(admin_tokens), json={"client_id": doppione.id},
+        )
+        await _arriva(client, sid="SM2", body="grazie", profilo="Tutankhamon")
+        assert (await _conversazione(client, admin_tokens))["client_id"] == doppione.id
+
+    async def test_si_puo_cambiare_scelta(self, client, db, admin_tokens):
+        conv, giusta, doppione = await self._due_schede(client, db, admin_tokens)
+        url = f"/api/admin/chat/conversations/{conv['id']}/client"
+        await client.put(url, headers=auth(admin_tokens), json={"client_id": doppione.id})
+        r = await client.put(url, headers=auth(admin_tokens), json={"client_id": giusta.id})
+        assert r.json()["client_id"] == giusta.id
+
+    async def test_solo_fra_le_schede_col_numero(self, client, db, admin_tokens):
+        """Una scheda con un altro numero verrebbe staccata al primo
+        salvataggio di quella che il numero ce l'ha: non si accetta."""
+        conv, _, _ = await self._due_schede(client, db, admin_tokens)
+        altra = Client(first_name="Altra", last_name="Persona", phone="+393330000999")
+        spenta = Client(first_name="Spenta", last_name="Rossi", phone=PHONE, is_active=False)
+        db.add_all([altra, spenta])
+        await db.commit()
+        url = f"/api/admin/chat/conversations/{conv['id']}/client"
+        for scheda_id in (altra.id, spenta.id, 999999):
+            r = await client.put(url, headers=auth(admin_tokens), json={"client_id": scheda_id})
+            assert r.status_code == 400, (scheda_id, r.text)
+        assert (await _conversazione(client, admin_tokens))["client_id"] is None
+
+    async def test_conversazione_inesistente(self, client, db, admin_tokens):
+        r = await client.put(
+            "/api/admin/chat/conversations/999999/client",
+            headers=auth(admin_tokens), json={"client_id": 1},
+        )
+        assert r.status_code == 404
+
+    async def test_unire_il_doppione_collega_subito(self, client, db, admin_tokens):
+        conv, giusta, doppione = await self._due_schede(client, db, admin_tokens)
+        r = await client.post(
+            f"/api/admin/clients/{giusta.id}/merge",
+            headers=auth(admin_tokens), json={"source_id": doppione.id},
+        )
+        assert r.status_code == 200, r.text
+        conv = await _conversazione(client, admin_tokens)
+        assert conv["client_id"] == giusta.id and conv["display_name"] == "Vincenza Rossi"
+
+    async def test_eliminare_il_doppione_collega_subito(self, client, db, admin_tokens):
+        conv, giusta, doppione = await self._due_schede(client, db, admin_tokens)
+        r = await client.delete(f"/api/admin/clients/{doppione.id}", headers=auth(admin_tokens))
+        assert r.status_code == 204, r.text
+        assert (await _conversazione(client, admin_tokens))["client_id"] == giusta.id
+
+    async def test_eliminare_la_scheda_collegata_passa_la_chat_all_altra(self, client, db, admin_tokens):
+        conv, giusta, doppione = await self._due_schede(client, db, admin_tokens)
+        await client.put(
+            f"/api/admin/chat/conversations/{conv['id']}/client",
+            headers=auth(admin_tokens), json={"client_id": doppione.id},
+        )
+        await client.delete(f"/api/admin/clients/{doppione.id}", headers=auth(admin_tokens))
+        assert (await _conversazione(client, admin_tokens))["client_id"] == giusta.id
+
+    async def test_con_tre_schede_eliminarne_una_non_sceglie(self, client, db, admin_tokens):
+        conv, giusta, doppione = await self._due_schede(client, db, admin_tokens)
+        terza = Client(first_name="Anna", last_name="Rossi", phone=PHONE)
+        db.add(terza)
+        await db.commit()
+        await client.delete(f"/api/admin/clients/{doppione.id}", headers=auth(admin_tokens))
+        assert (await _conversazione(client, admin_tokens))["client_id"] is None

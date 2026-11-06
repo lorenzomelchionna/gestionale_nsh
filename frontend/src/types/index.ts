@@ -403,6 +403,8 @@ export interface Conversation {
 
 export interface ConversationDetail extends Conversation {
   messages: ChatMessage[]
+  /** Le schede in uso col numero della chat. Più di una: il nome lo sceglie il salone. */
+  schede_stesso_numero: { id: number; nome: string }[]
 }
 
 export interface ChatChannelStatus {

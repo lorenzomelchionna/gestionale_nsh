@@ -55,8 +55,21 @@ class ConversationOut(BaseModel):
     window_expires_at: Optional[datetime] = None
 
 
+class SchedaStessoNumero(BaseModel):
+    id: int
+    nome: str
+
+
 class ConversationDetail(ConversationOut):
     messages: List[ChatMessageOut] = []
+    # Le schede in uso col numero della chat. Più di una: il nome non si
+    # sceglie da solo, lo sceglie il salone (e se sono la stessa persona, le
+    # unisce).
+    schede_stesso_numero: List[SchedaStessoNumero] = []
+
+
+class CollegaScheda(BaseModel):
+    client_id: int
 
 
 class ReplyRequest(BaseModel):

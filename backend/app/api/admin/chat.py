@@ -18,12 +18,13 @@ from app.dependencies import get_current_user, require_admin
 from app.models.chat import ChatMessage, Conversation, MessageDirection
 from app.models.user import User
 from app.schemas.chat import (
-    ChatMessageOut, ConversationDetail, ConversationOut, ReplyRequest,
+    ChatMessageOut, CollegaScheda, ConversationDetail, ConversationOut, ReplyRequest,
+    SchedaStessoNumero,
 )
 from app.config import settings
 from app.services.chat import (
-    REPLY_WINDOW_HOURS, AllegatoNonDisponibile, can_reply_freely,
-    etichetta_allegato, mark_read, scarica_allegato, send_reply,
+    REPLY_WINDOW_HOURS, AllegatoNonDisponibile, can_reply_freely, collega_a_mano,
+    etichetta_allegato, mark_read, scarica_allegato, schede_del_numero, send_reply,
     whatsapp_mode, window_expires_at,
 )
 
@@ -167,7 +168,38 @@ async def get_conversation(
     conv = await _load(db, conversation_id)
     # Opening the thread is what marks it read.
     await mark_read(db, conv)
-    return _decorate(conv, include_messages=True)
+    return await _dettaglio(db, conv)
+
+
+async def _dettaglio(db: AsyncSession, conv: Conversation) -> ConversationDetail:
+    out = _decorate(conv, include_messages=True)
+    out.schede_stesso_numero = [
+        SchedaStessoNumero(id=c.id, nome=f"{c.first_name} {c.last_name}".strip())
+        for c in await schede_del_numero(db, conv.phone)
+    ]
+    return out
+
+
+@router.put("/conversations/{conversation_id}/client", response_model=ConversationDetail)
+async def link_client(
+    conversation_id: int,
+    payload: CollegaScheda,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(get_current_user)],
+):
+    """Collega la chat a una delle schede col suo numero.
+
+    Staff come il resto della chat: chi risponde è chi sa chi sta scrivendo.
+    Si sceglie solo fra le schede che hanno già quel numero, quindi non
+    rivela né sposta niente che la scheda non dica già.
+    """
+    conv = await _load(db, conversation_id)
+    try:
+        await collega_a_mano(db, conv, payload.client_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    await db.refresh(conv, ["client"])
+    return await _dettaglio(db, conv)
 
 
 @router.post("/conversations/{conversation_id}/reply", response_model=ChatMessageOut)

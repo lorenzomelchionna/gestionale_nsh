@@ -121,14 +121,23 @@ async def find_client_by_phone(db: AsyncSession, phone: str) -> Optional[Client]
     least the sender's own. A deactivated record ("Elimina", or the losing side
     of a merge) is not a candidate: it stands for nobody any more.
     """
+    matches = await schede_del_numero(db, phone)
+    return matches[0] if len(matches) == 1 else None
+
+
+async def schede_del_numero(db: AsyncSession, phone: str) -> list[Client]:
+    """Tutte le schede in uso con questo numero, le più vecchie prima.
+
+    Quando sono più di una la chat non sceglie da sola (vedi
+    `find_client_by_phone`): le mostra al salone, che sa chi sta scrivendo.
+    """
     target = normalise_phone(phone)
     if not target:
-        return None
+        return []
     clients = (await db.execute(
-        select(Client).where(scheda_in_uso())
+        select(Client).where(scheda_in_uso()).order_by(Client.id)
     )).scalars().all()
-    matches = [c for c in clients if c.phone and normalise_phone(c.phone) == target]
-    return matches[0] if len(matches) == 1 else None
+    return [c for c in clients if c.phone and normalise_phone(c.phone) == target]
 
 
 async def collega_conversazione(db: AsyncSession, client: Client) -> None:
@@ -158,6 +167,39 @@ async def collega_conversazione(db: AsyncSession, client: Client) -> None:
     if unica is not None and unica.id == client.id:
         conv.client_id = client.id
         await db.flush()
+
+
+async def ricollega_numero(db: AsyncSession, phone: Optional[str]) -> None:
+    """Dopo che una scheda col numero è sparita — eliminata o unita in
+    un'altra — la chat va a quella rimasta, se ora è l'unica.
+
+    È il caso di Flavia del 2026-11-06: due schede per la stessa persona, la
+    chat col nome WhatsApp. Sistemato il doppione, la chat deve prendere il
+    nome vero subito, non al prossimo messaggio della cliente.
+    """
+    if not phone:
+        return
+    unica = await find_client_by_phone(db, phone)
+    if unica is not None:
+        await collega_conversazione(db, unica)
+
+
+async def collega_a_mano(db: AsyncSession, conv: Conversation, client_id: int) -> Client:
+    """Il salone dice chi c'è dietro il numero, fra le schede che ce l'hanno.
+
+    Serve quando le schede col numero sono più di una: il codice non sceglie
+    (madre e figlia sul fisso di casa), una persona sì. Solo fra quelle col
+    numero della chat: una scheda con un altro numero verrebbe staccata da
+    `collega_conversazione` al primo salvataggio della scheda che il numero ce
+    l'ha davvero, e il collegamento sparirebbe senza che nessuno lo tocchi.
+    """
+    schede = await schede_del_numero(db, conv.phone)
+    scelta = next((c for c in schede if c.id == client_id), None)
+    if scelta is None:
+        raise ValueError("La scheda non ha il numero di questa conversazione.")
+    conv.client_id = scelta.id
+    await db.flush()
+    return scelta
 
 
 async def record_inbound(

@@ -2619,6 +2619,30 @@ volte alle 12:10 e poi è andato a buon fine alle 12:24, dopo che il numero
   risposta libera possibile fino al 26/09 08:17.
   La password del superuser Postgres è comparsa di nuovo in chat (output
   del tunnel): stessa voce di rotazione già aperta in «Sicurezza».
+- [ ] **Segnalazione di Flavia, 2026-11-06: «il nome di WhatsApp non si è
+  risolto… esce a doppio»**. Chat col nome del profilo WhatsApp, e la
+  cliente doppia al momento dell'appuntamento. Causa, dai dati e non da
+  ipotesi: alle 08:20 UTC il messaggio arriva e la chat resta senza scheda;
+  alle 08:24 la conferma WhatsApp dell'appuntamento parte **verso lo stesso
+  numero**, quindi una scheda col numero c'è. Con una sola la chat si
+  sarebbe collegata: le schede in uso con quel numero sono almeno due, cioè
+  un doppione. Col doppione il codice non sceglie (regola del fisso di
+  casa), e Flavia non aveva modo di farlo lei.
+  - Nella chat, se il numero è su più schede: «Chi sta scrivendo?» con una
+    scelta per scheda (nome e numero di scheda, perché i doppioni hanno lo
+    stesso nome), i link alle schede e l'invito a usare «Unisci
+    duplicato». Collegata, resta «numero su N schede, cambia».
+    `PUT /api/admin/chat/conversations/{id}/client`, staff, solo fra le
+    schede in uso col numero della chat.
+  - «Unisci duplicato» ed «Elimina» sulla scheda: la chat passa subito alla
+    scheda rimasta se ora è l'unica (prima: al prossimo messaggio).
+  - Test `TestDueSchedeSulNumero` in `test_chat_allegati.py`; 1018 in
+    tutto. Falsificati sei punti, tutti presi; un settimo (ricollegare alla
+    prima scheda invece che all'unica) è equivalente, perché
+    `collega_conversazione` ricontrolla l'unicità.
+  - **Da fare dopo il rilascio**: Flavia apre la chat, segue i link alle due
+    schede e le unisce. Se sono due persone diverse sullo stesso numero,
+    sceglie chi scrive.
 
 ### Richiesta — 2026-09-25: prenotare senza account
 

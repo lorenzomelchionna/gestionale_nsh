@@ -489,6 +489,11 @@ export const getChatMedia = (messageId: number, index: number) =>
   api.get<Blob>(`/admin/chat/messages/${messageId}/media/${index}`, { responseType: 'blob' })
     .then(r => r.data)
 
+/** Collega la chat a una delle schede che hanno il suo numero. */
+export const linkConversationClient = (id: number, clientId: number) =>
+  api.put<ConversationDetail>(`/admin/chat/conversations/${id}/client`, { client_id: clientId })
+    .then(r => r.data)
+
 /** Per sempre: conversazione e messaggi. Solo admin. */
 export const deleteConversation = (id: number) =>
   api.delete(`/admin/chat/conversations/${id}`)

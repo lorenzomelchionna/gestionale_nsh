@@ -2640,6 +2640,13 @@ volte alle 12:10 e poi è andato a buon fine alle 12:24, dopo che il numero
     tutto. Falsificati sei punti, tutti presi; un settimo (ricollegare alla
     prima scheda invece che all'unica) è equivalente, perché
     `collega_conversazione` ricontrolla l'unicità.
+  - [PR #194](https://github.com/lorenzomelchionna/gestionale_nsh/pull/194)
+    → `develop`, [PR #195](https://github.com/lorenzomelchionna/gestionale_nsh/pull/195)
+    → `main` (commit `76c242a`), tag e Release `v1.4.4`. **Deploy
+    confermato** il 2026-11-06 alle 08:55 UTC: backend, frontend e worker
+    `SUCCESS`, bootstrap completato, nessuna migration, nessun WARN/ERROR,
+    `celery ready`. Dal vivo: `/health` → `1.4.4`, `www` 200, il `PUT` nuovo
+    senza token → 401, «Chi sta scrivendo» nel bundle servito.
   - **Da fare dopo il rilascio**: Flavia apre la chat, segue i link alle due
     schede e le unisce. Se sono due persone diverse sullo stesso numero,
     sceglie chi scrive.

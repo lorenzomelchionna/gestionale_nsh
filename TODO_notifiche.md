@@ -2312,12 +2312,6 @@ Le due correzioni nate da qui sono nella 1.2.0 (sezione sotto); restano:
   codice l'ha letto un estraneo). La stessa persona si è rifatta due minuti
   dopo come account 41 con il numero giusto, che è quello vero. Il 40 è da
   disattivare.
-- [ ] **«Archivia» invece di «Elimina» nella chat** — Flavia ha cancellato
-  22 conversazioni in una settimana (dalla 20 alla 41), quasi tutte poco
-  dopo averle gestite: sembra usarlo come «fatto». Così però perde lo
-  storico con quella cliente, e il messaggio dopo apre una conversazione
-  vuota. Un «Archivia» che le toglie dalla lista senza cancellarle risponde
-  a quello che fa davvero.
 - [ ] **Icone del portale mancanti** — `favicon.ico` e
   `apple-touch-icon*.png` rispondono 404 (si vede nel log di nginx a ogni
   visita da iPhone): chi salva il portale sulla schermata Home non ha
@@ -2534,7 +2528,6 @@ ancora valido».
   completato. Dal vivo: `/health` 200, `www` 200, `/api/public/services`
   espone `color` su tutti i 19 servizi; nel bundle servito «Colore in
   calendario», la tavolozza e l'avviso «cartella Spam».
-  - [ ] Flavia sceglie i colori dei servizi (Servizi → modifica).
 
 ### Segnalazione — 2026-09-27: «promemoria a un'ora, arrivato 2 ore e mezza prima»
 
@@ -2557,20 +2550,6 @@ ogni 15 minuti.
   cliente (…2786) è stata spostata al 02/10 in chat, quindi l'appuntamento
   non era più in agenda — non verificabile senza DB, nessun errore nei log
   del worker.
-- [ ] **Numeri che WhatsApp rifiuta (63024) — Flavia li corregge**:
-  Antonio (…3177, 29/09 08:00, promemoria non arrivato), Euplio (…4030,
-  **incompleto**: appuntamento il 06/10 alle 18:00, promemoria non
-  arriverà), Carmine (…1317, 9 e 23/10 17:30), Raffaele (…9600), e dal
-  29/09 **Claudio** (…5361, 29/09 09:30: né conferma né promemoria
-  arrivati). Segnalati a Lorenzo il 2026-09-27 e 29. **Dal controllo del
-  6/10, tre in più**: Emilio (…389: conferma e promemoria del 30/09),
-  Liberato (…252: conferma del 02/10), Marilena (…713: conferma e
-  promemoria del 03/10). E Mirella (…035): due messaggi del 03/10 accettati
-  da WhatsApp ma mai consegnati al telefono (stato «sent» da giorni —
-  telefono spento o WhatsApp non più attivo su quel numero).
-  Qui solo nome e ultime cifre: **il repository è pubblico** — i numeri
-  per intero stanno nelle schede del gestionale, ed è da lì che Flavia li
-  corregge.
 
 **Trovato insieme: 4 clienti col numero che WhatsApp rifiuta.** Errore
 Twilio **63024** («destinatario non valido»: il numero non ha WhatsApp o è
@@ -2742,7 +2721,7 @@ volte alle 12:10 e poi è andato a buon fine alle 12:24, dopo che il numero
   risposta libera possibile fino al 26/09 08:17.
   La password del superuser Postgres è comparsa di nuovo in chat (output
   del tunnel): stessa voce di rotazione già aperta in «Sicurezza».
-- [ ] **Segnalazione di Flavia, 2026-11-06: «il nome di WhatsApp non si è
+- [x] **Segnalazione di Flavia, 2026-11-06: «il nome di WhatsApp non si è
   risolto… esce a doppio»**. Chat col nome del profilo WhatsApp, e la
   cliente doppia al momento dell'appuntamento. Causa, dai dati e non da
   ipotesi: alle 08:20 UTC il messaggio arriva e la chat resta senza scheda;
@@ -2770,9 +2749,6 @@ volte alle 12:10 e poi è andato a buon fine alle 12:24, dopo che il numero
     `SUCCESS`, bootstrap completato, nessuna migration, nessun WARN/ERROR,
     `celery ready`. Dal vivo: `/health` → `1.4.4`, `www` 200, il `PUT` nuovo
     senza token → 401, «Chi sta scrivendo» nel bundle servito.
-  - **Da fare dopo il rilascio**: Flavia apre la chat, segue i link alle due
-    schede e le unisce. Se sono due persone diverse sullo stesso numero,
-    sceglie chi scrive.
 
 ### Richiesta — 2026-09-25: prenotare senza account
 

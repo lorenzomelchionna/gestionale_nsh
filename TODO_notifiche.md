@@ -1470,11 +1470,19 @@ quella che si legge non è mai quella aggiornata — quindi ne resta una.
   già diversa da quella vera). `REDIS_URL` nel plan non cambiava. Dopo:
   valore risolto identico a quello del Postgres, redeploy `SUCCESS`,
   bootstrap e worker ok, lettura dal database 200.
-- [ ] **Rotazione della password di Postgres** — ora è un clic, e la fa
-  Lorenzo: pannello Railway → Postgres → Variables → rigenera la password.
-  Railway riavvia backend e worker col valore nuovo. Dopo: controllare
-  `/health`, una lettura dal database e il worker; e riaprire i tunnel
-  (la password vecchia è comparsa più volte nell'output del tunnel).
+- [x] **Rotazione della password di Postgres**, fatta da Lorenzo il
+  2026-11-10 alle 22:00 UTC: pannello Railway → Postgres → scheda
+  **Database → Config → Connection → Regenerate** (non da «Variables»:
+  cambierebbe la variabile e non la password nel database). Railway ha
+  riavviato da sé Postgres, backend e worker (22:00:50, tutti `SUCCESS`).
+  Dopo: password uguale in `PGPASSWORD`, `POSTGRES_PASSWORD` e
+  `DATABASE_URL` di Postgres, backend e worker; bootstrap ok, worker
+  pronto, `/health` 1.4.5, lettura dal database 200. Nel log di Postgres 2
+  accessi rifiutati alle 22:00:58, prima che le istanze nuove fossero su
+  (22:01:07): le vecchie in chiusura con la password vecchia; nessuno dopo.
+  Chiude anche le esposizioni della password nell'output del tunnel
+  (2026-09-25, 2026-10-08, 2026-11-10). Il tunnel va riaperto: stampa la
+  password nuova.
 
 ## Sicurezza — incidente Railway del 2026-10-21
 

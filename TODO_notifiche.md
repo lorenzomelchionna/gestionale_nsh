@@ -1420,8 +1420,32 @@ quella che si legge non è mai quella aggiornata — quindi ne resta una.
   `railway postgres pitr schedule set --service Postgres --environment production --daily`.
 - [ ] **Spostare i servizi in Europa** (`sfo` → `ams`, Amsterdam). Misurato
   il 2026-11-10 dall'Italia: `/health` 225 ms, di cui ~215 di viaggio fino
-  in California (l'ingresso di Railway è già a Parigi, `cdg1`). Piano e
-  stato nella voce sotto, quando parte.
+  in California (l'ingresso di Railway è già a Parigi, `cdg1`).
+  - [x] **Fase 1 — frontend**, fatta il 2026-11-10 alle 21:23 UTC, senza
+    fermo: `railway scale --service frontend eu-west=1 sfo=0` → deploy
+    `SUCCESS` in `europe-west4-drams3a`. `www` da ~0,25 s a ~0,10 s a
+    regime (server ~45 ms invece di ~200); i primi secondi dopo il deploy
+    ~0,7 s, è il riscaldamento.
+    Due cose imparate: `railway config plan` **non vede i cambi di
+    regione** (file cambiato, «No changes»), quindi la regione si cambia
+    con `railway scale` e il file la registra soltanto; e per `scale`
+    `sfo` e `us-west` sono due chiavi diverse — `eu-west=1 us-west=0`
+    lascia accesa la replica in `sfo` (un deploy con 2 repliche, fallito e
+    sostituito): va spento `sfo=0` esplicitamente.
+  - [ ] **Fase 2 — Postgres, Redis, backend, worker insieme**, a salone
+    chiuso. Prima un dump nuovo (procedura sotto). Tutti e quattro nello
+    stesso momento: backend in Europa col database in California sarebbe
+    più lento di oggi. Postgres e Redis hanno volumi: Railway li copia, con
+    qualche minuto di fermo.
+  - Backup a mano fatto il 2026-11-10 21:15 UTC, prima di cominciare:
+    `~/Backups/new-style-hair/nsh-prod-20261110-2215.dump` sul Mac di
+    Lorenzo (4 MB, `-Fc`, Postgres 18). Verificato ripristinandolo in un
+    Postgres 18 usa-e-getta: 25 tabelle, righe identiche alla produzione.
+    Procedura: Lorenzo apre `railway connect Postgres --tunnel-only`;
+    `pg_dump` 18 da `docker run postgres:18` su `host.docker.internal:<porta>`,
+    password presa a runtime da `railway variables --service Postgres`.
+    Al ripristino `--no-acl`: i 27 errori «role claude_readonly does not
+    exist» sono solo permessi.
 
 ## Sicurezza — incidente Railway del 2026-10-21
 

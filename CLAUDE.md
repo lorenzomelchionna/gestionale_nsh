@@ -262,8 +262,8 @@ Due cose non ovvie, scritte anche in testa al file:
 - **I cambi di regione il plan non li vede** («No changes» col file
   diverso): la regione si cambia con `railway scale --service X eu-west=1
   sfo=0` (`sfo` va spento per nome, `us-west=0` non basta) e il file la
-  registra soltanto. Frontend ad Amsterdam dal 2026-11-10, il resto ancora
-  in `sfo` (vedi TODO).
+  registra soltanto. Tutto ad Amsterdam (`europe-west4-drams3a`) dal
+  2026-11-10 (vedi TODO).
 - **Un servizio che non compare nel file viene cancellato dall'apply**,
   Postgres e Redis compresi. Mai `railway config migrate --apply`: il file
   che genera contiene solo i servizi che avevano un toml.

@@ -1404,6 +1404,25 @@ quella che si legge non è mai quella aggiornata — quindi ne resta una.
 
 ---
 
+## Infrastruttura Railway — dal changelog di giugno–novembre (letto il 2026-11-10)
+
+- [ ] **Backup automatici del database — quando si passa al piano Pro.**
+  Oggi non ce n'è nessuno: `railway postgres pitr schedule list` → «No
+  backup schedule configured»; l'unico backup, «Pre-Security-Patch Backup»
+  del 23/08 fatto da Railway, è scaduto il 22/09. Provato il 2026-11-10
+  `railway postgres pitr schedule set --service Postgres --daily`: rifiutato,
+  «Manual backups and backup schedules are only available for Pro
+  workspaces». Deciso da Lorenzo: niente soluzioni fatte in casa (dump
+  notturno su bucket, ~$0,0005/mese, scartato), si attiva **il giornaliero**
+  al passaggio a Pro, che arriverà comunque. Costo stimato a quel punto:
+  2–11 centesimi al mese (volume 122 MB, backup pagati come i volumi, solo
+  la parte incrementale). Comando:
+  `railway postgres pitr schedule set --service Postgres --environment production --daily`.
+- [ ] **Spostare i servizi in Europa** (`sfo` → `ams`, Amsterdam). Misurato
+  il 2026-11-10 dall'Italia: `/health` 225 ms, di cui ~215 di viaggio fino
+  in California (l'ingresso di Railway è già a Parigi, `cdg1`). Piano e
+  stato nella voce sotto, quando parte.
+
 ## Sicurezza — incidente Railway del 2026-10-21
 
 Railway ha comunicato (email del 22/10, confermata su status.railway.com —

@@ -70,7 +70,13 @@ export default defineRailway(() => {
     source: github("lorenzomelchionna/gestionale_nsh", { checkSuites: false, rootDirectory: "/frontend" }),
     healthcheck: "/",
     healthcheckTimeout: 30,
-    replicas: { "sfo": 1 },
+    // Amsterdam dal 2026-11-10: le clienti e il salone sono in Italia, e da
+    // `sfo` ogni richiesta pagava ~200 ms di viaggio in California. Primo a
+    // spostarsi perché non ha volumi: per Railway è un cambio senza fermo.
+    // **Spostato con `railway scale`, non con `config apply`**: il plan non
+    // vede i cambi di regione («No changes» anche col file diverso). Questa
+    // riga documenta lo stato, non lo produce.
+    replicas: { "europe-west4-drams3a": 1 },
     deploy: { restartPolicyMaxRetries: 3 },
     domains: ["www.newstylehair.it"],
     networking: { privateNetworkEndpoint: "happy-benevolence" },

@@ -1510,6 +1510,16 @@ quella che si legge non è mai quella aggiornata — quindi ne resta una.
   chiave Brevo, su backend (il worker andrebbe messo a riferimento come
   la `SECRET_KEY`); password per le app Gmail del salone, da Flavia.
 
+- [ ] **Worker col pool `solo` (1.4.6, 2026-11-10 22:39 UTC)** — controllare
+  la memoria fra qualche giorno. Prima: media 7 giorni 180 MB (picco 274)
+  col pool prefork a un figlio. Misura locale nell'immagine: 121–147 MB con
+  il figlio, 124–128 senza. Subito dopo il deploy 133 MB. Con `solo` non
+  c'è più il ricambio ogni 100 compiti: se la media sale oltre i 180 MB,
+  tornare a `--concurrency=1 --max-tasks-per-child=100` (`worker-start.sh`).
+  Il banner di avvio dice «concurrency: 48 (solo)»: il numero è quello dei
+  core, col pool `solo` i compiti girano comunque uno alla volta.
+  `railway`: `get-service-metrics` del worker su 168 ore.
+
 ## Sicurezza — incidente Railway del 2026-10-21
 
 Railway ha comunicato (email del 22/10, confermata su status.railway.com —

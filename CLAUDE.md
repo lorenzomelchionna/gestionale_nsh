@@ -17,7 +17,7 @@ docker compose up --build -d
 Servizi esposti:
 - Frontend: http://localhost:5173
 - Backend API: http://localhost:8000
-- Docs Swagger: http://localhost:8000/docs
+- Docs Swagger: http://localhost:8000/docs (solo con `APP_ENV=development`; in produzione 404)
 - PostgreSQL: localhost:5433
 - Redis: localhost:6379
 

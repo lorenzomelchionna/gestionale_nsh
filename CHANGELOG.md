@@ -8,6 +8,12 @@ cambiamento incompatibile il primo.
 Le voci le scrive `scripts/release.py prepare` dai commit di ogni rilascio;
 vedi «CI e flusso di rilascio» in `CLAUDE.md`.
 
+## [1.4.7] — 2026-11-10
+
+### Correzioni
+
+- api: serve Swagger and the OpenAPI schema only in development
+
 ## [1.4.6] — 2026-11-10
 
 Solo manutenzione: documentazione, test, configurazione.

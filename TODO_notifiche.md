@@ -1418,7 +1418,7 @@ quella che si legge non è mai quella aggiornata — quindi ne resta una.
   2–11 centesimi al mese (volume 122 MB, backup pagati come i volumi, solo
   la parte incrementale). Comando:
   `railway postgres pitr schedule set --service Postgres --environment production --daily`.
-- [ ] **Spostare i servizi in Europa** (`sfo` → `ams`, Amsterdam). Misurato
+- [x] **Spostare i servizi in Europa** (`sfo` → `ams`, Amsterdam) — fatto, fasi 1 e 2 sotto. Misurato
   il 2026-11-10 dall'Italia: `/health` 225 ms, di cui ~215 di viaggio fino
   in California (l'ingresso di Railway è già a Parigi, `cdg1`).
   - [x] **Fase 1 — frontend**, fatta il 2026-11-10 alle 21:23 UTC, senza
@@ -1506,7 +1506,7 @@ quella che si legge non è mai quella aggiornata — quindi ne resta una.
   refresh; dopo il login, richieste admin 200. Tutti devono rientrare una
   volta (Flavia la mattina dopo). I link di reset password e verifica
   email non dipendono dalla chiave (codici casuali nel database).
-- [ ] **Restano da ruotare**: token Twilio (secondario → promuovere) e
+- [ ] **Restano da ruotare** (dettaglio in «Sicurezza — incidente Railway»): token Twilio (secondario → promuovere) e
   chiave Brevo, su backend (il worker andrebbe messo a riferimento come
   la `SECRET_KEY`); password per le app Gmail del salone, da Flavia.
 
@@ -1518,7 +1518,9 @@ quella che si legge non è mai quella aggiornata — quindi ne resta una.
   tornare a `--concurrency=1 --max-tasks-per-child=100` (`worker-start.sh`).
   Il banner di avvio dice «concurrency: 48 (solo)»: il numero è quello dei
   core, col pool `solo` i compiti girano comunque uno alla volta.
-  `railway`: `get-service-metrics` del worker su 168 ore.
+  `railway`: `get-service-metrics` del worker su 168 ore. **Programmato**:
+  attività «nsh-memoria-worker», 2026-11-17 alle 10:00, sola lettura,
+  riporta numeri e verdetto.
 - [x] **`/docs` e `/openapi.json` solo in sviluppo** (1.4.7, 2026-11-10
   23:02 UTC). Prima rispondevano 200 a chiunque in produzione. Dal vivo
   dopo il deploy: `/docs`, `/redoc`, `/openapi.json` → 404; `/health`
@@ -1554,21 +1556,21 @@ Controlli fatti il 2026-10-22 (nessun segno di abuso):
 - [x] **Postgres/Redis**: nessun proxy pubblico, solo rete privata.
 
 Da fare (le credenziali vanno considerate lette):
-- [ ] `SECRET_KEY` — la più grave: permette di firmare un accesso admin.
+- [x] `SECRET_KEY` — fatto il 2026-11-10 (voce in «Infrastruttura Railway»). La più grave: permette di firmare un accesso admin.
   Nuova, generata e impostata senza mostrarla, al primo deploy possibile
   (scollega tutti: staff e clienti rifanno l'accesso).
-- [ ] Twilio: token secondario → su Railway (backend + worker) → deploy →
+- [ ] Twilio (unica voce viva per Twilio, insieme a Brevo e SMTP qui sotto): token secondario → su Railway (backend + worker) → deploy →
   promuoverlo a primario (il vecchio smette di valere).
 - [ ] Brevo: chiave nuova → su Railway (backend + worker) → deploy →
   cancellare la vecchia.
 - [ ] `SMTP_PASSWORD`: le email passano da Brevo, lo SMTP è solo ripiego:
   revocare subito la password per app nell'account Google e togliere la
   variabile.
-- [ ] Postgres e Redis: password nuove seguendo le guide di Railway, a
+- [x] Postgres e Redis: fatto il 2026-11-10 (voci in «Infrastruttura Railway»). Password nuove seguendo le guide di Railway, a
   incidente rientrato (rischio basso: non raggiungibili da internet).
-- [ ] Ricontrollare la connessione GitHub di Railway quando le build
+- [x] Ricontrollare la connessione GitHub di Railway — funziona: dalla 1.4.3 (2026-11-02) ogni merge su `main` ha deployato da solo. Quando le build
   ripartono (Railway ha reimpostato le credenziali).
-- [ ] **Rilascio 1.4.2 in attesa** ([PR #186](https://github.com/lorenzomelchionna/gestionale_nsh/pull/186),
+- [x] **Rilascio 1.4.2** (in produzione con la 1.4.3) ([PR #186](https://github.com/lorenzomelchionna/gestionale_nsh/pull/186),
   aperta senza auto-merge): doppioni dalle registrazioni a metà
   (`scheda_in_uso()`) e scelta «Accedi / Continua senza account» prima del
   codice WhatsApp ([PR #185](https://github.com/lorenzomelchionna/gestionale_nsh/pull/185)).
@@ -1579,7 +1581,7 @@ Da fare (le credenziali vanno considerate lette):
   ricollegare GitHub se serve, poi «Deploy Latest Commit» (Ctrl/Cmd+K sul
   servizio) per backend, frontend e worker — insieme alla rotazione delle
   chiavi.
-- [ ] **Rilascio 1.4.3 preparato** ([PR #188](https://github.com/lorenzomelchionna/gestionale_nsh/pull/188),
+- [x] **Rilascio 1.4.3** ([PR #188](https://github.com/lorenzomelchionna/gestionale_nsh/pull/188),
   senza auto-merge): Pillow 13.0.0 (undici avvisi sulla 12.3) e
   follow-redirects 1.16.1 (due «high»), [PR #187](https://github.com/lorenzomelchionna/gestionale_nsh/pull/187).
   Aggiunto il 26/10, dopo l'audit del lunedì rosso su `main`: tolte zod,
@@ -1592,8 +1594,8 @@ Da fare (le credenziali vanno considerate lette):
   senza aspettare le chiavi. Railway ha fatto il deploy da solo: il
   collegamento GitHub funziona. **Deploy confermato** alle 13:34 UTC, tre
   servizi `SUCCESS`, `/health` → 1.4.3. In produzione anche le correzioni
-  della 1.4.2. **La rotazione delle chiavi qui sopra resta da fare**: non
-  risulta completata.
+  della 1.4.2. Rotazione: Postgres, Redis e `SECRET_KEY` fatte il
+  2026-11-10; restano Twilio, Brevo e SMTP.
 
 ## Sicurezza — audit 2026-08-03
 
@@ -1614,17 +1616,17 @@ privata Railway restano facoltative.
 - [x] ~~`SECRET_KEY`~~ — ruotata 2026-08-12, 64 caratteri esadecimali nuovi,
   redeploy verificato (`/health` ok). Effetto: tutte le sessioni JWT
   invalidate, staff e clienti devono rientrare — nessuna perdita dati.
-- [ ] `BREVO_API_KEY` — rigenerare su dashboard Brevo, poi aggiornare la
+- ~~`BREVO_API_KEY`~~ → stessa voce in «Sicurezza — incidente Railway» (Brevo). Rigenerare su dashboard Brevo, poi aggiornare la
   variabile su Railway (backend + worker). Raggiungibile da internet
   pubblico: la sola stringa basta a mandare email a nome del salone o a
   leggere contatti/statistiche.
-- [ ] `SMTP_PASSWORD` (App Password Gmail `newstylehair2019@gmail.com`) —
+- ~~`SMTP_PASSWORD`~~ → stessa voce in «Sicurezza — incidente Railway» (SMTP). (App Password Gmail `newstylehair2019@gmail.com`) —
   revocare e rigenerare da Account Google → Sicurezza → Password per le
   app, poi aggiornare su Railway. Stesso motivo: pubblico, e se l'account
   ha IMAP attivo l'app password può anche leggere la casella.
-- [ ] `TWILIO_AUTH_TOKEN` — Twilio supporta rotazione con token secondario,
+- ~~`TWILIO_AUTH_TOKEN`~~ → stessa voce in «Sicurezza — incidente Railway» (Twilio). Twilio supporta rotazione con token secondario,
   zero downtime: farla dalla Console prima di sostituire la variabile.
-- [ ] `POSTGRES_PASSWORD` — dietro rete privata Railway, non raggiungibile
+- [x] `POSTGRES_PASSWORD` — fatto il 2026-11-10 con «Regenerate» del pannello, che cambia la password anche nel database (voce in «Infrastruttura Railway»). Dietro rete privata Railway, non raggiungibile
   da internet: priorità bassa. Se si fa comunque, **cambiare solo la
   variabile non basta** — il Postgres già acceso non se ne accorge, la
   legge solo al primo avvio. Serve `ALTER ROLE ... PASSWORD` sul DB live
@@ -3370,9 +3372,11 @@ Stato attuale: codice pronto e funzionante. Entrambi i canali in **stub mode**
 
 Manca solo: credenziali SMTP.
 
-- [ ] `SMTP_USER` — indirizzo email mittente
-- [ ] `SMTP_PASSWORD` — **App Password** Gmail (NON password account; richiede 2FA attivo)
-- [ ] Settare in `.env` locale **e** variabili Railway (produzione)
+> Superato: le email passano da Brevo dall'estate 2026 (sezione in cima).
+
+- ~~`SMTP_USER` — indirizzo email mittente~~
+- ~~`SMTP_PASSWORD` — **App Password** Gmail (NON password account; richiede 2FA attivo)~~
+- ~~Settare in `.env` locale **e** variabili Railway (produzione)~~
 
 Note:
 - Default host: `smtp.gmail.com:587`
@@ -3466,12 +3470,14 @@ Servizio **celery-worker** (id `09ed135b-d050-44bb-8854-47de4bdc077a`) Online.
 Nota gotcha: **railway.toml `startCommand` vince sul Custom Start Command del dashboard.**
 Per servizi diversi nello stesso repo → file config-as-code diversi.
 
-## Credenziali ANCORA mancanti (sia backend che worker)
+## Credenziali mancanti (giugno 2026 — superato)
 
-- [ ] `SMTP_USER` — ASSENTE → email in stub
-- [ ] `SMTP_PASSWORD` — ASSENTE (App Password Gmail)
-- [ ] `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` / `TWILIO_WHATSAPP_FROM` — ASSENTI
-- [ ] `whatsapp_enabled=true` da pagina Impostazioni (per attivare canale WA)
+> Storico: email via Brevo e WhatsApp via Twilio funzionano da settembre (tabella in cima).
+
+- ~~`SMTP_USER` — ASSENTE → email in stub~~
+- ~~`SMTP_PASSWORD` — ASSENTE (App Password Gmail)~~
+- ~~`TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` / `TWILIO_WHATSAPP_FROM` — ASSENTI~~
+- ~~`whatsapp_enabled=true` da pagina Impostazioni (per attivare canale WA)~~
 
 Stato canali:
 | Canale | Infra | Credenziali | Invio reale |

@@ -1432,11 +1432,24 @@ quella che si legge non è mai quella aggiornata — quindi ne resta una.
     `sfo` e `us-west` sono due chiavi diverse — `eu-west=1 us-west=0`
     lascia accesa la replica in `sfo` (un deploy con 2 repliche, fallito e
     sostituito): va spento `sfo=0` esplicitamente.
-  - [ ] **Fase 2 — Postgres, Redis, backend, worker insieme**, a salone
-    chiuso. Prima un dump nuovo (procedura sotto). Tutti e quattro nello
-    stesso momento: backend in Europa col database in California sarebbe
-    più lento di oggi. Postgres e Redis hanno volumi: Railway li copia, con
-    qualche minuto di fermo.
+  - [x] **Fase 2 — Postgres, Redis, backend, worker**, fatta il 2026-11-10
+    a salone chiuso, con l'ok di Lorenzo «solo se siamo sicuri di poter
+    ripristinare». Prima il dump `nsh-prod-20261110-2230-pre-ams.dump`,
+    ripristinato in locale con `--no-acl`: zero errori, righe identiche.
+    - 21:31 Postgres → `SUCCESS` alle 21:33. Nel log «not properly shut
+      down; automatic recovery», poi «ready»: la copia del volume è a caldo
+      e Postgres la recupera da sé. Verificato col tunnel riaperto (quello
+      vecchio puntava all'istanza di prima e cade): righe identiche al dump
+      su tutte le 25 tabelle, stessa versione Alembic, stessa ultima
+      modifica; un `pg_dump` completo legge tutto, 3.999.738 byte come
+      prima. Fermo effettivo ~2 minuti.
+    - 21:35 Redis (solo coda Celery e contatori anti-abuso: niente da
+      salvare) → `SUCCESS`, volume da 155 MB a 0.
+    - 21:36 backend e worker → `SUCCESS`, migration e bootstrap ok, worker
+      e beat pronti.
+    - Tutti e cinque in `europe-west4-drams3a` (letto dall'API), nessun
+      volume rimasto in `sfo`. `/health` da ~0,225 s a ~0,10 s; una lettura
+      pubblica dal database ~0,11 s.
   - Backup a mano fatto il 2026-11-10 21:15 UTC, prima di cominciare:
     `~/Backups/new-style-hair/nsh-prod-20261110-2215.dump` sul Mac di
     Lorenzo (4 MB, `-Fc`, Postgres 18). Verificato ripristinandolo in un

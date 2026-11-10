@@ -3,13 +3,21 @@
 # Fine for a single-worker deployment (1 salon). For multiple workers, run
 # beat as a separate service instead to avoid duplicate scheduled tasks.
 #
-# --concurrency=1: one child process. Celery defaults to one process per CPU
-# core (~48 on Railway hosts), each loading the full app → ~2.2 GB RAM
-# always-on. This salon sends a handful of notifications a day and each task
-# finishes in under a second, so a single child is enough; tasks that arrive
-# together just queue behind each other for a moment.
-# --max-tasks-per-child=100: recycle the child after 100 tasks to cap leaks.
+# --pool=solo: tasks run inside the main worker process, no child process.
+# Celery's default prefork pool starts one child per CPU core (~48 on
+# Railway hosts), each loading the full app → ~2.2 GB RAM always-on; until
+# 2026-11-10 this was capped with --concurrency=1, which still kept one
+# child alive. Measured locally in the deployment image on 2026-11-10: the
+# child's own share was ~32 MB (PSS), the container 121–147 MB with it and
+# 124–128 MB without. The salon sends a handful of notifications a day and
+# each task takes under a second, so running them one at a time in the main
+# process loses nothing.
+#
+# What solo gives up, checked before switching: no task time limits (none
+# are set here; outbound HTTP to Twilio and Brevo has its own 10–15 s
+# timeouts) and no recycling of the child after N tasks
+# (--max-tasks-per-child, which solo ignores). Memory is watched on Railway
+# after the change; if it grows over the days, back to prefork.
 exec celery -A app.tasks.celery_app worker --beat \
-    --concurrency=1 \
-    --max-tasks-per-child=100 \
+    --pool=solo \
     --loglevel=info

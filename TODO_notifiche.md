@@ -1484,6 +1484,32 @@ quella che si legge non è mai quella aggiornata — quindi ne resta una.
   (2026-09-25, 2026-10-08, 2026-11-10). Il tunnel va riaperto: stampa la
   password nuova.
 
+- [x] **Rotazione della password di Redis**, 2026-11-10 22:05 UTC. Il
+  «Regenerate» del pannello su Redis non è cliccabile (motivo non
+  documentato; probabilmente il nostro comando d'avvio con
+  `--requirepass $REDIS_PASSWORD`). Per lo stesso motivo il cambio a mano è
+  sicuro: Redis la legge dalla variabile a ogni avvio e non la conserva.
+  Lorenzo: `railway variables --service Redis --set
+  "REDIS_PASSWORD=$(openssl rand -hex 24)"`. Railway ha riavviato Redis,
+  backend e worker. `REDIS_PASSWORD` è **sigillata**: la CLI mostra
+  `REDIS_URL` senza password, ma dentro i servizi c'è — il worker logga
+  `redis://default:**@…`, e Celery scrive `**` solo se la password esiste
+  (provato su `maybe_sanitize_url`).
+- [x] **Rotazione della `SECRET_KEY`**, 2026-11-10 22:12 UTC. Firma i token
+  di admin, collaboratori e clienti: chi la conosce si firma un accesso
+  admin senza password. Prima, plan + apply fissato: la `SECRET_KEY` del
+  worker (copia sua, leggibile, diversa) → `${{backend.SECRET_KEY}}`; il
+  worker è ripartito (`ready`), quindi il riferimento alla chiave sigillata
+  arriva nel servizio. Poi Lorenzo: `railway variables --service backend
+  --set "SECRET_KEY=$(openssl rand -hex 32)"`. Backend e worker `SUCCESS`.
+  Dal log: la sessione aperta nel browser di Lorenzo riceve 401, anche sul
+  refresh; dopo il login, richieste admin 200. Tutti devono rientrare una
+  volta (Flavia la mattina dopo). I link di reset password e verifica
+  email non dipendono dalla chiave (codici casuali nel database).
+- [ ] **Restano da ruotare**: token Twilio (secondario → promuovere) e
+  chiave Brevo, su backend (il worker andrebbe messo a riferimento come
+  la `SECRET_KEY`); password per le app Gmail del salone, da Flavia.
+
 ## Sicurezza — incidente Railway del 2026-10-21
 
 Railway ha comunicato (email del 22/10, confermata su status.railway.com —

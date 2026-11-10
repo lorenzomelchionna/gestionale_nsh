@@ -122,7 +122,7 @@ new_style_hair/
 
 ## API
 
-- Documentazione interattiva: http://localhost:8000/docs
+- Documentazione interattiva: http://localhost:8000/docs (solo in sviluppo, `APP_ENV=development`)
 - Health check: http://localhost:8000/health
 
 ## Variabili d'ambiente principali

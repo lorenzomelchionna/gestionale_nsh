@@ -64,11 +64,27 @@ async def lifespan(app: FastAPI):
     log.info("arresto")
 
 
+def documentazione_api(app_env: str) -> dict:
+    """Swagger, ReDoc e lo schema OpenAPI solo in sviluppo.
+
+    Fino al 2026-11-10 `/docs` e `/openapi.json` rispondevano a chiunque in
+    produzione: la mappa completa delle rotte, coi parametri e con quali
+    sono pubbliche. Non apre niente da sola — i permessi li controlla ogni
+    rotta (`test_permissions_matrix.py`) — ma risparmia il lavoro a chi
+    cerca un punto debole, e al salone non serve: il gestionale non la usa.
+    In locale resta su http://localhost:8000/docs.
+    """
+    if app_env == "development":
+        return {}
+    return {"docs_url": None, "redoc_url": None, "openapi_url": None}
+
+
 app = FastAPI(
     title="New Style Hair – Gestionale",
     version=__version__,
     description="API per il gestionale del salone New Style Hair",
     lifespan=lifespan,
+    **documentazione_api(settings.APP_ENV),
 )
 
 # Rate limiting sugli endpoint pubblici. `app.state.limiter` è dove slowapi

@@ -1,5 +1,5 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 from functools import lru_cache
 from typing import Optional
 
@@ -15,6 +15,22 @@ class Settings(BaseSettings):
 
     # Database
     DATABASE_URL: str = "postgresql+asyncpg://nsh:nshpass@localhost:5432/new_style_hair"
+
+    @field_validator("DATABASE_URL")
+    @classmethod
+    def _driver_asincrono(cls, value: str) -> str:
+        """`postgresql://…` (o `postgres://…`) diventa `postgresql+asyncpg://…`.
+
+        Su Railway `DATABASE_URL` è un riferimento a quella del servizio
+        Postgres, che arriva senza driver. Con un indirizzo copiato a mano,
+        invece, rigenerare la password del database lascerebbe backend e
+        worker con quella vecchia; col riferimento Railway li aggiorna e li
+        riavvia da sé, ed è per questo che si usa.
+        """
+        for prefisso in ("postgresql://", "postgres://"):
+            if value.startswith(prefisso):
+                return "postgresql+asyncpg://" + value[len(prefisso):]
+        return value
 
     # Redis
     REDIS_URL: str = "redis://localhost:6379/0"

@@ -1404,6 +1404,62 @@ quella che si legge non è mai quella aggiornata — quindi ne resta una.
 
 ---
 
+## Infrastruttura Railway — dal changelog di giugno–novembre (letto il 2026-11-10)
+
+- [ ] **Backup automatici del database — quando si passa al piano Pro.**
+  Oggi non ce n'è nessuno: `railway postgres pitr schedule list` → «No
+  backup schedule configured»; l'unico backup, «Pre-Security-Patch Backup»
+  del 23/08 fatto da Railway, è scaduto il 22/09. Provato il 2026-11-10
+  `railway postgres pitr schedule set --service Postgres --daily`: rifiutato,
+  «Manual backups and backup schedules are only available for Pro
+  workspaces». Deciso da Lorenzo: niente soluzioni fatte in casa (dump
+  notturno su bucket, ~$0,0005/mese, scartato), si attiva **il giornaliero**
+  al passaggio a Pro, che arriverà comunque. Costo stimato a quel punto:
+  2–11 centesimi al mese (volume 122 MB, backup pagati come i volumi, solo
+  la parte incrementale). Comando:
+  `railway postgres pitr schedule set --service Postgres --environment production --daily`.
+- [ ] **Spostare i servizi in Europa** (`sfo` → `ams`, Amsterdam). Misurato
+  il 2026-11-10 dall'Italia: `/health` 225 ms, di cui ~215 di viaggio fino
+  in California (l'ingresso di Railway è già a Parigi, `cdg1`).
+  - [x] **Fase 1 — frontend**, fatta il 2026-11-10 alle 21:23 UTC, senza
+    fermo: `railway scale --service frontend eu-west=1 sfo=0` → deploy
+    `SUCCESS` in `europe-west4-drams3a`. `www` da ~0,25 s a ~0,10 s a
+    regime (server ~45 ms invece di ~200); i primi secondi dopo il deploy
+    ~0,7 s, è il riscaldamento.
+    Due cose imparate: `railway config plan` **non vede i cambi di
+    regione** (file cambiato, «No changes»), quindi la regione si cambia
+    con `railway scale` e il file la registra soltanto; e per `scale`
+    `sfo` e `us-west` sono due chiavi diverse — `eu-west=1 us-west=0`
+    lascia accesa la replica in `sfo` (un deploy con 2 repliche, fallito e
+    sostituito): va spento `sfo=0` esplicitamente.
+  - [x] **Fase 2 — Postgres, Redis, backend, worker**, fatta il 2026-11-10
+    a salone chiuso, con l'ok di Lorenzo «solo se siamo sicuri di poter
+    ripristinare». Prima il dump `nsh-prod-20261110-2230-pre-ams.dump`,
+    ripristinato in locale con `--no-acl`: zero errori, righe identiche.
+    - 21:31 Postgres → `SUCCESS` alle 21:33. Nel log «not properly shut
+      down; automatic recovery», poi «ready»: la copia del volume è a caldo
+      e Postgres la recupera da sé. Verificato col tunnel riaperto (quello
+      vecchio puntava all'istanza di prima e cade): righe identiche al dump
+      su tutte le 25 tabelle, stessa versione Alembic, stessa ultima
+      modifica; un `pg_dump` completo legge tutto, 3.999.738 byte come
+      prima. Fermo effettivo ~2 minuti.
+    - 21:35 Redis (solo coda Celery e contatori anti-abuso: niente da
+      salvare) → `SUCCESS`, volume da 155 MB a 0.
+    - 21:36 backend e worker → `SUCCESS`, migration e bootstrap ok, worker
+      e beat pronti.
+    - Tutti e cinque in `europe-west4-drams3a` (letto dall'API), nessun
+      volume rimasto in `sfo`. `/health` da ~0,225 s a ~0,10 s; una lettura
+      pubblica dal database ~0,11 s.
+  - Backup a mano fatto il 2026-11-10 21:15 UTC, prima di cominciare:
+    `~/Backups/new-style-hair/nsh-prod-20261110-2215.dump` sul Mac di
+    Lorenzo (4 MB, `-Fc`, Postgres 18). Verificato ripristinandolo in un
+    Postgres 18 usa-e-getta: 25 tabelle, righe identiche alla produzione.
+    Procedura: Lorenzo apre `railway connect Postgres --tunnel-only`;
+    `pg_dump` 18 da `docker run postgres:18` su `host.docker.internal:<porta>`,
+    password presa a runtime da `railway variables --service Postgres`.
+    Al ripristino `--no-acl`: i 27 errori «role claude_readonly does not
+    exist» sono solo permessi.
+
 ## Sicurezza — incidente Railway del 2026-10-21
 
 Railway ha comunicato (email del 22/10, confermata su status.railway.com —
@@ -2640,6 +2696,13 @@ volte alle 12:10 e poi è andato a buon fine alle 12:24, dopo che il numero
     tutto. Falsificati sei punti, tutti presi; un settimo (ricollegare alla
     prima scheda invece che all'unica) è equivalente, perché
     `collega_conversazione` ricontrolla l'unicità.
+  - [PR #194](https://github.com/lorenzomelchionna/gestionale_nsh/pull/194)
+    → `develop`, [PR #195](https://github.com/lorenzomelchionna/gestionale_nsh/pull/195)
+    → `main` (commit `76c242a`), tag e Release `v1.4.4`. **Deploy
+    confermato** il 2026-11-06 alle 08:55 UTC: backend, frontend e worker
+    `SUCCESS`, bootstrap completato, nessuna migration, nessun WARN/ERROR,
+    `celery ready`. Dal vivo: `/health` → `1.4.4`, `www` 200, il `PUT` nuovo
+    senza token → 401, «Chi sta scrivendo» nel bundle servito.
   - **Da fare dopo il rilascio**: Flavia apre la chat, segue i link alle due
     schede e le unisce. Se sono due persone diverse sullo stesso numero,
     sceglie chi scrive.

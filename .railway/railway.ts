@@ -21,6 +21,13 @@
 // risultare sempre «da cambiare» nel plan, perché Railway il default non lo
 // salva (null). Si dichiarano solo i 3 tentativi.
 //
+// **Tutto ad Amsterdam (`europe-west4-drams3a`) dal 2026-11-10**: prima
+// `sfo`, e dall'Italia ogni richiesta pagava ~200 ms di viaggio in
+// California. Spostato con `railway scale --service X eu-west=1 sfo=0`, non
+// con `config apply`: il plan **non vede i cambi di regione** («No changes»
+// col file diverso). Qui le regioni sono scritte perché il file dica com'è,
+// non perché lo producano.
+//
 // Il Dockerfile non si dichiara: Railway usa da solo quello nella cartella
 // del servizio (`backend/Dockerfile`, `frontend/Dockerfile`).
 //
@@ -41,17 +48,17 @@ const MITTENTE = "noreply@newstylehair.it";
 export default defineRailway(() => {
   const gestionale_nsh = github("lorenzomelchionna/gestionale_nsh", { checkSuites: false, rootDirectory: "/backend" });
 
-  const Redis = redis("Redis", { region: "sfo" });
+  const Redis = redis("Redis", { region: "europe-west4-drams3a" });
   Redis.deploy = { startCommand: "/bin/sh -c \"rm -rf $RAILWAY_VOLUME_MOUNT_PATH/lost+found/ && exec docker-entrypoint.sh redis-server --requirepass $REDIS_PASSWORD --save 60 1 --dir $RAILWAY_VOLUME_MOUNT_PATH\"" };
   Redis.networking = { privateNetworkEndpoint: "redis" };
-  const Postgres = postgres("Postgres", { region: "sfo" });
+  const Postgres = postgres("Postgres", { region: "europe-west4-drams3a" });
   Postgres.networking = { privateNetworkEndpoint: "postgres" };
-  const redisVolume = volume("redis-volume", { alerts: { usage: { "100": {}, "80": {}, "95": {} } }, allowOnlineResize: true, region: "sfo", sizeMB: 500 });
-  const postgresVolume = volume("postgres-volume", { alerts: { usage: { "100": {}, "80": {}, "95": {} } }, allowOnlineResize: true, region: "sfo", sizeMB: 500 });
+  const redisVolume = volume("redis-volume", { alerts: { usage: { "100": {}, "80": {}, "95": {} } }, allowOnlineResize: true, region: "europe-west4-drams3a", sizeMB: 500 });
+  const postgresVolume = volume("postgres-volume", { alerts: { usage: { "100": {}, "80": {}, "95": {} } }, allowOnlineResize: true, region: "europe-west4-drams3a", sizeMB: 500 });
   const worker = service("worker", {
     source: gestionale_nsh,
     start: "sh worker-start.sh",
-    replicas: { "sfo": 1 },
+    replicas: { "europe-west4-drams3a": 1 },
     deploy: { restartPolicyMaxRetries: 3 },
     networking: { privateNetworkEndpoint: "celery-worker" },
     env: { ACCESS_TOKEN_EXPIRE_MINUTES: preserve(), ALGORITHM: preserve(), APP_ENV: preserve(), BREVO_API_KEY: preserve(), DATABASE_URL: preserve(), EMAILS_FROM_EMAIL: MITTENTE, EMAILS_FROM_NAME: preserve(), FRONTEND_URL: preserve(), REDIS_URL: preserve(), REFRESH_TOKEN_EXPIRE_DAYS: preserve(), SECRET_KEY: preserve(), SEED_DEMO: preserve(), SMTP_HOST: preserve(), SMTP_PASSWORD: preserve(), SMTP_PORT: preserve(), SMTP_USER: preserve(), TWILIO_ACCOUNT_SID: preserve(), TWILIO_AUTH_TOKEN: preserve(), TWILIO_TEMPLATE_CONFERMA: preserve(), TWILIO_TEMPLATE_PROMEMORIA: preserve(), TWILIO_TEMPLATE_VERIFICA: preserve(), TWILIO_WHATSAPP_FROM: preserve() },
@@ -61,7 +68,7 @@ export default defineRailway(() => {
     start: "sh -c \"alembic upgrade head && python bootstrap.py && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}\"",
     healthcheck: "/health",
     healthcheckTimeout: 30,
-    replicas: { "sfo": 1 },
+    replicas: { "europe-west4-drams3a": 1 },
     deploy: { restartPolicyMaxRetries: 3 },
     networking: { privateNetworkEndpoint: "gestionalensh" },
     env: { ACCESS_TOKEN_EXPIRE_MINUTES: preserve(), ADMIN_EMAIL: preserve(), ALGORITHM: preserve(), APP_ENV: preserve(), BREVO_API_KEY: preserve(), DATABASE_URL: preserve(), EMAILS_FROM_EMAIL: MITTENTE, EMAILS_FROM_NAME: preserve(), FRONTEND_URL: preserve(), POSTGRES_DB: preserve(), POSTGRES_PASSWORD: preserve(), POSTGRES_USER: preserve(), REDIS_URL: preserve(), REFRESH_TOKEN_EXPIRE_DAYS: preserve(), SECRET_KEY: preserve(), SEED_DEMO: preserve(), SMTP_HOST: preserve(), SMTP_PASSWORD: preserve(), SMTP_PORT: preserve(), SMTP_USER: preserve(), TWILIO_ACCOUNT_SID: preserve(), TWILIO_AUTH_TOKEN: preserve(), TWILIO_TEMPLATE_CONFERMA: preserve(), TWILIO_TEMPLATE_PROMEMORIA: preserve(), TWILIO_TEMPLATE_VERIFICA: preserve(), TWILIO_WHATSAPP_FROM: preserve() },
@@ -70,7 +77,7 @@ export default defineRailway(() => {
     source: github("lorenzomelchionna/gestionale_nsh", { checkSuites: false, rootDirectory: "/frontend" }),
     healthcheck: "/",
     healthcheckTimeout: 30,
-    replicas: { "sfo": 1 },
+    replicas: { "europe-west4-drams3a": 1 },
     deploy: { restartPolicyMaxRetries: 3 },
     domains: ["www.newstylehair.it"],
     networking: { privateNetworkEndpoint: "happy-benevolence" },

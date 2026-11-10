@@ -1519,6 +1519,11 @@ quella che si legge non è mai quella aggiornata — quindi ne resta una.
   Il banner di avvio dice «concurrency: 48 (solo)»: il numero è quello dei
   core, col pool `solo` i compiti girano comunque uno alla volta.
   `railway`: `get-service-metrics` del worker su 168 ore.
+- [x] **`/docs` e `/openapi.json` solo in sviluppo** (1.4.7, 2026-11-10
+  23:02 UTC). Prima rispondevano 200 a chiunque in produzione. Dal vivo
+  dopo il deploy: `/docs`, `/redoc`, `/openapi.json` → 404; `/health`
+  1.4.7, lettura pubblica dal database 200, admin senza token 401, `www`
+  200; worker `solo` pronto.
 
 ## Sicurezza — incidente Railway del 2026-10-21
 

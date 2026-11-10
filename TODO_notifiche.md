@@ -1460,6 +1460,56 @@ quella che si legge non è mai quella aggiornata — quindi ne resta una.
     Al ripristino `--no-acl`: i 27 errori «role claude_readonly does not
     exist» sono solo permessi.
 
+- [x] **`DATABASE_URL` per riferimento**, fatto il 2026-11-10. Dal 30/10
+  Railway, rigenerando la password di un database, aggiorna e riavvia da sé
+  i servizi che la leggono **per riferimento**; backend e worker avevano un
+  valore copiato. 1.4.5: `app/config.py` accetta `postgresql://` (com'è il
+  riferimento) e aggiunge `+asyncpg`. Poi plan fissato su file e apply:
+  `DATABASE_URL` di backend e worker → `${{Postgres.DATABASE_URL}}`, tolti
+  `POSTGRES_DB/PASSWORD/USER` del backend (non usati dal codice, password
+  già diversa da quella vera). `REDIS_URL` nel plan non cambiava. Dopo:
+  valore risolto identico a quello del Postgres, redeploy `SUCCESS`,
+  bootstrap e worker ok, lettura dal database 200.
+- [x] **Rotazione della password di Postgres**, fatta da Lorenzo il
+  2026-11-10 alle 22:00 UTC: pannello Railway → Postgres → scheda
+  **Database → Config → Connection → Regenerate** (non da «Variables»:
+  cambierebbe la variabile e non la password nel database). Railway ha
+  riavviato da sé Postgres, backend e worker (22:00:50, tutti `SUCCESS`).
+  Dopo: password uguale in `PGPASSWORD`, `POSTGRES_PASSWORD` e
+  `DATABASE_URL` di Postgres, backend e worker; bootstrap ok, worker
+  pronto, `/health` 1.4.5, lettura dal database 200. Nel log di Postgres 2
+  accessi rifiutati alle 22:00:58, prima che le istanze nuove fossero su
+  (22:01:07): le vecchie in chiusura con la password vecchia; nessuno dopo.
+  Chiude anche le esposizioni della password nell'output del tunnel
+  (2026-09-25, 2026-10-08, 2026-11-10). Il tunnel va riaperto: stampa la
+  password nuova.
+
+- [x] **Rotazione della password di Redis**, 2026-11-10 22:05 UTC. Il
+  «Regenerate» del pannello su Redis non è cliccabile (motivo non
+  documentato; probabilmente il nostro comando d'avvio con
+  `--requirepass $REDIS_PASSWORD`). Per lo stesso motivo il cambio a mano è
+  sicuro: Redis la legge dalla variabile a ogni avvio e non la conserva.
+  Lorenzo: `railway variables --service Redis --set
+  "REDIS_PASSWORD=$(openssl rand -hex 24)"`. Railway ha riavviato Redis,
+  backend e worker. `REDIS_PASSWORD` è **sigillata**: la CLI mostra
+  `REDIS_URL` senza password, ma dentro i servizi c'è — il worker logga
+  `redis://default:**@…`, e Celery scrive `**` solo se la password esiste
+  (provato su `maybe_sanitize_url`).
+- [x] **Rotazione della `SECRET_KEY`**, 2026-11-10 22:12 UTC. Firma i token
+  di admin, collaboratori e clienti: chi la conosce si firma un accesso
+  admin senza password. Prima, plan + apply fissato: la `SECRET_KEY` del
+  worker (copia sua, leggibile, diversa) → `${{backend.SECRET_KEY}}`; il
+  worker è ripartito (`ready`), quindi il riferimento alla chiave sigillata
+  arriva nel servizio. Poi Lorenzo: `railway variables --service backend
+  --set "SECRET_KEY=$(openssl rand -hex 32)"`. Backend e worker `SUCCESS`.
+  Dal log: la sessione aperta nel browser di Lorenzo riceve 401, anche sul
+  refresh; dopo il login, richieste admin 200. Tutti devono rientrare una
+  volta (Flavia la mattina dopo). I link di reset password e verifica
+  email non dipendono dalla chiave (codici casuali nel database).
+- [ ] **Restano da ruotare**: token Twilio (secondario → promuovere) e
+  chiave Brevo, su backend (il worker andrebbe messo a riferimento come
+  la `SECRET_KEY`); password per le app Gmail del salone, da Flavia.
+
 ## Sicurezza — incidente Railway del 2026-10-21
 
 Railway ha comunicato (email del 22/10, confermata su status.railway.com —

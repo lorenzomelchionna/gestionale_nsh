@@ -14,8 +14,16 @@
 // andava usato così com'è: il file che proponeva aveva solo i servizi coi
 // toml, più uno inesistente ricavato dal `railway.toml` della radice.
 //
-// Le variabili sono tutte `preserve()`: i valori restano su Railway e non
-// finiscono in questo repository, che è pubblico.
+// Le variabili sono `preserve()`: i valori restano su Railway e non
+// finiscono in questo repository, che è pubblico. Eccezione dal 2026-11-10:
+// `DATABASE_URL` e `REDIS_URL` di backend e worker sono **riferimenti** a
+// quelle di Postgres e Redis. Così, rigenerando la password di un database,
+// Railway aggiorna e riavvia da sé i servizi che la usano; con un valore
+// copiato resterebbero con quella vecchia e il gestionale andrebbe giù. Il
+// riferimento di Postgres arriva come `postgresql://…`: il driver asincrono
+// lo aggiunge `app/config.py` (dalla 1.4.5). I `POSTGRES_*` del backend
+// sono stati tolti lo stesso giorno: il codice non li usava e tenevano una
+// password non più valida.
 //
 // Il riavvio è `ON_FAILURE`, il default di Railway: scriverlo qui lo farebbe
 // risultare sempre «da cambiare» nel plan, perché Railway il default non lo
@@ -55,14 +63,6 @@ export default defineRailway(() => {
   Postgres.networking = { privateNetworkEndpoint: "postgres" };
   const redisVolume = volume("redis-volume", { alerts: { usage: { "100": {}, "80": {}, "95": {} } }, allowOnlineResize: true, region: "europe-west4-drams3a", sizeMB: 500 });
   const postgresVolume = volume("postgres-volume", { alerts: { usage: { "100": {}, "80": {}, "95": {} } }, allowOnlineResize: true, region: "europe-west4-drams3a", sizeMB: 500 });
-  const worker = service("worker", {
-    source: gestionale_nsh,
-    start: "sh worker-start.sh",
-    replicas: { "europe-west4-drams3a": 1 },
-    deploy: { restartPolicyMaxRetries: 3 },
-    networking: { privateNetworkEndpoint: "celery-worker" },
-    env: { ACCESS_TOKEN_EXPIRE_MINUTES: preserve(), ALGORITHM: preserve(), APP_ENV: preserve(), BREVO_API_KEY: preserve(), DATABASE_URL: preserve(), EMAILS_FROM_EMAIL: MITTENTE, EMAILS_FROM_NAME: preserve(), FRONTEND_URL: preserve(), REDIS_URL: preserve(), REFRESH_TOKEN_EXPIRE_DAYS: preserve(), SECRET_KEY: preserve(), SEED_DEMO: preserve(), SMTP_HOST: preserve(), SMTP_PASSWORD: preserve(), SMTP_PORT: preserve(), SMTP_USER: preserve(), TWILIO_ACCOUNT_SID: preserve(), TWILIO_AUTH_TOKEN: preserve(), TWILIO_TEMPLATE_CONFERMA: preserve(), TWILIO_TEMPLATE_PROMEMORIA: preserve(), TWILIO_TEMPLATE_VERIFICA: preserve(), TWILIO_WHATSAPP_FROM: preserve() },
-  });
   const backend = service("backend", {
     source: gestionale_nsh,
     start: "sh -c \"alembic upgrade head && python bootstrap.py && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}\"",
@@ -71,7 +71,19 @@ export default defineRailway(() => {
     replicas: { "europe-west4-drams3a": 1 },
     deploy: { restartPolicyMaxRetries: 3 },
     networking: { privateNetworkEndpoint: "gestionalensh" },
-    env: { ACCESS_TOKEN_EXPIRE_MINUTES: preserve(), ADMIN_EMAIL: preserve(), ALGORITHM: preserve(), APP_ENV: preserve(), BREVO_API_KEY: preserve(), DATABASE_URL: preserve(), EMAILS_FROM_EMAIL: MITTENTE, EMAILS_FROM_NAME: preserve(), FRONTEND_URL: preserve(), POSTGRES_DB: preserve(), POSTGRES_PASSWORD: preserve(), POSTGRES_USER: preserve(), REDIS_URL: preserve(), REFRESH_TOKEN_EXPIRE_DAYS: preserve(), SECRET_KEY: preserve(), SEED_DEMO: preserve(), SMTP_HOST: preserve(), SMTP_PASSWORD: preserve(), SMTP_PORT: preserve(), SMTP_USER: preserve(), TWILIO_ACCOUNT_SID: preserve(), TWILIO_AUTH_TOKEN: preserve(), TWILIO_TEMPLATE_CONFERMA: preserve(), TWILIO_TEMPLATE_PROMEMORIA: preserve(), TWILIO_TEMPLATE_VERIFICA: preserve(), TWILIO_WHATSAPP_FROM: preserve() },
+    env: { ACCESS_TOKEN_EXPIRE_MINUTES: preserve(), ADMIN_EMAIL: preserve(), ALGORITHM: preserve(), APP_ENV: preserve(), BREVO_API_KEY: preserve(), DATABASE_URL: Postgres.env.DATABASE_URL, EMAILS_FROM_EMAIL: MITTENTE, EMAILS_FROM_NAME: preserve(), FRONTEND_URL: preserve(), REDIS_URL: Redis.env.REDIS_URL, REFRESH_TOKEN_EXPIRE_DAYS: preserve(), SECRET_KEY: preserve(), SEED_DEMO: preserve(), SMTP_HOST: preserve(), SMTP_PASSWORD: preserve(), SMTP_PORT: preserve(), SMTP_USER: preserve(), TWILIO_ACCOUNT_SID: preserve(), TWILIO_AUTH_TOKEN: preserve(), TWILIO_TEMPLATE_CONFERMA: preserve(), TWILIO_TEMPLATE_PROMEMORIA: preserve(), TWILIO_TEMPLATE_VERIFICA: preserve(), TWILIO_WHATSAPP_FROM: preserve() },
+  });
+  // Dopo il backend perché ne legge la `SECRET_KEY` per riferimento
+  // (2026-11-10): il worker non firma niente, ma per avviarsi ne vuole una
+  // valida, e una copia sua era una seconda chiave da ruotare — leggibile,
+  // per di più, mentre quella del backend è sigillata.
+  const worker = service("worker", {
+    source: gestionale_nsh,
+    start: "sh worker-start.sh",
+    replicas: { "europe-west4-drams3a": 1 },
+    deploy: { restartPolicyMaxRetries: 3 },
+    networking: { privateNetworkEndpoint: "celery-worker" },
+    env: { ACCESS_TOKEN_EXPIRE_MINUTES: preserve(), ALGORITHM: preserve(), APP_ENV: preserve(), BREVO_API_KEY: preserve(), DATABASE_URL: Postgres.env.DATABASE_URL, EMAILS_FROM_EMAIL: MITTENTE, EMAILS_FROM_NAME: preserve(), FRONTEND_URL: preserve(), REDIS_URL: Redis.env.REDIS_URL, REFRESH_TOKEN_EXPIRE_DAYS: preserve(), SECRET_KEY: backend.env.SECRET_KEY, SEED_DEMO: preserve(), SMTP_HOST: preserve(), SMTP_PASSWORD: preserve(), SMTP_PORT: preserve(), SMTP_USER: preserve(), TWILIO_ACCOUNT_SID: preserve(), TWILIO_AUTH_TOKEN: preserve(), TWILIO_TEMPLATE_CONFERMA: preserve(), TWILIO_TEMPLATE_PROMEMORIA: preserve(), TWILIO_TEMPLATE_VERIFICA: preserve(), TWILIO_WHATSAPP_FROM: preserve() },
   });
   const frontend = service("frontend", {
     source: github("lorenzomelchionna/gestionale_nsh", { checkSuites: false, rootDirectory: "/frontend" }),

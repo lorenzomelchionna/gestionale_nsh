@@ -1460,6 +1460,22 @@ quella che si legge non è mai quella aggiornata — quindi ne resta una.
     Al ripristino `--no-acl`: i 27 errori «role claude_readonly does not
     exist» sono solo permessi.
 
+- [x] **`DATABASE_URL` per riferimento**, fatto il 2026-11-10. Dal 30/10
+  Railway, rigenerando la password di un database, aggiorna e riavvia da sé
+  i servizi che la leggono **per riferimento**; backend e worker avevano un
+  valore copiato. 1.4.5: `app/config.py` accetta `postgresql://` (com'è il
+  riferimento) e aggiunge `+asyncpg`. Poi plan fissato su file e apply:
+  `DATABASE_URL` di backend e worker → `${{Postgres.DATABASE_URL}}`, tolti
+  `POSTGRES_DB/PASSWORD/USER` del backend (non usati dal codice, password
+  già diversa da quella vera). `REDIS_URL` nel plan non cambiava. Dopo:
+  valore risolto identico a quello del Postgres, redeploy `SUCCESS`,
+  bootstrap e worker ok, lettura dal database 200.
+- [ ] **Rotazione della password di Postgres** — ora è un clic, e la fa
+  Lorenzo: pannello Railway → Postgres → Variables → rigenera la password.
+  Railway riavvia backend e worker col valore nuovo. Dopo: controllare
+  `/health`, una lettura dal database e il worker; e riaprire i tunnel
+  (la password vecchia è comparsa più volte nell'output del tunnel).
+
 ## Sicurezza — incidente Railway del 2026-10-21
 
 Railway ha comunicato (email del 22/10, confermata su status.railway.com —

@@ -139,6 +139,13 @@ scritto qualcosa — che su un gestionale fermo per mesi non vuol dire niente.
 È andata proprio così col DoS di `python-multipart`: venti mesi in produzione,
 trovato da altri.
 
+Due ritmi diversi, di proposito. L'audit è **settimanale**: le falle non
+aspettano. Dependabot apre le PR di routine **una volta al mese** (dal
+2026-11-12): si provano tutte insieme in una sessione, come un aggiornamento
+qualsiasi (suite, migration, giro nel browser), prima di unirle. Più si
+aspetta, più il salto è grande — FastAPI è arrivato a 21 versioni di
+distanza.
+
 **Non è un check obbligatorio di `main`, di proposito.** Una falla pubblicata
 stanotte in una dipendenza transitiva non deve poter bloccare il rilascio di
 una correzione che non c'entra: sarebbe un cancello che il giorno che serve si

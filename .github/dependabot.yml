@@ -24,6 +24,15 @@
 #
 # Con `develop` come bersaglio, un aggiornamento segue la stessa strada di
 # qualunque altra modifica: CI su develop, poi PR di rilascio verso main.
+#
+# **Mensile, non settimanale** (dal 2026-11-12). Gli aggiornamenti di routine
+# non sono urgenti: ogni lunedì creavano una coda che sembrava lavoro
+# arretrato e finiva ignorata per mesi (la #84 era aperta da agosto, FastAPI
+# è arrivato a 21 versioni di distanza). Una volta al mese, il primo del
+# mese, si provano tutte insieme in una sessione sola. Le **falle** non
+# aspettano il mese: le trova l'audit del lunedì (`audit.yml`), che resta
+# settimanale. La configurazione la legge dal branch di default (`main`):
+# il cambio vale dal rilascio che la porta lì.
 version: 2
 
 updates:
@@ -32,8 +41,7 @@ updates:
     directory: /backend
     target-branch: develop
     schedule:
-      interval: weekly
-      day: monday
+      interval: monthly
       time: "06:00"
       timezone: Europe/Rome
     open-pull-requests-limit: 5
@@ -79,8 +87,7 @@ updates:
     directory: /frontend
     target-branch: develop
     schedule:
-      interval: weekly
-      day: monday
+      interval: monthly
       time: "06:00"
       timezone: Europe/Rome
     open-pull-requests-limit: 5

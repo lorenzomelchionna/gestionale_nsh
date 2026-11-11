@@ -2506,6 +2506,9 @@ ancora valido».
   (staff e cliente, letture, scritture, refresh, disponibilità), nessun
   errore nei log. Trovato e corretto un test che falliva solo fra
   mezzanotte e l'una (data locale contro UTC).
+  **In produzione con la 1.5.4** (2026-11-11 23:09 UTC): `/health` 1.5.4,
+  lettura pubblica 200, admin senza token 401, login sbagliato 401, nessun
+  5xx; worker pronto e promemoria delle 23:15 riuscito.
 - [x] **SQLAlchemy 2.0.51 → 2.1.8** (2026-11-11; la #158 di Dependabot era
   ferma a 2.1.2, chiusa come superata). Provato a parte: suite completa su
   Python 3.13 e 3.12 (quello dell'immagine), 1053 verdi, nessun avviso di

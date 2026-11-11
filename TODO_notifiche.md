@@ -1527,6 +1527,35 @@ quella che si legge non è mai quella aggiornata — quindi ne resta una.
   1.4.7, lettura pubblica dal database 200, admin senza token 401, `www`
   200; worker `solo` pronto.
 
+## Risparmio Twilio — dal resoconto del 2026-11-11
+
+Spesa letta da Twilio (sola lettura): ottobre 26,41 $, novembre 1–11
+6,24 $. Il 90% sono template di conferma e promemoria a ~0,035 $ l'uno
+(0,03 Meta + 0,005 Twilio); il testo libero paga solo i 0,005 di Twilio.
+Le ricariche da 10 € sulla carta sono l'auto-ricarica del credito, non il
+consumo.
+
+- [x] **Testo libero dentro la finestra di 24 ore** (1.5.0, 2026-11-11
+  12:50 UTC). Conferme e promemoria a chi ha scritto da meno di 24 ore
+  (margine 10 minuti) partono col testo del template approvato, parola per
+  parola, come messaggio libero. 78 casi in 42 giorni, ~1,70 $/mese.
+  Prova vera prima del rilascio dal fisso a un telefono di test: `read`,
+  prezzo Meta 0,00 $. Dal vivo dopo il deploy: `/health` 1.5.0, frontend
+  1.5.0, worker `solo` pronto. Nei log: «cliente in finestra: template
+  mandato come testo libero». **Se un template viene modificato e
+  riapprovato**, aggiornare `TESTO_APPROVATO_*` in `app/utils/whatsapp.py`.
+- [ ] **Niente promemoria se la conferma è partita a meno di 24 ore
+  dall'appuntamento** — oggi arrivano entrambi a un'ora di distanza, stesso
+  testo: 109 casi in 42 giorni, ~2,70 $/mese (~4,25 con soglia 48 ore).
+  **In attesa di Flavia.**
+- [ ] **Rilasciare il numero USA `+1689…`** — 1,15 $/mese, nessun
+  messaggio, SMS o chiamata dal 22/09, non è più un sender WhatsApp.
+  Console Twilio → Phone Numbers → Active numbers → Release. Irreversibile,
+  lo fa Lorenzo.
+- Scartati per ora: un messaggio solo per più appuntamenti inseriti insieme
+  (54 conferme a meno di 10 minuti da un'altra allo stesso numero), conferma
+  solo per email, migrazione all'API diretta di Meta.
+
 ## Sicurezza — incidente Railway del 2026-10-21
 
 Railway ha comunicato (email del 22/10, confermata su status.railway.com —

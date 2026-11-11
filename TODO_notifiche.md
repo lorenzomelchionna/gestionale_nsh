@@ -1506,9 +1506,9 @@ quella che si legge non è mai quella aggiornata — quindi ne resta una.
   refresh; dopo il login, richieste admin 200. Tutti devono rientrare una
   volta (Flavia la mattina dopo). I link di reset password e verifica
   email non dipendono dalla chiave (codici casuali nel database).
-- [ ] **Restano da ruotare** (dettaglio in «Sicurezza — incidente Railway»): token Twilio (secondario → promuovere) e
-  chiave Brevo, su backend (il worker andrebbe messo a riferimento come
-  la `SECRET_KEY`); password per le app Gmail del salone, da Flavia.
+- [ ] **Restano da ruotare** (dettaglio in «Sicurezza — incidente Railway»): token Twilio (secondario → promuovere,
+  su backend col worker a riferimento come `SECRET_KEY` e `BREVO_API_KEY`);
+  password per le app Gmail del salone, da Flavia. Brevo fatto il 2026-11-11.
 
 - [ ] **Worker col pool `solo` (1.4.6, 2026-11-10 22:39 UTC)** — controllare
   la memoria fra qualche giorno. Prima: media 7 giorni 180 MB (picco 274)
@@ -1591,8 +1591,17 @@ Da fare (le credenziali vanno considerate lette):
   (scollega tutti: staff e clienti rifanno l'accesso).
 - [ ] Twilio (unica voce viva per Twilio, insieme a Brevo e SMTP qui sotto): token secondario → su Railway (backend + worker) → deploy →
   promuoverlo a primario (il vecchio smette di valere).
-- [ ] Brevo: chiave nuova → su Railway (backend + worker) → deploy →
-  cancellare la vecchia.
+- [x] Brevo: chiave nuova — fatto il 2026-11-11 da Lorenzo. Chiave
+  `gestionale-nsh`, accesso **limitato**: solo «Email transazionali».
+  Messa sul backend da `pbpaste` (mai in chat né nella cronologia); il
+  worker ora la **legge dal backend** (`${{backend.BREVO_API_KEY}}`, anche in
+  `.railway/railway.ts`, plan «up to date»): la prossima rotazione si fa in
+  un posto solo. Verifica: reset password inviato dal backend e arrivato,
+  nessun errore Brevo nei log. Chiave vecchia (`gestionale`, **accesso
+  completo** all'account Brevo) eliminata lo stesso giorno da Lorenzo —
+  l'eliminazione non è nella lista: si passa col mouse sulla riga, il
+  pulsante compare all'estrema destra. Prima email dal worker
+  (conferma/promemoria) da guardare nei log.
 - [ ] `SMTP_PASSWORD`: le email passano da Brevo, lo SMTP è solo ripiego:
   revocare subito la password per app nell'account Google e togliere la
   variabile.
@@ -2042,16 +2051,17 @@ password" — quella non invalida nessuna sessione.
 
 ## Funzionalità richieste
 
-Non bloccano il go-live: il gestionale funziona senza. Stanno qui separate
-apposta, così le caselle aperte qui sotto non si confondono con quelle della
-roadmap sopra.
-
-### Richiesta — 2026-09-29: versioni del software, partendo da 1.0.0
-
-Decisioni di Lorenzo: `MAGGIORE.MINORE.CORREZIONE`, salto **automatico dai
-commit**, versione a piè di pagina in **gestionale e portale**, note in
-**CHANGELOG + Release su GitHub**.
-
+- [x] **Reset password del portale** (trovato rotto il 2026-11-11 provando
+  la chiave Brevo, sistemato lo stesso giorno). Il backend mandava la mail
+  ma mancavano il pulsante «Password dimenticata?» nella pagina di accesso
+  e la pagina `/booking/reset-password` del link (finiva sulla home). Ora:
+  pulsante + modulo (messaggio unico che l'indirizzo esista o no; nota per
+  lo staff, che passa dall'amministratore), pagina del link con nuova
+  password ripetuta, «link non più valido» → richiesta nuova. Il token è
+  dopo `#` (non arriva a nginx) e la pagina lo toglie dall'indirizzo.
+  `test_reset_password_portale.py` prova il percorso intero e che il
+  percorso del link esista fra le rotte di `App.tsx`. Corretto anche
+  «Almeno 6 caratteri» in registrazione: il minimo è 10.
 - [x] `frontend/package.json` (+ lock) e `backend/app/version.py` a 1.0.0;
   Vite la inietta come `__APP_VERSION__`; visibile in fondo al menu del
   gestionale (e nel menu su telefono), nel piè di pagina del portale
@@ -2490,6 +2500,9 @@ ancora valido».
   Nota: la suite **dentro** il container, col database raggiunto da
   `host.docker.internal`, è 4 volte più lenta e dà fallimenti spuri dovuti
   ai tempi — non è un segnale, la prova vera è la suite nativa o la CI.
+  **In produzione con la 1.5.2** (2026-11-11 17:38 UTC): `/health` 1.5.2,
+  migration all'avvio ok, lettura pubblica dal database 200, admin senza
+  token 401, nessun 5xx; worker pronto e promemoria delle 17:45 riuscito.
 - [ ] **24 ore di WhatsApp e i due giorni di chiusura** (domanda di Lorenzo
   del 2026-09-25): la finestra non si allunga, è di Meta. Proposte in
   attesa di decisione: (1) template «riprendi la conversazione» + pulsante

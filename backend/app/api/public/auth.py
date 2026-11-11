@@ -662,6 +662,10 @@ async def login(
     return TokenResponse(access_token=access, refresh_token=refresh)
 
 
+# La pagina del portale che riceve il link della mail.
+PERCORSO_RESET = "/booking/reset-password"
+
+
 @router.post("/forgot-password", response_model=MessageResponse)
 @limiter.limit("3/hour", key_func=per_email)
 @limiter.limit("10/hour")
@@ -678,8 +682,13 @@ async def forgot_password(
         account.reset_token = token
         account.reset_token_expires = datetime.now(timezone.utc) + timedelta(hours=2)
         await db.flush()
-        # Build the reset URL pointing to the public booking portal
-        reset_url = f"{settings.FRONTEND_URL.rstrip('/')}/booking/reset-password?token={token}"
+        # Il token va dopo `#`, non dopo `?`: la parte dopo `#` il browser non
+        # la manda al server, quindi non finisce nel registro di nginx a ogni
+        # apertura del link. La pagina la legge e la toglie subito
+        # dall'indirizzo (`ResetPasswordPage`). Il percorso deve esistere fra
+        # le rotte del frontend: fino al 2026-11-11 non c'era, e il link
+        # riportava alla home — `test_reset_password_portale.py` lo controlla.
+        reset_url = f"{settings.FRONTEND_URL.rstrip('/')}{PERCORSO_RESET}#token={token}"
         try:
             await notify_password_reset(db, account, reset_url)
         except Exception:

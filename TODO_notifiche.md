@@ -1597,8 +1597,10 @@ Da fare (le credenziali vanno considerate lette):
   worker ora la **legge dal backend** (`${{backend.BREVO_API_KEY}}`, anche in
   `.railway/railway.ts`, plan «up to date»): la prossima rotazione si fa in
   un posto solo. Verifica: reset password inviato dal backend e arrivato,
-  nessun errore Brevo nei log. Chiave vecchia da eliminare su Brevo
-  (Impostazioni → SMTP e API → Chiavi API). Prima email dal worker
+  nessun errore Brevo nei log. Chiave vecchia (`gestionale`, **accesso
+  completo** all'account Brevo) eliminata lo stesso giorno da Lorenzo —
+  l'eliminazione non è nella lista: si passa col mouse sulla riga, il
+  pulsante compare all'estrema destra. Prima email dal worker
   (conferma/promemoria) da guardare nei log.
 - [ ] `SMTP_PASSWORD`: le email passano da Brevo, lo SMTP è solo ripiego:
   revocare subito la password per app nell'account Google e togliere la

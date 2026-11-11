@@ -2490,6 +2490,9 @@ ancora valido».
   Nota: la suite **dentro** il container, col database raggiunto da
   `host.docker.internal`, è 4 volte più lenta e dà fallimenti spuri dovuti
   ai tempi — non è un segnale, la prova vera è la suite nativa o la CI.
+  **In produzione con la 1.5.2** (2026-11-11 17:38 UTC): `/health` 1.5.2,
+  migration all'avvio ok, lettura pubblica dal database 200, admin senza
+  token 401, nessun 5xx; worker pronto e promemoria delle 17:45 riuscito.
 - [ ] **24 ore di WhatsApp e i due giorni di chiusura** (domanda di Lorenzo
   del 2026-09-25): la finestra non si allunga, è di Meta. Proposte in
   attesa di decisione: (1) template «riprendi la conversazione» + pulsante

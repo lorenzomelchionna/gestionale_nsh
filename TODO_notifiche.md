@@ -706,9 +706,9 @@ ancora la Sandbox `+14155238886`), `TWILIO_TEMPLATE_CONFERMA`,
     gestionale: il `200` dice che la richiesta è stata accettata, non che
     il messaggio sia visibile a chi deve rispondere. Stessa voce rimasta
     aperta per il numero ponte il 17 settembre, per lo stesso motivo.
-  - [ ] Decidere quando cancellare/disattivare il numero ponte
-    `+1 689 344-8830` — resta come secondo Sender dello stesso WABA finché
-    non si toglie
+  - [x] ~~Decidere quando cancellare/disattivare il numero ponte~~ —
+    superata il 2026-11-11: non è più un Sender, resta solo il numero a
+    1,15 $/mese. Voce viva in «Risparmio Twilio».
 
   **Deploy confermato**: [PR #119](https://github.com/lorenzomelchionna/gestionale_nsh/pull/119)
   (verifica telefono, questa voce) → `develop`,

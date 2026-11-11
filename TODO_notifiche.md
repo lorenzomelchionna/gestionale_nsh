@@ -2495,6 +2495,13 @@ ancora valido».
 
 ### Aperte — 2026-09-29
 
+- [x] **Aggiornamenti dipendenze: sessione mensile** (2026-11-12, 1.5.5).
+  Dependabot apre le PR di routine il primo del mese invece di ogni lunedì;
+  l'audit delle falle resta settimanale. Pulizia GitHub lo stesso giorno: 43
+  branch remoti e 55 locali già uniti cancellati (le PR non si cancellano,
+  restano chiuse nello storico); accesa la cancellazione automatica dei
+  branch uniti, con un ruleset che protegge `develop` dalla cancellazione
+  (verificato: il merge della #217 l'ha lasciato).
 - [x] **FastAPI 0.141.1 → 0.162.5, pydantic 2.13.4 → 2.14.3,
   pydantic-settings 2.14.2 → 2.16.2** (2026-11-12; sostituiscono #157, #95,
   #84). Starlette non è fissata e il build prende l'ultima: provato quindi

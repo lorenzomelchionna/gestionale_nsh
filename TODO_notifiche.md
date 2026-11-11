@@ -1548,10 +1548,11 @@ consumo.
   dall'appuntamento** — oggi arrivano entrambi a un'ora di distanza, stesso
   testo: 109 casi in 42 giorni, ~2,70 $/mese (~4,25 con soglia 48 ore).
   **In attesa di Flavia.**
-- [ ] **Rilasciare il numero USA `+1689…`** — 1,15 $/mese, nessun
-  messaggio, SMS o chiamata dal 22/09, non è più un sender WhatsApp.
-  Console Twilio → Phone Numbers → Active numbers → Release. Irreversibile,
-  lo fa Lorenzo.
+- [x] **Numero USA `+1689…` rilasciato** (2026-11-11, via API, su conferma
+  di Lorenzo) — 1,15 $/mese in meno. Prima del rilascio: nessuna variabile
+  Railway lo citava, non era un sender WhatsApp, webhook solo demo Twilio,
+  nessun uso dal 22/09. Dopo: nessun numero Twilio sull'account, il fisso
+  resta sender ONLINE.
 - Scartati per ora: un messaggio solo per più appuntamenti inseriti insieme
   (54 conferme a meno di 10 minuti da un'altra allo stesso numero), conferma
   solo per email, migrazione all'API diretta di Meta.

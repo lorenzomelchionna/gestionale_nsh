@@ -2495,6 +2495,21 @@ ancora valido».
 
 ### Aperte — 2026-09-29
 
+- [x] **Dipendenze frontend di novembre** (2026-11-12, sostituisce #192 e
+  #178): aggiornamenti minori e patch dentro la stessa versione maggiore
+  (react-query 5.107, axios 1.21, react-router 7.18.5, zustand 5.1, vite
+  6.4.6, postcss, autoprefixer, typescript-eslint). **Tolti 16 pacchetti
+  mai usati** — 11 Radix, 3 dnd-kit, react-day-picker, tailwind-merge: mai
+  importati, né oggi né nella storia del codice; si aggiornavano ogni mese
+  per niente. Dipendenze del browser da 26 a 10, bundle invariato. Provato:
+  `tsc`, build, audit runtime 0, 16 pagine del gestionale senza errori,
+  modale nuovo appuntamento coi dati. Le versioni maggiori (React 19, Vite
+  8, Tailwind 4, TypeScript 7…) restano fuori: ognuna è un lavoro a sé.
+- [ ] **ESLint non configurato** — `npm run lint` fallisce anche su
+  `develop`: ESLint 9 vuole `eslint.config.js` e il progetto non ne ha uno.
+  La CI non lo esegue, quindi nessuno se n'era accorto. O si scrive la
+  configurazione (e si sistemano gli avvisi che usciranno), o si toglie
+  ESLint e il comando `lint`.
 - [x] **Dipendenze Python di novembre** (2026-11-12, sostituisce la #196 di
   Dependabot): uvicorn 0.54, celery/kombu 5.7, alembic 1.20, asyncpg 0.32,
   sentry-sdk 2.74, python-multipart 0.0.33, psycopg2 2.9.13, tzdata

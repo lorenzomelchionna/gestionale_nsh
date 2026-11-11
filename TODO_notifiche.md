@@ -2062,6 +2062,11 @@ password" — quella non invalida nessuna sessione.
   `test_reset_password_portale.py` prova il percorso intero e che il
   percorso del link esista fra le rotte di `App.tsx`. Corretto anche
   «Almeno 6 caratteri» in registrazione: il minimo è 10.
+  **In produzione con la 1.5.3** (2026-11-11 22:53 UTC): `/health` 1.5.3,
+  pagina e pulsante presenti su `www`. Prova vera dal portale: richiesta
+  col pulsante → mail arrivata. Il cambio password l'ha provato solo
+  l'anteprima locale (Lorenzo non voleva cambiare la sua); la prima
+  cliente che lo usa è la conferma sul campo.
 - [x] `frontend/package.json` (+ lock) e `backend/app/version.py` a 1.0.0;
   Vite la inietta come `__APP_VERSION__`; visibile in fondo al menu del
   gestionale (e nel menu su telefono), nel piè di pagina del portale
@@ -2490,6 +2495,17 @@ ancora valido».
 
 ### Aperte — 2026-09-29
 
+- [x] **FastAPI 0.141.1 → 0.162.5, pydantic 2.13.4 → 2.14.3,
+  pydantic-settings 2.14.2 → 2.16.2** (2026-11-12; sostituiscono #157, #95,
+  #84). Starlette non è fissata e il build prende l'ultima: provato quindi
+  in un venv 3.12 nuovo come il Dockerfile (Starlette 1.10.0). Note di
+  rilascio lette: i cambi incompatibili toccano form, file, `null` nei
+  corpi JSON e default dei parametri — il webhook Twilio legge il form da
+  Starlette direttamente, l'upload foto prodotto ha i suoi test, i modelli
+  Pydantic rifiutavano già `null`. Suite 1062 verde, giro API completo
+  (staff e cliente, letture, scritture, refresh, disponibilità), nessun
+  errore nei log. Trovato e corretto un test che falliva solo fra
+  mezzanotte e l'una (data locale contro UTC).
 - [x] **SQLAlchemy 2.0.51 → 2.1.8** (2026-11-11; la #158 di Dependabot era
   ferma a 2.1.2, chiusa come superata). Provato a parte: suite completa su
   Python 3.13 e 3.12 (quello dell'immagine), 1053 verdi, nessun avviso di

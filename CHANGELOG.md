@@ -8,6 +8,12 @@ cambiamento incompatibile il primo.
 Le voci le scrive `scripts/release.py prepare` dai commit di ogni rilascio;
 vedi «CI e flusso di rilascio» in `CLAUDE.md`.
 
+## [1.5.4] — 2026-11-12
+
+### Correzioni
+
+- deps: bump fastapi to 0.162.5, pydantic to 2.14.3, pydantic-settings to 2.16.2
+
 ## [1.5.3] — 2026-11-11
 
 ### Correzioni

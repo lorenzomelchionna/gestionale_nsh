@@ -14,6 +14,16 @@ per ciascuno, e che una registrazione completata resti visibile.
 """
 from datetime import date, datetime, timedelta, timezone
 
+
+def _oggi_del_task() -> date:
+    """Il «oggi» con cui `send_birthday_greetings` cerca i compleanni: UTC.
+
+    Non `date.today()`, che è la data locale: fra mezzanotte e l'una (le due
+    d'estate) le due date sono diverse, e i test sugli auguri fallivano solo
+    se lanciati in quell'ora — com'è successo il 2026-11-12 alle 00:00.
+    """
+    return datetime.now(timezone.utc).date()
+
 import pytest
 import pytest_asyncio
 from sqlalchemy import select
@@ -30,7 +40,7 @@ NUMERO = "+393401234567"
 async def del_salone(db) -> Client:
     """La scheda vera, creata dal salone."""
     c = Client(first_name="Maria", last_name="Rossi", phone=NUMERO,
-               birth_date=date.today().replace(year=1990))
+               birth_date=_oggi_del_task().replace(year=1990))
     db.add(c)
     await db.commit()
     return c
@@ -42,7 +52,7 @@ async def _registrazione(db, email="maria@nsh-test.it", email_ok=False, tel_ok=F
     db.add(account)
     await db.flush()
     c = Client(first_name="Maria", last_name="Rossi", phone=NUMERO, email=email,
-               birth_date=date.today().replace(year=1990), account_id=account.id)
+               birth_date=_oggi_del_task().replace(year=1990), account_id=account.id)
     db.add(c)
     await db.commit()
     return c
@@ -104,7 +114,7 @@ class TestGliAltriPosti:
         from app.tasks.reminders import _async_send_birthday_greetings
 
         spenta = Client(first_name="Vecchia", last_name="Scheda", phone="+393409999999",
-                        birth_date=date.today().replace(year=1985), is_active=False)
+                        birth_date=_oggi_del_task().replace(year=1985), is_active=False)
         db.add(spenta)
         await db.commit()
 

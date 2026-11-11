@@ -8,6 +8,12 @@ cambiamento incompatibile il primo.
 Le voci le scrive `scripts/release.py prepare` dai commit di ogni rilascio;
 vedi «CI e flusso di rilascio» in `CLAUDE.md`.
 
+## [1.5.0] — 2026-11-11
+
+### Novità
+
+- send confirmations and reminders as free text inside the 24h window
+
 ## [1.4.7] — 2026-11-10
 
 ### Correzioni

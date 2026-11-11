@@ -91,7 +91,7 @@ class TestMessaggi:
     async def test_whatsapp_conferma_scrive_l_ora_del_salone(self, monkeypatch):
         catturato = {}
 
-        async def finto(to_phone, content_sid, variabili, *, ripiego):
+        async def finto(to_phone, content_sid, variabili, *, ripiego, **_):
             catturato.update(variabili=variabili, ripiego=ripiego)
 
         monkeypatch.setattr(wa_util, "send_whatsapp_template", finto)
@@ -108,7 +108,7 @@ class TestMessaggi:
     async def test_whatsapp_promemoria_scrive_l_ora_del_salone(self, monkeypatch):
         catturato = {}
 
-        async def finto(to_phone, content_sid, variabili, *, ripiego):
+        async def finto(to_phone, content_sid, variabili, *, ripiego, **_):
             catturato.update(variabili=variabili)
 
         monkeypatch.setattr(wa_util, "send_whatsapp_template", finto)

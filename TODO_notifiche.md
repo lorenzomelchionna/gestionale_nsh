@@ -2063,8 +2063,10 @@ password" — quella non invalida nessuna sessione.
   percorso del link esista fra le rotte di `App.tsx`. Corretto anche
   «Almeno 6 caratteri» in registrazione: il minimo è 10.
   **In produzione con la 1.5.3** (2026-11-11 22:53 UTC): `/health` 1.5.3,
-  pagina e pulsante presenti su `www`. Prova vera con un indirizzo reale
-  da fare (richiesta → mail → link → password nuova → login).
+  pagina e pulsante presenti su `www`. Prova vera dal portale: richiesta
+  col pulsante → mail arrivata. Il cambio password l'ha provato solo
+  l'anteprima locale (Lorenzo non voleva cambiare la sua); la prima
+  cliente che lo usa è la conferma sul campo.
 - [x] `frontend/package.json` (+ lock) e `backend/app/version.py` a 1.0.0;
   Vite la inietta come `__APP_VERSION__`; visibile in fondo al menu del
   gestionale (e nel menu su telefono), nel piè di pagina del portale

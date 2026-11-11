@@ -192,6 +192,10 @@ export const clientLogin = (email: string, password: string) =>
 export const clientForgotPassword = (email: string) =>
   publicApi.post('/auth/forgot-password', { email }).then(r => r.data)
 
+/** Il secondo passo: il token arriva dal link della mail. */
+export const clientResetPassword = (token: string, newPassword: string) =>
+  publicApi.post('/auth/reset-password', { token, new_password: newPassword }).then(r => r.data)
+
 export const getMyAppointments = () =>
   publicApi.get<Appointment[]>('/appointments').then(r => r.data)
 

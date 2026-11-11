@@ -29,6 +29,7 @@ import BookingLayout, { useClientAuth } from '@/components/layout/BookingLayout'
 import BookingHomePage from '@/pages/booking/BookingHomePage'
 import BookingFlowPage from '@/pages/booking/BookingFlowPage'
 import BookingAccountPage from '@/pages/booking/BookingAccountPage'
+import ResetPasswordPage from '@/pages/booking/ResetPasswordPage'
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore(s => s.isAuthenticated)
@@ -94,6 +95,10 @@ export default function App() {
               cognome e un codice WhatsApp al passo di conferma. */}
           <Route path="new" element={<BookingFlowPage />} />
           <Route path="account" element={<RequireClient><BookingAccountPage /></RequireClient>} />
+          {/* Il link della mail «Password dimenticata». Il percorso è scritto
+              anche nel backend (`PERCORSO_RESET`), e un test controlla che
+              stia qui: fino al 2026-11-11 non c'era e il link portava alla home. */}
+          <Route path="reset-password" element={<ResetPasswordPage />} />
           {/* The portal used to have its own sign-in pages. */}
           <Route path="login" element={<Navigate to="/login" replace />} />
           <Route path="register" element={<Navigate to="/login?registrati" replace />} />

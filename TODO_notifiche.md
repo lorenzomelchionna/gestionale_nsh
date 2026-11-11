@@ -2051,26 +2051,17 @@ password" — quella non invalida nessuna sessione.
 
 ## Funzionalità richieste
 
-- [ ] **Reset password del portale rotto** (trovato il 2026-11-11 provando
-  la chiave Brevo). Il backend manda la mail (`POST
-  /api/public/auth/forgot-password`, e `clientForgotPassword` esiste in
-  `publicApi.ts`), ma nel frontend **manca il pulsante** «Password
-  dimenticata» nella pagina di accesso e **manca la pagina**
-  `/booking/reset-password` a cui punta il link della mail: il link finisce
-  sul catch-all e riporta alla home. Oggi l'unica strada è il salone
-  («Password portale» dalla scheda cliente). Da fare: pulsante + pagina che
-  chiama `POST /auth/reset-password` col token, con test.
-
-Non bloccano il go-live: il gestionale funziona senza. Stanno qui separate
-apposta, così le caselle aperte qui sotto non si confondono con quelle della
-roadmap sopra.
-
-### Richiesta — 2026-09-29: versioni del software, partendo da 1.0.0
-
-Decisioni di Lorenzo: `MAGGIORE.MINORE.CORREZIONE`, salto **automatico dai
-commit**, versione a piè di pagina in **gestionale e portale**, note in
-**CHANGELOG + Release su GitHub**.
-
+- [x] **Reset password del portale** (trovato rotto il 2026-11-11 provando
+  la chiave Brevo, sistemato lo stesso giorno). Il backend mandava la mail
+  ma mancavano il pulsante «Password dimenticata?» nella pagina di accesso
+  e la pagina `/booking/reset-password` del link (finiva sulla home). Ora:
+  pulsante + modulo (messaggio unico che l'indirizzo esista o no; nota per
+  lo staff, che passa dall'amministratore), pagina del link con nuova
+  password ripetuta, «link non più valido» → richiesta nuova. Il token è
+  dopo `#` (non arriva a nginx) e la pagina lo toglie dall'indirizzo.
+  `test_reset_password_portale.py` prova il percorso intero e che il
+  percorso del link esista fra le rotte di `App.tsx`. Corretto anche
+  «Almeno 6 caratteri» in registrazione: il minimo è 10.
 - [x] `frontend/package.json` (+ lock) e `backend/app/version.py` a 1.0.0;
   Vite la inietta come `__APP_VERSION__`; visibile in fondo al menu del
   gestionale (e nel menu su telefono), nel piè di pagina del portale

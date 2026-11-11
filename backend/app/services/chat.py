@@ -76,6 +76,36 @@ def can_reply_freely(conversation: Conversation, now: Optional[datetime] = None)
     return (now or datetime.now(timezone.utc)) < expires
 
 
+# Quanto deve restare aperta la finestra perché valga la pena usarla. Un
+# testo libero mandato a finestra appena chiusa non torna indietro come
+# errore sulla chiamata: Twilio lo accetta e la consegna fallisce dopo (63016),
+# quindi la cliente non riceve niente e nessuno lo vede. Dieci minuti coprono
+# l'attesa in coda del worker e la differenza fra il nostro orologio e quello
+# di Meta; sotto, si paga il template e si va sul sicuro.
+MARGINE_FINESTRA = timedelta(minutes=10)
+
+
+async def finestra_aperta(
+    db: AsyncSession, phone: Optional[str], now: Optional[datetime] = None
+) -> bool:
+    """Se a questo numero si può scrivere testo libero adesso, con margine.
+
+    Legge `last_inbound_at` della chat del numero, l'unico posto che sa
+    quando la cliente ha scritto. Nessuna chat — mai scritto, o chat
+    eliminata dal salone — vuol dire finestra chiusa: si torna al template,
+    che funziona sempre.
+    """
+    target = normalise_phone(phone or "")
+    if not target:
+        return False
+    conv = (await db.execute(
+        select(Conversation).where(Conversation.phone == target)
+    )).scalar_one_or_none()
+    if conv is None:
+        return False
+    return can_reply_freely(conv, (now or datetime.now(timezone.utc)) + MARGINE_FINESTRA)
+
+
 async def get_or_create_conversation(
     db: AsyncSession, phone: str, contact_name: Optional[str] = None
 ) -> Conversation:

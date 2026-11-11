@@ -12,6 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.booking_config import BookingConfig
 from app.models.client import Client
+from app.services.chat import finestra_aperta
 from app.utils import email as email_util
 from app.utils import whatsapp as wa_util
 from app.utils.tempo import adesso
@@ -88,7 +89,10 @@ async def notify_booking_confirmation(db: AsyncSession, appointment) -> bool:
             _fallita("conferma_prenotazione", "email", id_appuntamento=appointment.id)
     if _wa_enabled(cfg) and client.phone:
         try:
-            await wa_util.send_booking_confirmation(appointment, cfg)
+            await wa_util.send_booking_confirmation(
+                appointment, cfg,
+                finestra_aperta=await finestra_aperta(db, client.phone),
+            )
             consegnata = True
         except Exception:
             _fallita("conferma_prenotazione", "whatsapp", id_appuntamento=appointment.id)
@@ -121,7 +125,10 @@ async def notify_appointment_reminder(db: AsyncSession, appointment) -> bool:
     if _wa_enabled(cfg) and client.phone:
         tentato = True
         try:
-            await wa_util.send_reminder_message(appointment, cfg)
+            await wa_util.send_reminder_message(
+                appointment, cfg,
+                finestra_aperta=await finestra_aperta(db, client.phone),
+            )
             consegnato = True
         except Exception:
             _fallita("promemoria", "whatsapp", id_appuntamento=appointment.id)

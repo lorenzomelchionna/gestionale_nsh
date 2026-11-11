@@ -1,6 +1,7 @@
 """WhatsApp messaging via Twilio REST API (no twilio SDK needed — uses httpx)."""
 import json
 import logging
+import re
 import httpx
 from app.config import settings
 from app.logging_config import maschera_telefono
@@ -17,6 +18,37 @@ DEFAULT_REMINDER_MESSAGE = (
     "Ciao {nome}! Ti ricordiamo il tuo appuntamento da New Style Hair "
     "il {data} alle {ora} con {collaboratore}. A presto! 💇"
 )
+
+
+# Il corpo dei due template **così come Meta li ha approvati**, parola per
+# parola, con i segnaposto di Meta. Servono quando la cliente ha scritto da
+# poco: lì lo stesso testo può partire come messaggio libero, che costa la
+# sola tariffa Twilio (~0,005 $) invece del template (~0,035 $). Copiati dalla
+# Content API di Twilio il 2026-11-11: se un template viene modificato e
+# riapprovato, va cambiato anche qui, o la cliente riceverebbe due testi
+# diversi a seconda di quando ha scritto l'ultima volta.
+#
+# Non i messaggi personalizzabili da Impostazioni (`DEFAULT_*`): col template
+# configurato quelli non partono mai, e usarli qui farebbe arrivare alla
+# stessa cliente un testo diverso solo perché ha scritto ieri.
+TESTO_APPROVATO_CONFERMA = (
+    "Ciao {{1}}! La tua prenotazione da New Style Hair è confermata "
+    "per il {{2}} alle {{3}} con {{4}}. A presto!"
+)
+TESTO_APPROVATO_PROMEMORIA = (
+    "Ciao {{1}}! Ti ricordiamo il tuo appuntamento da New Style Hair "
+    "il {{2}} alle {{3}} con {{4}}. A presto!"
+)
+
+
+def _compila(approvato: str, variabili: dict[str, str]) -> str:
+    """Riempie `{{1}}`, `{{2}}`… come farebbe Meta col template.
+
+    Una passata sola con `re.sub`, non una `replace` per variabile: un nome
+    che contenesse `{{2}}` verrebbe altrimenti riscritto dalla sostituzione
+    successiva.
+    """
+    return re.sub(r"\{\{(\d+)\}\}", lambda m: variabili.get(m.group(1), m.group(0)), approvato)
 
 
 def _is_configured() -> bool:
@@ -93,6 +125,8 @@ async def send_whatsapp_template(
     variabili: dict[str, str],
     *,
     ripiego: str,
+    approvato: str | None = None,
+    finestra_aperta: bool = False,
 ) -> None:
     """
     Manda un template approvato da Meta.
@@ -113,7 +147,24 @@ async def send_whatsapp_template(
     percorso. In produzione, senza template, quel testo verrebbe rifiutato da
     WhatsApp — il ripiego non lo salva, lo fa solo fallire con un errore
     parlante invece che con un `None` silenzioso.
+
+    **`finestra_aperta` con `approvato`** manda il testo del template come
+    messaggio libero. Lo decide chi chiama, che ha il database: vero solo se
+    la cliente ha scritto al salone da meno di 24 ore (vedi
+    `services.chat.finestra_aperta`). La cliente legge le stesse parole; il
+    salone paga ~0,005 $ invece di ~0,035 $.
     """
+    if content_sid and finestra_aperta and approvato:
+        log.info(
+            "cliente in finestra: template mandato come testo libero",
+            extra={
+                "destinatario": maschera_telefono(to_phone),
+                "motivo": "finestra_aperta",
+            },
+        )
+        await send_whatsapp(to_phone, _compila(approvato, variabili))
+        return
+
     if not content_sid:
         log.info(
             "nessun template configurato: invio come testo libero",
@@ -156,7 +207,7 @@ async def send_verification_code_whatsapp(to_phone: str, code: str) -> None:
     )
 
 
-async def send_booking_confirmation(appointment, cfg) -> None:
+async def send_booking_confirmation(appointment, cfg, *, finestra_aperta: bool = False) -> None:
     """Send booking confirmation WhatsApp message."""
     client = appointment.client
     if not client or not client.phone:
@@ -186,10 +237,12 @@ async def send_booking_confirmation(appointment, cfg) -> None:
             "4": collab_name,
         },
         ripiego=message,
+        approvato=TESTO_APPROVATO_CONFERMA,
+        finestra_aperta=finestra_aperta,
     )
 
 
-async def send_reminder_message(appointment, cfg) -> None:
+async def send_reminder_message(appointment, cfg, *, finestra_aperta: bool = False) -> None:
     """Send reminder WhatsApp message before appointment."""
     client = appointment.client
     if not client or not client.phone:
@@ -219,6 +272,8 @@ async def send_reminder_message(appointment, cfg) -> None:
             "4": collab_name,
         },
         ripiego=message,
+        approvato=TESTO_APPROVATO_PROMEMORIA,
+        finestra_aperta=finestra_aperta,
     )
 
 

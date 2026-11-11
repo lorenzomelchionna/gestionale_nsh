@@ -2480,12 +2480,16 @@ ancora valido».
 
 ### Aperte — 2026-09-29
 
-- [ ] **Dependabot: SQLAlchemy 2.0.51 → 2.1.2**
-  ([PR #158](https://github.com/lorenzomelchionna/gestionale_nsh/pull/158),
-  che dal 5/10 sostituisce la #146 chiusa).
-  Salto di versione minore di una libreria su cui poggia tutto il backend:
-  da provare a parte (suite completa + migrazioni + un giro nel browser)
-  prima di unirla, non da unire perché la CI è verde.
+- [x] **SQLAlchemy 2.0.51 → 2.1.8** (2026-11-11; la #158 di Dependabot era
+  ferma a 2.1.2, chiusa come superata). Provato a parte: suite completa su
+  Python 3.13 e 3.12 (quello dell'immagine), 1053 verdi, nessun avviso di
+  deprecazione; `alembic upgrade head` da database vuoto, `alembic check`
+  senza differenze fra modelli e migration, downgrade/upgrade dell'ultima;
+  giro nel browser (calendario, portale, 16 elenchi admin, cliente e
+  appuntamento creati, spostati, annullati, eliminati), log senza errori.
+  Nota: la suite **dentro** il container, col database raggiunto da
+  `host.docker.internal`, è 4 volte più lenta e dà fallimenti spuri dovuti
+  ai tempi — non è un segnale, la prova vera è la suite nativa o la CI.
 - [ ] **24 ore di WhatsApp e i due giorni di chiusura** (domanda di Lorenzo
   del 2026-09-25): la finestra non si allunga, è di Meta. Proposte in
   attesa di decisione: (1) template «riprendi la conversazione» + pulsante

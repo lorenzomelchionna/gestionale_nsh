@@ -2342,10 +2342,12 @@ Le due correzioni nate da qui sono nella 1.2.0 (sezione sotto); restano:
   codice l'ha letto un estraneo). La stessa persona si è rifatta due minuti
   dopo come account 41 con il numero giusto, che è quello vero. Il 40 è da
   disattivare.
-- [ ] **Icone del portale mancanti** — `favicon.ico` e
-  `apple-touch-icon*.png` rispondono 404 (si vede nel log di nginx a ogni
-  visita da iPhone): chi salva il portale sulla schermata Home non ha
-  l'icona del salone.
+- [x] **Icone del portale** (2026-11-11) — `favicon.ico`,
+  `apple-touch-icon(-precomposed).png`, `icon-192/512.png`, icona
+  «maskable» per Android e un vero `manifest.webmanifest` (prima rispondeva
+  la pagina del sito). Tutte dal disegno della favicon, rigenerabili con
+  `python3 frontend/scripts/icone.py`. Nginx: cache di un giorno (nome fisso,
+  non `immutable`) e manifest come `application/manifest+json`.
 - [x] ~~**L'audit del lunedì resterà rosso fino al prossimo rilascio**~~ —
   risolto con la 1.2.1 il 2026-10-06: l'esclusione di python-jose è su
   `main`, e l'audit della PR di rilascio è già passato.

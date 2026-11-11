@@ -8,6 +8,13 @@ cambiamento incompatibile il primo.
 Le voci le scrive `scripts/release.py prepare` dai commit di ogni rilascio;
 vedi «CI e flusso di rilascio» in `CLAUDE.md`.
 
+## [1.5.6] — 2026-11-12
+
+### Correzioni
+
+- deps: November frontend updates, and drop 16 packages never used
+- deps: November Python updates, with the two fixes they needed
+
 ## [1.5.5] — 2026-11-12
 
 Solo manutenzione: documentazione, test, configurazione.

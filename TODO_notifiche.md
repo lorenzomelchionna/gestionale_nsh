@@ -2062,6 +2062,9 @@ password" — quella non invalida nessuna sessione.
   `test_reset_password_portale.py` prova il percorso intero e che il
   percorso del link esista fra le rotte di `App.tsx`. Corretto anche
   «Almeno 6 caratteri» in registrazione: il minimo è 10.
+  **In produzione con la 1.5.3** (2026-11-11 22:53 UTC): `/health` 1.5.3,
+  pagina e pulsante presenti su `www`. Prova vera con un indirizzo reale
+  da fare (richiesta → mail → link → password nuova → login).
 - [x] `frontend/package.json` (+ lock) e `backend/app/version.py` a 1.0.0;
   Vite la inietta come `__APP_VERSION__`; visibile in fondo al menu del
   gestionale (e nel menu su telefono), nel piè di pagina del portale

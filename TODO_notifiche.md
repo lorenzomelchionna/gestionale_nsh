@@ -2495,6 +2495,19 @@ ancora valido».
 
 ### Aperte — 2026-09-29
 
+- [x] **Dipendenze Python di novembre** (2026-11-12, sostituisce la #196 di
+  Dependabot): uvicorn 0.54, celery/kombu 5.7, alembic 1.20, asyncpg 0.32,
+  sentry-sdk 2.74, python-multipart 0.0.33, psycopg2 2.9.13, tzdata
+  2026.6. **La #196 così com'era avrebbe rotto la produzione due volte**:
+  non si installava (celery 5.7 vuole `python-dateutil==2.9.0.post0`, noi
+  avevamo `2.9.0` — la sua CI era rossa da giorni), e anche installata il
+  **worker non partiva** (kombu 5.7 vuole redis-py ≥ 6.4, avevamo 5.3.1:
+  niente promemoria né conferme). I test non vedono il secondo problema
+  perché non collegano il worker a Redis: trovato avviando l'immagine vera
+  con `worker-start.sh`. redis-py → 7.4.1 (kombu < 9, `limits` < 8).
+  Provato: suite 1062, migration da vuoto + check, worker vero che esegue
+  promemoria e auguri via Redis, limitatore su Redis (401 → 429 al
+  decimo tentativo), nessun errore.
 - [x] **Aggiornamenti dipendenze: sessione mensile** (2026-11-12, 1.5.5).
   Dependabot apre le PR di routine il primo del mese invece di ogni lunedì;
   l'audit delle falle resta settimanale. Pulizia GitHub lo stesso giorno: 43

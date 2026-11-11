@@ -3,6 +3,15 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- La favicon SVG basta alla scheda del browser, non alla schermata Home:
+         iPhone vuole un PNG e Android lo prende dal manifest. Senza, chi
+         salva il portale sul telefono si ritrovava una «N» o una miniatura.
+         Rigenerate da scripts/icone.py. Il manifest non ha start_url di
+         proposito: si riapre dalla pagina salvata, così lo staff che salva
+         il gestionale non finisce sul portale. -->
+    <link rel="icon" href="/favicon.ico" sizes="32x32 48x48" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
     <!-- viewport-fit=cover lets the layout paint under the iOS notch/home bar,
          which the safe-area-inset paddings then compensate for. -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />

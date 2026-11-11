@@ -10,14 +10,11 @@ import { INDIRIZZO, TELEFONO } from '@/config/business'
 import { VERSIONE } from '@/config/version'
 import {
   signIn, clientRegister, verifyEmail, resendVerificationCode,
-  verifyPhone, resendPhoneCode, changePhone,
+  verifyPhone, resendPhoneCode, changePhone, clientForgotPassword,
 } from '@/services/publicApi'
 import { telefonoLeggibile } from '@/utils/telefono'
+import { MIN_PASSWORD } from '@/config/password'
 
-/** Deve corrispondere a `MIN_CLIENT_PASSWORD` in `schemas/client.py`. Il
- *  controllo vero sta sul server — questo esiste perché il 422 di Pydantic
- *  arriva in inglese e non dice quanti caratteri mancano. */
-const MIN_PASSWORD = 10
 
 /** Filtra il `next` della query prima di passarlo a `navigate()`.
  *
@@ -39,7 +36,7 @@ function destinazioneInterna(valore: string | null): string | null {
   return valore
 }
 
-type Mode = 'signin' | 'register' | 'verify' | 'verify-phone'
+type Mode = 'signin' | 'register' | 'verify' | 'verify-phone' | 'forgot'
 
 // Caps the date picker so a future birthday cannot be chosen at all, rather
 // than being rejected only once the form is submitted.
@@ -52,6 +49,7 @@ const TITLES: Record<Mode, { title: string; sub: string }> = {
   // Secondo passo, dopo l'indirizzo: stesso schermo di prima (VerifyForm),
   // testo diverso e un altro paio di funzioni dietro i bottoni.
   'verify-phone': { title: 'Conferma il tuo numero', sub: 'Abbiamo mandato sei cifre su WhatsApp.' },
+  forgot: { title: 'Password dimenticata', sub: 'Ti mandiamo per email un link per sceglierne una nuova.' },
 }
 
 /**
@@ -67,7 +65,10 @@ const TITLES: Record<Mode, { title: string; sub: string }> = {
 export default function LoginPage() {
   const [params] = useSearchParams()
   const [mode, setMode] = useState<Mode>(
-    params.get('registrati') !== null ? 'register' : 'signin'
+    params.get('registrati') !== null ? 'register'
+      // Dalla pagina del reset, quando il link è scaduto: si riparte da qui.
+      : params.get('password-dimenticata') !== null ? 'forgot'
+      : 'signin'
   )
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -324,6 +325,33 @@ export default function LoginPage() {
     }
   }
 
+  /** Manda il link di reset. La risposta del server è la stessa che
+   *  l'indirizzo abbia un account o no — di proposito, per non dire a
+   *  chiunque chi è cliente — quindi anche il messaggio qui è uno solo. */
+  const handleForgot = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+    setNotice('')
+    setLoading(true)
+    try {
+      await clientForgotPassword(email.trim())
+      setNotice(
+        `Se ${email.trim()} è l'indirizzo del tuo account, ti abbiamo mandato un link ` +
+        'per scegliere una nuova password. Vale 2 ore. Se non la trovi, guarda anche ' +
+        'nella cartella Spam.'
+      )
+    } catch (err) {
+      const status = (err as { response?: { status?: number } })?.response?.status
+      setError(
+        status === 429
+          ? 'Hai già chiesto diversi link per questo indirizzo. Riprova fra un\'ora, oppure contatta il salone.'
+          : 'Non siamo riusciti a mandare il link. Riprova fra poco o contatta il salone.'
+      )
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const switchMode = (m: Mode) => {
     setMode(m)
     setError('')
@@ -377,7 +405,17 @@ export default function LoginPage() {
             </p>
           </div>
 
-          {mode === 'verify' || mode === 'verify-phone' ? (
+          {mode === 'forgot' ? (
+            <ForgotForm
+              email={email}
+              setEmail={setEmail}
+              notice={notice}
+              error={error}
+              loading={loading}
+              onSubmit={handleForgot}
+              onBack={() => switchMode('signin')}
+            />
+          ) : mode === 'verify' || mode === 'verify-phone' ? (
             <VerifyForm
               code={code}
               setCode={setCode}
@@ -533,7 +571,16 @@ export default function LoginPage() {
                     </button>
                   </div>
                   {mode === 'register' && (
-                    <p className="text-xs text-ink-3 mt-1.5">Almeno 6 caratteri.</p>
+                    <p className="text-xs text-ink-3 mt-1.5">Almeno {MIN_PASSWORD} caratteri.</p>
+                  )}
+                  {mode === 'signin' && (
+                    <button
+                      type="button"
+                      onClick={() => switchMode('forgot')}
+                      className="mt-1.5 text-[13px] text-primary-dark hover:underline"
+                    >
+                      Password dimenticata?
+                    </button>
                   )}
                 </div>
 
@@ -619,6 +666,76 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+/* ── Password dimenticata ────────────────────────────────────────── */
+
+/**
+ * Chiede il link di reset. Dopo l'invio il modulo resta lì, con l'indirizzo
+ * ancora scritto: chi si accorge di averlo sbagliato lo corregge e rimanda.
+ *
+ * Solo per le clienti: gli accessi dello staff li reimposta l'amministratore
+ * da «Team e accessi», e il server per un indirizzo dello staff non manda
+ * niente — lo si dice, altrimenti un collaboratore aspetta una mail che non
+ * arriverà.
+ */
+function ForgotForm({ email, setEmail, notice, error, loading, onSubmit, onBack }: {
+  email: string
+  setEmail: (v: string) => void
+  notice: string
+  error: string
+  loading: boolean
+  onSubmit: (e: React.FormEvent) => void
+  onBack: () => void
+}) {
+  return (
+    <>
+      <form onSubmit={onSubmit} className="flex flex-col gap-4">
+        <div>
+          <label htmlFor="forgot_email" className="label">Email</label>
+          <input
+            id="forgot_email"
+            type="email"
+            inputMode="email"
+            autoComplete="email"
+            autoCapitalize="none"
+            className="input"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            placeholder="nome@esempio.it"
+            autoFocus
+            required
+          />
+        </div>
+
+        {notice && (
+          <p role="status" className="text-[13px] border-l-2 border-primary bg-primary/[0.08] px-3 py-2.5">
+            {notice}
+          </p>
+        )}
+        <ErrorNote error={error} />
+
+        <button type="submit" disabled={loading} className="btn-primary w-full mt-1">
+          {loading ? (
+            <><Loader2 className="w-4 h-4 animate-spin" /> Invio in corso…</>
+          ) : notice ? 'Manda di nuovo' : 'Mandami il link'}
+        </button>
+      </form>
+
+      <div className="flex flex-col gap-3 border-t border-rule pt-4">
+        <p className="text-[13px] text-ink-3">
+          Lavori nel salone? La tua password la reimposta l'amministratore.
+        </p>
+        <button
+          type="button"
+          onClick={onBack}
+          className="self-start text-[13px] text-ink-3 hover:text-foreground"
+        >
+          Torna all'accesso
+        </button>
+      </div>
+    </>
   )
 }
 

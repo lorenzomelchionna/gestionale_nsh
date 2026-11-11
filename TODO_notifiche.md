@@ -1506,9 +1506,9 @@ quella che si legge non è mai quella aggiornata — quindi ne resta una.
   refresh; dopo il login, richieste admin 200. Tutti devono rientrare una
   volta (Flavia la mattina dopo). I link di reset password e verifica
   email non dipendono dalla chiave (codici casuali nel database).
-- [ ] **Restano da ruotare** (dettaglio in «Sicurezza — incidente Railway»): token Twilio (secondario → promuovere) e
-  chiave Brevo, su backend (il worker andrebbe messo a riferimento come
-  la `SECRET_KEY`); password per le app Gmail del salone, da Flavia.
+- [ ] **Restano da ruotare** (dettaglio in «Sicurezza — incidente Railway»): token Twilio (secondario → promuovere,
+  su backend col worker a riferimento come `SECRET_KEY` e `BREVO_API_KEY`);
+  password per le app Gmail del salone, da Flavia. Brevo fatto il 2026-11-11.
 
 - [ ] **Worker col pool `solo` (1.4.6, 2026-11-10 22:39 UTC)** — controllare
   la memoria fra qualche giorno. Prima: media 7 giorni 180 MB (picco 274)
@@ -1591,8 +1591,15 @@ Da fare (le credenziali vanno considerate lette):
   (scollega tutti: staff e clienti rifanno l'accesso).
 - [ ] Twilio (unica voce viva per Twilio, insieme a Brevo e SMTP qui sotto): token secondario → su Railway (backend + worker) → deploy →
   promuoverlo a primario (il vecchio smette di valere).
-- [ ] Brevo: chiave nuova → su Railway (backend + worker) → deploy →
-  cancellare la vecchia.
+- [x] Brevo: chiave nuova — fatto il 2026-11-11 da Lorenzo. Chiave
+  `gestionale-nsh`, accesso **limitato**: solo «Email transazionali».
+  Messa sul backend da `pbpaste` (mai in chat né nella cronologia); il
+  worker ora la **legge dal backend** (`${{backend.BREVO_API_KEY}}`, anche in
+  `.railway/railway.ts`, plan «up to date»): la prossima rotazione si fa in
+  un posto solo. Verifica: reset password inviato dal backend e arrivato,
+  nessun errore Brevo nei log. Chiave vecchia da eliminare su Brevo
+  (Impostazioni → SMTP e API → Chiavi API). Prima email dal worker
+  (conferma/promemoria) da guardare nei log.
 - [ ] `SMTP_PASSWORD`: le email passano da Brevo, lo SMTP è solo ripiego:
   revocare subito la password per app nell'account Google e togliere la
   variabile.
@@ -2041,6 +2048,16 @@ password" — quella non invalida nessuna sessione.
 ---
 
 ## Funzionalità richieste
+
+- [ ] **Reset password del portale rotto** (trovato il 2026-11-11 provando
+  la chiave Brevo). Il backend manda la mail (`POST
+  /api/public/auth/forgot-password`, e `clientForgotPassword` esiste in
+  `publicApi.ts`), ma nel frontend **manca il pulsante** «Password
+  dimenticata» nella pagina di accesso e **manca la pagina**
+  `/booking/reset-password` a cui punta il link della mail: il link finisce
+  sul catch-all e riporta alla home. Oggi l'unica strada è il salone
+  («Password portale» dalla scheda cliente). Da fare: pulsante + pagina che
+  chiama `POST /auth/reset-password` col token, con test.
 
 Non bloccano il go-live: il gestionale funziona senza. Stanno qui separate
 apposta, così le caselle aperte qui sotto non si confondono con quelle della

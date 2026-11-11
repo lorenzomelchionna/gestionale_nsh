@@ -706,9 +706,9 @@ ancora la Sandbox `+14155238886`), `TWILIO_TEMPLATE_CONFERMA`,
     gestionale: il `200` dice che la richiesta è stata accettata, non che
     il messaggio sia visibile a chi deve rispondere. Stessa voce rimasta
     aperta per il numero ponte il 17 settembre, per lo stesso motivo.
-  - [ ] Decidere quando cancellare/disattivare il numero ponte
-    `+1 689 344-8830` — resta come secondo Sender dello stesso WABA finché
-    non si toglie
+  - [x] ~~Decidere quando cancellare/disattivare il numero ponte~~ —
+    superata il 2026-11-11: non è più un Sender, resta solo il numero a
+    1,15 $/mese. Voce viva in «Risparmio Twilio».
 
   **Deploy confermato**: [PR #119](https://github.com/lorenzomelchionna/gestionale_nsh/pull/119)
   (verifica telefono, questa voce) → `develop`,
@@ -1527,6 +1527,36 @@ quella che si legge non è mai quella aggiornata — quindi ne resta una.
   1.4.7, lettura pubblica dal database 200, admin senza token 401, `www`
   200; worker `solo` pronto.
 
+## Risparmio Twilio — dal resoconto del 2026-11-11
+
+Spesa letta da Twilio (sola lettura): ottobre 26,41 $, novembre 1–11
+6,24 $. Il 90% sono template di conferma e promemoria a ~0,035 $ l'uno
+(0,03 Meta + 0,005 Twilio); il testo libero paga solo i 0,005 di Twilio.
+Le ricariche da 10 € sulla carta sono l'auto-ricarica del credito, non il
+consumo.
+
+- [x] **Testo libero dentro la finestra di 24 ore** (1.5.0, 2026-11-11
+  12:50 UTC). Conferme e promemoria a chi ha scritto da meno di 24 ore
+  (margine 10 minuti) partono col testo del template approvato, parola per
+  parola, come messaggio libero. 78 casi in 42 giorni, ~1,70 $/mese.
+  Prova vera prima del rilascio dal fisso a un telefono di test: `read`,
+  prezzo Meta 0,00 $. Dal vivo dopo il deploy: `/health` 1.5.0, frontend
+  1.5.0, worker `solo` pronto. Nei log: «cliente in finestra: template
+  mandato come testo libero». **Se un template viene modificato e
+  riapprovato**, aggiornare `TESTO_APPROVATO_*` in `app/utils/whatsapp.py`.
+- [ ] **Niente promemoria se la conferma è partita a meno di 24 ore
+  dall'appuntamento** — oggi arrivano entrambi a un'ora di distanza, stesso
+  testo: 109 casi in 42 giorni, ~2,70 $/mese (~4,25 con soglia 48 ore).
+  **In attesa di Flavia.**
+- [x] **Numero USA `+1689…` rilasciato** (2026-11-11, via API, su conferma
+  di Lorenzo) — 1,15 $/mese in meno. Prima del rilascio: nessuna variabile
+  Railway lo citava, non era un sender WhatsApp, webhook solo demo Twilio,
+  nessun uso dal 22/09. Dopo: nessun numero Twilio sull'account, il fisso
+  resta sender ONLINE.
+- Scartati per ora: un messaggio solo per più appuntamenti inseriti insieme
+  (54 conferme a meno di 10 minuti da un'altra allo stesso numero), conferma
+  solo per email, migrazione all'API diretta di Meta.
+
 ## Sicurezza — incidente Railway del 2026-10-21
 
 Railway ha comunicato (email del 22/10, confermata su status.railway.com —
@@ -2312,10 +2342,12 @@ Le due correzioni nate da qui sono nella 1.2.0 (sezione sotto); restano:
   codice l'ha letto un estraneo). La stessa persona si è rifatta due minuti
   dopo come account 41 con il numero giusto, che è quello vero. Il 40 è da
   disattivare.
-- [ ] **Icone del portale mancanti** — `favicon.ico` e
-  `apple-touch-icon*.png` rispondono 404 (si vede nel log di nginx a ogni
-  visita da iPhone): chi salva il portale sulla schermata Home non ha
-  l'icona del salone.
+- [x] **Icone del portale** (2026-11-11) — `favicon.ico`,
+  `apple-touch-icon(-precomposed).png`, `icon-192/512.png`, icona
+  «maskable» per Android e un vero `manifest.webmanifest` (prima rispondeva
+  la pagina del sito). Tutte dal disegno della favicon, rigenerabili con
+  `python3 frontend/scripts/icone.py`. Nginx: cache di un giorno (nome fisso,
+  non `immutable`) e manifest come `application/manifest+json`.
 - [x] ~~**L'audit del lunedì resterà rosso fino al prossimo rilascio**~~ —
   risolto con la 1.2.1 il 2026-10-06: l'esclusione di python-jose è su
   `main`, e l'audit della PR di rilascio è già passato.

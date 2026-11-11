@@ -2348,6 +2348,9 @@ Le due correzioni nate da qui sono nella 1.2.0 (sezione sotto); restano:
   la pagina del sito). Tutte dal disegno della favicon, rigenerabili con
   `python3 frontend/scripts/icone.py`. Nginx: cache di un giorno (nome fisso,
   non `immutable`) e manifest come `application/manifest+json`.
+  **In produzione con la 1.5.1** (2026-11-11 16:58 UTC): tutte le icone 200
+  su `www`, manifest letto (`standalone`, 3 icone), `/health` 1.5.1.
+  Chi aveva già salvato il portale sulla Home deve toglierlo e rimetterlo.
 - [x] ~~**L'audit del lunedì resterà rosso fino al prossimo rilascio**~~ —
   risolto con la 1.2.1 il 2026-10-06: l'esclusione di python-jose è su
   `main`, e l'audit della PR di rilascio è già passato.

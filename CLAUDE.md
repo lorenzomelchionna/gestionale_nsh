@@ -176,8 +176,15 @@ Trigger: push su `develop` (feedback immediato) e pull request verso `develop` o
 
 | Branch | Protezione |
 |--------|-----------|
-| `develop` | nessuna — push diretto libero |
+| `develop` | push diretto libero; **non si può cancellare** (ruleset «develop non si cancella») |
 | `main` | 4 check obbligatori (backend, frontend, migration, **Versione**), validi anche per gli admin. Push diretto impossibile, force push e cancellazione bloccati. Nessuna review richiesta (si può mergiare da soli). |
+
+Dal 2026-11-12 il repository **cancella da solo il branch di una PR appena
+unita** («Automatically delete head branches»): prima ne erano rimasti una
+cinquantina. Le PR di rilascio però partono da `develop`, che senza
+protezione verrebbe cancellato a ogni rilascio — per questo il ruleset qui
+sopra, che vieta solo la cancellazione e lascia libero il push. Se un giorno
+si toglie, va spenta anche la cancellazione automatica.
 
 Il gate sta su `main` perché è il branch che Railway deploya: se `develop` si
 rompe non va offline nulla.

@@ -2505,11 +2505,15 @@ ancora valido».
   `tsc`, build, audit runtime 0, 16 pagine del gestionale senza errori,
   modale nuovo appuntamento coi dati. Le versioni maggiori (React 19, Vite
   8, Tailwind 4, TypeScript 7…) restano fuori: ognuna è un lavoro a sé.
-- [ ] **ESLint non configurato** — `npm run lint` fallisce anche su
-  `develop`: ESLint 9 vuole `eslint.config.js` e il progetto non ne ha uno.
-  La CI non lo esegue, quindi nessuno se n'era accorto. O si scrive la
-  configurazione (e si sistemano gli avvisi che usciranno), o si toglie
-  ESLint e il comando `lint`.
+- [x] **ESLint tolto** (2026-11-12). Non aveva mai funzionato: ESLint 9
+  vuole `eslint.config.js`, il progetto non l'aveva, e la CI non lo
+  eseguiva. Il controllo che conta lo fa `tsc` in CI. Tolti i due pacchetti
+  e il comando `lint`; i tre commenti `eslint-disable` sugli `useEffect`
+  con dipendenze incomplete di proposito sono diventati commenti normali
+  che dicono il perché. Effetto collaterale: `npm audit` a 0 anche sulla
+  catena di build — il `minimatch` moderato arrivava da ESLint. Se un
+  giorno serve (più persone sul codice, bug da dipendenze di `useEffect`),
+  si rimette con `eslint.config.js` e `eslint-plugin-react-hooks`.
 - [x] **Dipendenze Python di novembre** (2026-11-12, sostituisce la #196 di
   Dependabot): uvicorn 0.54, celery/kombu 5.7, alembic 1.20, asyncpg 0.32,
   sentry-sdk 2.74, python-multipart 0.0.33, psycopg2 2.9.13, tzdata
@@ -2523,6 +2527,9 @@ ancora valido».
   Provato: suite 1062, migration da vuoto + check, worker vero che esegue
   promemoria e auguri via Redis, limitatore su Redis (401 → 429 al
   decimo tentativo), nessun errore.
+  **In produzione con la 1.5.6** (2026-11-11 23:49 UTC) insieme alle
+  dipendenze frontend: worker su Celery 5.7 pronto sul Redis di Railway e
+  promemoria delle 00:00 UTC riuscito, `/health` 1.5.6, nessun 5xx.
 - [x] **Aggiornamenti dipendenze: sessione mensile** (2026-11-12, 1.5.5).
   Dependabot apre le PR di routine il primo del mese invece di ogni lunedì;
   l'audit delle falle resta settimanale. Pulizia GitHub lo stesso giorno: 43

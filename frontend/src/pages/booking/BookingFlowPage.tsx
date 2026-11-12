@@ -129,7 +129,7 @@ export default function BookingFlowPage() {
     if (modificaId !== null && !token) {
       navigate(`/login?next=${encodeURIComponent(`/booking/new?modifica=${modificaId}`)}`)
     }
-  }, [modificaId, token]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [modificaId, token]) // `navigate` fuori di proposito: è stabile, conta solo la sessione.
 
   // Si parte da com'è adesso: servizi e collaboratore già scelti, da cambiare
   // o da confermare. Solo se non c'è una bozza, che vince perché è più nuova.

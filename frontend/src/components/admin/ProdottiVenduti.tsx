@@ -59,7 +59,7 @@ export default function ProdottiVenduti({
       .filter(p => !giaScelti.has(p.id))
       .filter(p => !t || p.name.toLowerCase().includes(t) || p.category.toLowerCase().includes(t))
       .slice(0, 8)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // `giaScelti` non è fra le dipendenze: si ricalcola da `righe`, che c'è.
   }, [data, cerca, righe])
 
   const aggiungi = (p: Product) => {

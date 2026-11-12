@@ -3014,14 +3014,10 @@ tutti, non alcune persone.
   Sender il 2026-11-12: nome «New Style Hair», descrizione, categoria
   «Beauty, Spa and Salon», sito, email, logo. Manca solo l'**indirizzo**
   (facoltativo: «Corso Italia, 32 — 83030 Melito Irpino (AV)»).
-- [ ] **Il vecchio `095 441 220` non deve comparire da nessuna parte**
-  (Lorenzo, 2026-11-12). Verificato: nel codice, nel portale e sul sito
-  pubblicato non c'è più, c'è solo `0825 1728148`; non è nemmeno nel
-  database delle impostazioni. Restano i posti che il codice non vede e
-  che può controllare solo chi ha gli accessi — **Flavia**:
-  - scheda Google (Google Maps / Profilo dell'attività);
-  - pagina Facebook e profilo Instagram (contatti e bio);
-  - biglietti da visita, volantini, vetrina.
+- [x] **Il vecchio `095 441 220` non compare più da nessuna parte** —
+  codice, portale e sito verificati il 2026-11-12; scheda Google,
+  Facebook, Instagram e materiale stampato confermati da Flavia lo stesso
+  giorno.
 - [x] ~~**Ordine dei collaboratori nel calendario**~~ — «Vincenzo al
   centro». **Fatto il 2026-09-23.** Non si poteva, e non per
   un'impostazione mancante: `list_collaborators` **non aveva nessun

@@ -2523,6 +2523,9 @@ ancora valido».
   Provato: suite 1062, migration da vuoto + check, worker vero che esegue
   promemoria e auguri via Redis, limitatore su Redis (401 → 429 al
   decimo tentativo), nessun errore.
+  **In produzione con la 1.5.6** (2026-11-11 23:49 UTC) insieme alle
+  dipendenze frontend: worker su Celery 5.7 pronto sul Redis di Railway e
+  promemoria delle 00:00 UTC riuscito, `/health` 1.5.6, nessun 5xx.
 - [x] **Aggiornamenti dipendenze: sessione mensile** (2026-11-12, 1.5.5).
   Dependabot apre le PR di routine il primo del mese invece di ogni lunedì;
   l'audit delle falle resta settimanale. Pulizia GitHub lo stesso giorno: 43

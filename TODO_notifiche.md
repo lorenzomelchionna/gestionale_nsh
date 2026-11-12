@@ -2514,6 +2514,9 @@ ancora valido».
   catena di build — il `minimatch` moderato arrivava da ESLint. Se un
   giorno serve (più persone sul codice, bug da dipendenze di `useEffect`),
   si rimette con `eslint.config.js` e `eslint-plugin-react-hooks`.
+  **In produzione con la 1.5.7** (2026-11-12 08:18 UTC): `/health` e sito
+  1.5.7, nessun 5xx; `develop` di nuovo sopravvissuto alla cancellazione
+  automatica dei branch.
 - [x] **Dipendenze Python di novembre** (2026-11-12, sostituisce la #196 di
   Dependabot): uvicorn 0.54, celery/kombu 5.7, alembic 1.20, asyncpg 0.32,
   sentry-sdk 2.74, python-multipart 0.0.33, psycopg2 2.9.13, tzdata

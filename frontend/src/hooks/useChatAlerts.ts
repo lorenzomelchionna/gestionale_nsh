@@ -68,7 +68,6 @@ export function useChatAlerts() {
     if (!staGuardando) notifica(ultimo, id => navigate(`/admin/chat?c=${id}`))
     // `location` fuori dalle dipendenze di proposito: l'avviso scatta su un
     // messaggio nuovo, non su un cambio di pagina.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, qc, navigate])
 
   const unread = data?.unread ?? 0

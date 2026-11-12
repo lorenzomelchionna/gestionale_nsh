@@ -110,7 +110,7 @@ jobs:
       # `--omit=dev` è il codice che finisce nel browser delle clienti: lì una
       # falla è esposta a chiunque apra il sito, e il job fallisce.
       #
-      # La catena di build (vite, babel, eslint) gira solo su questa macchina e
+      # La catena di build (vite, babel, postcss) gira solo su questa macchina e
       # su questo repository. Conta — una dipendenza di build compromessa
       # riscrive ciò che viene pubblicato — ma non è la stessa urgenza, quindi
       # viene riportata senza far fallire il job.

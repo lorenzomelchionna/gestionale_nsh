@@ -690,7 +690,8 @@ ancora la Sandbox `+14155238886`), `TWILIO_TEMPLATE_CONFERMA`,
   POST.
 
   **Resta aperto**:
-  - [ ] Ticket Twilio per correggere il nome business («New Style Hair»)
+  - [x] ~~Ticket Twilio per correggere il nome business~~ — non serve più:
+    letto dal Sender il 2026-11-12, il nome è «New Style Hair».
   - [x] ~~Confermare **a vista** che una risposta vera della cliente sul
     fisso compaia nella pagina Chat~~ — **confermato il 2026-09-23, dai
     fatti e non da una prova.** Nel database (letto in sola lettura) una
@@ -3007,30 +3008,20 @@ tutti, non alcune persone.
   `tel:` è già giusto. **Provare il link su un telefono vero prima del
   rilascio**: da qui non si verifica, perché `wa.me` risponde 302 verso
   `api.whatsapp.com` anche per numeri inesistenti (provato).
-- [ ] **QR in salone con lo stesso link**, sul bancone. Si lega alla voce
-  «Una pagina per chi arriva dal QR code» qui sotto: possono essere due QR
-  (prenota / scrivici) o una pagina che li offre entrambi. Alternativa
-  ufficiale: QR e short link di Meta (`wa.me/message/CODICE`, con testo
-  precompilato) — da vedere se l'account gestito da Twilio dà accesso a
-  WhatsApp Manager o se va chiesto a Twilio.
-- [ ] **Profilo WhatsApp del fisso vuoto** — letto dal Sender il
-  2026-09-24: nome «Vincenzo Romolo», nessuna descrizione, indirizzo, sito,
-  categoria, logo. Il vecchio numero ponte li aveva. Da compilare come
-  quello (descrizione, «Corso Italia, 32 — 83030 Melito Irpino (AV)»,
-  «Beauty, Spa and Salon», `https://www.newstylehair.it`), così chi apre
-  la chat vede che è il salone. **È pubblico: solo con l'ok di Lorenzo.**
-  Il nome resta al ticket del display name.
-- [ ] **Il vecchio `095 441 220` altrove** — il commit `b426a35` l'ha
-  corretto solo nel portale. Controllare scheda Google, Facebook,
-  Instagram, volantini e biglietti.
-
-### Richieste di Flavia — 2026-09-23 (primo giorno col database vuoto)
-
-Cinque punti, ognuno controllato sul codice prima di decidere se era una
-risposta o un lavoro. Tre avevano una risposta immediata; ma due di quelle
-tre, guardate da vicino, nascondevano un difetto vero, che è registrato qui
-sotto come voce aperta.
-
+- [x] **QR in salone sul bancone** — fatto (confermato da Lorenzo il
+  2026-11-12), porta al portale `https://www.newstylehair.it`.
+- [x] **Profilo WhatsApp del fisso** — compilato da Flavia. Letto dal
+  Sender il 2026-11-12: nome «New Style Hair», descrizione, categoria
+  «Beauty, Spa and Salon», sito, email, logo. Manca solo l'**indirizzo**
+  (facoltativo: «Corso Italia, 32 — 83030 Melito Irpino (AV)»).
+- [ ] **Il vecchio `095 441 220` non deve comparire da nessuna parte**
+  (Lorenzo, 2026-11-12). Verificato: nel codice, nel portale e sul sito
+  pubblicato non c'è più, c'è solo `0825 1728148`; non è nemmeno nel
+  database delle impostazioni. Restano i posti che il codice non vede e
+  che può controllare solo chi ha gli accessi — **Flavia**:
+  - scheda Google (Google Maps / Profilo dell'attività);
+  - pagina Facebook e profilo Instagram (contatti e bio);
+  - biglietti da visita, volantini, vetrina.
 - [x] ~~**Ordine dei collaboratori nel calendario**~~ — «Vincenzo al
   centro». **Fatto il 2026-09-23.** Non si poteva, e non per
   un'impostazione mancante: `list_collaborators` **non aveva nessun

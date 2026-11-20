@@ -79,6 +79,18 @@ def busy_slot_offsets(services: Sequence) -> List[int]:
     return offsets
 
 
+def salone_chiuso(cfg: Optional[BookingConfig], giorno: date) -> bool:
+    """Se `giorno` cade in una delle chiusure per data del salone.
+
+    Le date sono stringhe ISO nel JSON: confrontarle come stringhe ordina
+    giusto, e risparmia di convertirle a ogni giorno del calendario.
+    """
+    if cfg is None or not cfg.closed_dates:
+        return False
+    g = giorno.isoformat()
+    return any(c["dal"] <= g <= c["al"] for c in cfg.closed_dates)
+
+
 async def get_available_slots(
     db: AsyncSession,
     collaborator_id: int,
@@ -101,6 +113,11 @@ async def get_available_slots(
     # 1. Load booking config
     cfg_result = await db.execute(select(BookingConfig).limit(1))
     cfg = cfg_result.scalar_one_or_none()
+    # Salone chiuso quel giorno: vale per tutti i collaboratori e per ogni
+    # strada che passa di qui — calendario del portale, elenco degli orari,
+    # controllo della prenotazione, suggerimenti del gestionale.
+    if salone_chiuso(cfg, target_date):
+        return []
     slot_minutes = cfg.slot_duration_minutes if cfg else 30
     min_advance_hours = cfg.min_advance_hours if cfg else 2
 

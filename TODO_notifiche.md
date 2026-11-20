@@ -2052,6 +2052,20 @@ password" — quella non invalida nessuna sessione.
 
 ## Funzionalità richieste
 
+- [x] **Chiusure del salone per data** (2026-11-20). In Impostazioni,
+  «Chiusure per data»: giorni singoli o periodi (ferie, ponti, festività in
+  cui il salone non apre), con una nota. In quei giorni il portale non dà
+  orari a nessun collaboratore — calendario, elenco orari e prenotazione —
+  e nel «Nuovo appuntamento» del gestionale la data è barrata come la
+  domenica. Nessuna festività è chiusa di default: il salone non è detto
+  che chiuda (Lorenzo). Prima l'unico modo era un'assenza per ogni
+  collaboratore.
+- [ ] **Natale: alzare «Anticipo massimo» e segnare le chiusure** — con 30
+  giorni, a fine novembre le clienti non arrivano alla settimana di Natale.
+  Flavia: Impostazioni → «Anticipo massimo (giorni)» (es. 60), e in
+  «Chiusure per data» i giorni in cui il salone è chiuso (25 e 26
+  dicembre? 1 e 6 gennaio?). Il 26 dicembre 2026 è sabato.
+
 - [x] **Reset password del portale** (trovato rotto il 2026-11-11 provando
   la chiave Brevo, sistemato lo stesso giorno). Il backend mandava la mail
   ma mancavano il pulsante «Password dimenticata?» nella pagina di accesso

@@ -16,7 +16,7 @@ import {
   createClient, getAbsencesInRange, getExtraDaysInRange,
 } from '@/services/api'
 import { errorText } from '@/components/admin/ClientFormSheet'
-import type { Absence, Appointment, Client, Collaborator, ExtraWorkDay } from '@/types'
+import type { Absence, Appointment, ChiusuraSalone, Client, Collaborator, ExtraWorkDay } from '@/types'
 import Sheet from '@/components/ui/Sheet'
 import { EmptyState, Segmented } from '@/components/ui'
 import clsx from 'clsx'
@@ -642,6 +642,7 @@ export default function CalendarPage() {
           initialSlot={newApptSlot}
           collaborators={collaborators}
           closedWeekdays={bookingConfig?.closed_weekdays ?? [0, 1]}
+          closedDates={bookingConfig?.closed_dates ?? []}
           onClose={() => { setShowCreateModal(false); setNewApptSlot(null) }}
           onCreated={() => { invalidate(); setShowCreateModal(false); setNewApptSlot(null) }}
         />
@@ -1661,10 +1662,11 @@ function AppointmentModal({
 
 // ── Create appointment modal ──────────────────────────────────────
 
-function CreateAppointmentModal({ initialSlot, collaborators, closedWeekdays, onClose, onCreated }: {
+function CreateAppointmentModal({ initialSlot, collaborators, closedWeekdays, closedDates, onClose, onCreated }: {
   initialSlot: { date: Date; collaboratorId: number } | null
   collaborators: Collaborator[]
   closedWeekdays: number[]
+  closedDates: ChiusuraSalone[]
   onClose: () => void
   onCreated: () => void
 }) {
@@ -1850,6 +1852,10 @@ function CreateAppointmentModal({ initialSlot, collaborators, closedWeekdays, on
     const dow = d.getDay() // 0=Sun … 6=Sat
     // Salon-wide closed days from config
     if (closedWeekdays.includes(dow)) return true
+    // Chiusure per data (ferie, ponti): stesse stringhe "yyyy-MM-dd" del
+    // backend, quindi il confronto fra stringhe ordina giusto.
+    const iso = format(d, 'yyyy-MM-dd')
+    if (closedDates.some(c => c.dal <= iso && iso <= c.al)) return true
     // Only an absence without hours closes the day. An hourly permit used to
     // count too, which disabled the whole day in the picker: a two-hour break
     // made the collaborator unbookable from here until midnight.

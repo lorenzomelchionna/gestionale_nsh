@@ -2059,7 +2059,8 @@ password" — quella non invalida nessuna sessione.
   e nel «Nuovo appuntamento» del gestionale la data è barrata come la
   domenica. Nessuna festività è chiusa di default: il salone non è detto
   che chiuda (Lorenzo). Prima l'unico modo era un'assenza per ogni
-  collaboratore.
+  collaboratore. **In produzione con la 1.6.0** (2026-11-20 15:33 UTC):
+  migration applicata, calendario del portale 200, nessun 5xx.
 - [ ] **Natale: alzare «Anticipo massimo» e segnare le chiusure** — con 30
   giorni, a fine novembre le clienti non arrivano alla settimana di Natale.
   Flavia: Impostazioni → «Anticipo massimo (giorni)» (es. 60), e in

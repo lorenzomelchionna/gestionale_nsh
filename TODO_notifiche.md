@@ -2069,9 +2069,11 @@ password" — quella non invalida nessuna sessione.
   di Twilio (firma verificata, va solo avanti, codici d'errore in parole).
   Righe cancellate dopo **6 mesi** (attività notturna). Prende il posto di
   `communications`, tabella mai riempita da nessun codice.
-  **Da fare dopo il rilascio:** `railway config apply` per
-  `TWILIO_STATUS_CALLBACK_URL` (backend + worker), senza la quale lo stato
-  resta «inviato».
+  **In produzione con la 1.7.0** (2026-11-20 16:42 UTC); `railway config
+  apply` per `TWILIO_STATUS_CALLBACK_URL` fatto alle 16:49 (solo le due
+  variabili, plan poi «up to date»); primi callback di Twilio arrivati con
+  204, firma valida. «Letto» = spunte blu: chi ha tolto le conferme di
+  lettura resta «Consegnato» anche se l'ha letto.
 - [ ] **Il gestionale è più largo dello schermo a 1024 px** — trovato il
   2026-11-20: su ogni pagina (Appuntamenti, Clienti, Cassa…) il contenitore
   principale è 1217 px su 1024, quindi su un tablet in orizzontale o una

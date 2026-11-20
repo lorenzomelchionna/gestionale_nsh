@@ -86,6 +86,34 @@ class TestCalendar:
         assert per_day.status_code == 200
         assert len(per_day.json()) == free_day["slots"]
 
+    @pytest.mark.parametrize("giorni", [40, 200])
+    async def test_nessun_tetto_in_avanti(
+        self, client, booking_config, collaborator, service, giorni
+    ):
+        """Fino al 2026-11-20 oltre i 30 giorni il calendario dava tutto a
+        zero e l'elenco orari rispondeva 400: a fine novembre la settimana di
+        Natale non si poteva prenotare. Ora i giorni lontani si comportano
+        come quelli vicini, nel calendario e nell'elenco degli orari."""
+        start = date.today() + timedelta(days=giorni)
+        end = start + timedelta(days=6)
+        cal = await client.get(
+            CALENDAR, params=_params(service.id, collaborator.id, start, end)
+        )
+        assert cal.status_code == 200, cal.text
+        liberi = [d for d in cal.json() if d["slots"] > 0]
+        assert liberi, f"nessun giorno libero fra {giorni} giorni"
+
+        per_day = await client.get(
+            "/api/public/availability",
+            params={
+                "service_id": service.id,
+                "collaborator_id": collaborator.id,
+                "target_date": liberi[0]["date"],
+            },
+        )
+        assert per_day.status_code == 200, per_day.text
+        assert len(per_day.json()) == liberi[0]["slots"]
+
     async def test_past_days_are_empty(
         self, client, booking_config, collaborator, service
     ):

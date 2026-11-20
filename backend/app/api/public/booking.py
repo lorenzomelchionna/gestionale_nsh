@@ -256,11 +256,10 @@ async def public_availability(
     if cfg and not cfg.is_enabled:
         raise HTTPException(status_code=403, detail="Prenotazione online disabilitata")
 
-    # Validate max advance
-    if cfg:
-        max_date = oggi_salone() + timedelta(days=cfg.max_advance_days)
-        if target_date > max_date:
-            raise HTTPException(status_code=400, detail="Data troppo lontana nel futuro")
+    # Nessun tetto in avanti: fino al 2026-11-20 c'era `max_advance_days`
+    # (30 giorni), e a fine novembre le clienti non arrivavano alla settimana
+    # di Natale. Quel che non si può prenotare lo dicono gli orari, le
+    # assenze e i giorni di chiusura, non una distanza fissa da oggi.
 
     services = await _servizi_richiesti(db, service_id, service_ids)
     await _bookable_collaborator(db, collaborator_id, [s.id for s in services])
@@ -318,12 +317,11 @@ async def public_availability_calendar(
     # range, so the calendar can still render those days as unavailable instead
     # of the month appearing to end early.
     min_day = today
-    max_day = today + timedelta(days=cfg.max_advance_days) if cfg else None
 
     out: List[DayAvailability] = []
     day = start_date
     while day <= end_date:
-        if day < min_day or (max_day and day > max_day):
+        if day < min_day:
             out.append(DayAvailability(date=day, slots=0))
         else:
             slots = await get_available_slots(
@@ -386,11 +384,6 @@ async def valida_prenotazione(
         istante(start.date(), start.time()) if start.tzinfo is None
         else start.astimezone(timezone.utc)
     )
-
-    if cfg:
-        max_date = oggi_salone() + timedelta(days=cfg.max_advance_days)
-        if start.date() > max_date:
-            raise HTTPException(status_code=400, detail="Data troppo lontana nel futuro")
 
     # Same figure the availability endpoints use, summed because a booking may
     # carry several services ("taglio + barba" is two blocks, not one).

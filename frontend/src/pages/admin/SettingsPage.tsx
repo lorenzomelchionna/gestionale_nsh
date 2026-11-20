@@ -59,7 +59,6 @@ export default function SettingsPage() {
   const [form, setForm] = useState({
     is_enabled: true,
     min_advance_hours: 2,
-    max_advance_days: 30,
     min_cancel_hours: 24,
     slot_duration_minutes: 30,
     closed_weekdays: [0, 1] as number[],
@@ -74,7 +73,6 @@ export default function SettingsPage() {
       setForm({
         is_enabled: config.is_enabled,
         min_advance_hours: config.min_advance_hours,
-        max_advance_days: config.max_advance_days,
         min_cancel_hours: config.min_cancel_hours,
         slot_duration_minutes: config.slot_duration_minutes,
         closed_weekdays: config.closed_weekdays ?? [0, 1],
@@ -127,11 +125,6 @@ export default function SettingsPage() {
               <input className="input tabular-nums" type="number" min="0" max="72"
                 value={form.min_advance_hours}
                 onChange={e => set('min_advance_hours', Number(e.target.value))} />
-            </Field>
-            <Field label="Anticipo massimo (giorni)" hint="Es: 30 = prenotabile fino a 30gg avanti">
-              <input className="input tabular-nums" type="number" min="1" max="365"
-                value={form.max_advance_days}
-                onChange={e => set('max_advance_days', Number(e.target.value))} />
             </Field>
             <Field label="Preavviso cancellazione (ore)" hint="Es: 24 = cancellazione con 24h di anticipo">
               <input className="input tabular-nums" type="number" min="0" max="168"

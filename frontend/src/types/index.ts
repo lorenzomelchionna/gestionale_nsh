@@ -255,7 +255,6 @@ export interface BookingConfig {
   id: number
   is_enabled: boolean
   min_advance_hours: number
-  max_advance_days: number
   min_cancel_hours: number
   slot_duration_minutes: number
   closed_weekdays: number[]

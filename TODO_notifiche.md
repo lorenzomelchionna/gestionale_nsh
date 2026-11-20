@@ -2052,6 +2052,18 @@ password" — quella non invalida nessuna sessione.
 
 ## Funzionalità richieste
 
+- [x] **Prenotazioni senza tetto in avanti** (2026-11-20, richiesta di
+  Lorenzo). C'era `max_advance_days` (30 giorni, in Impostazioni come
+  «Anticipo massimo»): a fine novembre le clienti non arrivavano alla
+  settimana di Natale. Tolto dai tre posti in cui valeva (calendario del
+  portale, elenco orari, prenotazione), dalle impostazioni e dal database
+  (migration `d8f3a6c21b57`).
+- [ ] **Festività e chiusure per data** — il salone ha solo i giorni chiusi
+  della settimana e le assenze dei singoli collaboratori: **25 e 26
+  dicembre, 1 e 6 gennaio risultano prenotabili** (il 26 è sabato). Con il
+  tetto tolto si aprono tutte le festività dell'anno e le ferie non ancora
+  inserite. Intanto: assenze per ogni collaboratore in quei giorni.
+
 - [x] **Reset password del portale** (trovato rotto il 2026-11-11 provando
   la chiave Brevo, sistemato lo stesso giorno). Il backend mandava la mail
   ma mancavano il pulsante «Password dimenticata?» nella pagina di accesso

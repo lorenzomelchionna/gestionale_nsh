@@ -120,16 +120,20 @@ class TestSoloGliSlotOfferti:
             start, start + timedelta(hours=1), expect=409,
         )
 
-    async def test_troppo_avanti_nel_futuro_e_rifiutato(
-        self, client, db, booking_config, client_tokens, collaborator, service
+    @pytest.mark.parametrize("giorni", [45, 200])
+    async def test_si_prenota_anche_lontano_nel_futuro(
+        self, client, db, booking_config, client_tokens, collaborator, service, giorni
     ):
-        far = datetime.now(timezone.utc) + timedelta(days=booking_config.max_advance_days + 10)
+        """Nessun tetto in avanti (2026-11-20). Con i vecchi 30 giorni, a fine
+        novembre la settimana di Natale non era prenotabile: 45 giorni è
+        quel caso, 200 dice che non c'è un tetto più largo al suo posto."""
+        far = datetime.now(timezone.utc) + timedelta(days=giorni)
         while far.weekday() == 6:
             far += timedelta(days=1)
         start = _at(10, 0, far.date())
         await _book(
             client, client_tokens, collaborator, [service.id],
-            start, start + timedelta(hours=1), expect=400,
+            start, start + timedelta(hours=1), expect=201,
         )
 
     async def test_non_si_prenota_sopra_un_appuntamento_esistente(

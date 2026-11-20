@@ -30,7 +30,6 @@ async def seed():
         cfg = BookingConfig(
             is_enabled=True,
             min_advance_hours=2,
-            max_advance_days=30,
             min_cancel_hours=24,
             slot_duration_minutes=30,
         )

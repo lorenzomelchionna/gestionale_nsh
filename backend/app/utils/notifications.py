@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.booking_config import BookingConfig
 from app.models.client import Client
 from app.services.chat import finestra_aperta
+from app.services.registro import invio
 from app.utils import email as email_util
 from app.utils import whatsapp as wa_util
 from app.utils.tempo import adesso
@@ -81,6 +82,13 @@ async def notify_booking_confirmation(db: AsyncSession, appointment) -> bool:
     if not client:
         return False
     consegnata = False
+    with invio("conferma", client_id=client.id, appointment_id=appointment.id):
+        consegnata = await _conferma(db, cfg, client, appointment)
+    return consegnata
+
+
+async def _conferma(db, cfg, client, appointment) -> bool:
+    consegnata = False
     if client.email:
         try:
             await email_util.send_booking_confirmation_email(appointment)
@@ -114,6 +122,11 @@ async def notify_appointment_reminder(db: AsyncSession, appointment) -> bool:
     if not client:
         return True
 
+    with invio("promemoria", client_id=client.id, appointment_id=appointment.id):
+        return await _promemoria(db, cfg, client, appointment)
+
+
+async def _promemoria(db, cfg, client, appointment) -> bool:
     tentato = consegnato = False
     if client.email:
         tentato = True
@@ -152,7 +165,8 @@ async def notify_staff_new_booking(db: AsyncSession, appointment) -> list[str]:
     sent: list[str] = []
     for address in await _indirizzi_staff(db, appointment.collaborator):
         try:
-            await email_util.send_new_booking_staff_email(address, appointment)
+            with invio("avviso_nuova_prenotazione", appointment_id=appointment.id):
+                await email_util.send_new_booking_staff_email(address, appointment)
             sent.append(address)
         except Exception:
             _fallita("nuova_prenotazione_staff", "email", id_appuntamento=appointment.id)
@@ -194,7 +208,8 @@ async def notify_staff_change_request(db: AsyncSession, nuovo, vecchio) -> list[
     sent: list[str] = []
     for address in await _indirizzi_staff(db, vecchio.collaborator, nuovo.collaborator):
         try:
-            await email_util.send_change_request_staff_email(address, nuovo, vecchio)
+            with invio("avviso_modifica", appointment_id=nuovo.id):
+                await email_util.send_change_request_staff_email(address, nuovo, vecchio)
             sent.append(address)
         except Exception:
             _fallita("richiesta_modifica_staff", "email", id_appuntamento=nuovo.id)
@@ -206,7 +221,8 @@ async def notify_staff_client_cancellation(db: AsyncSession, appointment, tipo: 
     sent: list[str] = []
     for address in await _indirizzi_staff(db, appointment.collaborator):
         try:
-            await email_util.send_client_cancellation_staff_email(address, appointment, tipo)
+            with invio("avviso_annullamento", appointment_id=appointment.id):
+                await email_util.send_client_cancellation_staff_email(address, appointment, tipo)
             sent.append(address)
         except Exception:
             _fallita("annullamento_cliente_staff", "email", id_appuntamento=appointment.id)
@@ -229,7 +245,8 @@ async def notify_birthday(db: AsyncSession, client) -> None:
     """
     if client.email:
         try:
-            await email_util.send_birthday_greeting(client)
+            with invio("compleanno", client_id=client.id):
+                await email_util.send_birthday_greeting(client)
         except Exception:
             _fallita("compleanno", "email", id_cliente=client.id)
 
@@ -259,7 +276,8 @@ async def notify_password_reset(
     first_name = client.first_name if client else ""
 
     try:
-        await email_util.send_password_reset_email(account.email, first_name, reset_url)
+        with invio("reset_password", client_id=client.id if client else None):
+            await email_util.send_password_reset_email(account.email, first_name, reset_url)
     except Exception:
         _fallita("reset_password", "email", id_account=account.id)
 
@@ -276,6 +294,11 @@ async def notify_custom(
     Returns (email_ok, wa_ok) — True if a real send happened on that channel.
     """
     cfg = await _get_config(db)
+    with invio("messaggio_manuale", client_id=client.id):
+        return await _personalizzato(cfg, client, subject, body, channel)
+
+
+async def _personalizzato(cfg, client, subject, body, channel) -> tuple[bool, bool]:
     email_ok = False
     wa_ok = False
 

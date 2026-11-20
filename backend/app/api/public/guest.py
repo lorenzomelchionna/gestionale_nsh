@@ -31,6 +31,7 @@ from app.services import guest_verification
 from app.services.chat import collega_conversazione
 from app.utils.nomi import chiave_nome
 from app.utils.whatsapp import send_verification_code_whatsapp
+from app.services.registro import invio
 
 router = APIRouter(prefix="/guest", tags=["Public Booking"])
 
@@ -93,7 +94,8 @@ async def request_code(
     await db.commit()
 
     try:
-        await send_verification_code_whatsapp(payload.phone, code)
+        with invio("codice_ospite"):
+            await send_verification_code_whatsapp(payload.phone, code)
     except Exception:
         log.exception(
             "invio del codice per prenotazione senza account fallito",

@@ -8,6 +8,7 @@ from email.mime.multipart import MIMEMultipart
 import httpx
 from app.config import settings
 from app.logging_config import maschera_email
+from app.services.registro import html_in_testo, registra
 from app.utils.tempo import ora_salone
 
 log = logging.getLogger("nsh.email")
@@ -40,7 +41,7 @@ def _resolve_ipv4(host: str) -> str:
     return socket.getaddrinfo(host, None, socket.AF_INET)[0][4][0]
 
 
-async def _send_via_brevo(to: str, subject: str, html_body: str) -> None:
+async def _send_via_brevo(to: str, subject: str, html_body: str) -> str | None:
     """Send through Brevo's transactional email HTTP API (works behind SMTP blocks)."""
     payload = {
         "sender": {"name": settings.EMAILS_FROM_NAME, "email": settings.EMAILS_FROM_EMAIL},
@@ -57,6 +58,10 @@ async def _send_via_brevo(to: str, subject: str, html_body: str) -> None:
         resp = await client.post(BREVO_ENDPOINT, json=payload, headers=headers)
     if resp.status_code not in (200, 201, 202):
         raise RuntimeError(f"Brevo error {resp.status_code}: {resp.text}")
+    try:
+        return resp.json().get("messageId")
+    except ValueError:
+        return None
 
 
 def _send_via_smtp(to: str, subject: str, html_body: str) -> None:
@@ -79,14 +84,28 @@ def _send_via_smtp(to: str, subject: str, html_body: str) -> None:
 
 
 async def send_email(to: str, subject: str, html_body: str) -> None:
-    # Prefer Brevo HTTP API (HTTPS is not blocked on cloud hosts).
-    if settings.BREVO_API_KEY:
-        await _send_via_brevo(to, subject, html_body)
-        return
-    # Fallback to SMTP (e.g. local dev).
-    if settings.SMTP_USER:
-        _send_via_smtp(to, subject, html_body)
-        return
+    """Spedisce e scrive nel registro dei messaggi, riuscito o no.
+
+    Il registro ha il testo leggibile, non l'HTML: è quello che serve a chi
+    cerca «cosa le abbiamo scritto», e decide `registro.TIPI_CON_TESTO` se
+    conservarlo.
+    """
+    voce = dict(canale="email", destinatario=to, oggetto=subject, testo=html_in_testo(html_body))
+    try:
+        # Prefer Brevo HTTP API (HTTPS is not blocked on cloud hosts).
+        if settings.BREVO_API_KEY:
+            id_brevo = await _send_via_brevo(to, subject, html_body)
+            await registra(**voce, stato="inviato", id_fornitore=id_brevo)
+            return
+        # Fallback to SMTP (e.g. local dev).
+        if settings.SMTP_USER:
+            _send_via_smtp(to, subject, html_body)
+            await registra(**voce, stato="inviato")
+            return
+    except Exception as exc:
+        await registra(**voce, stato="errore", errore=str(exc))
+        raise
+    await registra(**voce, stato="errore", errore="Nessun canale email configurato")
     # `WARNING` e non una riga informativa: qui non c'è nessuno stub, c'è
     # un'email che non parte. In locale è il comportamento voluto, in
     # produzione vuol dire che né Brevo né SMTP sono configurati e che ogni

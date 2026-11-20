@@ -6,12 +6,12 @@ import type { Client } from '@/types'
 import Sheet from '@/components/ui/Sheet'
 
 /** Nomi leggibili per le tabelle che la fusione sposta. Chi preme il pulsante
- *  non deve sapere che esiste una tabella `communications`. */
+ *  non deve sapere che esiste una tabella `registro_messaggi`. */
 const ETICHETTE: Record<string, string> = {
   appointments: 'appuntamenti',
   payments: 'pagamenti',
   waitlist_entries: 'voci in lista d’attesa',
-  communications: 'messaggi inviati',
+  registro_messaggi: 'messaggi inviati',
   conversations: 'conversazioni WhatsApp',
   gift_cards: 'buoni regalo acquistati',
 }

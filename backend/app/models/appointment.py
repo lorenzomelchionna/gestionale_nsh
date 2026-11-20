@@ -108,7 +108,7 @@ def appointment_detail_loads():
 
     A function and not a module constant: `selectinload` inspects the mapper,
     which configures the whole registry, and at import time of this module the
-    later models are not defined yet — `Client.communications` would fail to
+    later models are not defined yet — `Client.messaggi` would fail to
     resolve. Called from inside a request, everything is mapped.
     """
     return (

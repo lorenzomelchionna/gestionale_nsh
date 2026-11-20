@@ -115,6 +115,15 @@ async def session_factory(engine) -> async_sessionmaker:
     return async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 
+@pytest.fixture(autouse=True)
+def registro_nel_db_di_test(monkeypatch, session_factory):
+    """Il registro dei messaggi scrive con una sessione sua (`services.registro`):
+    senza questo, ogni test che manda un messaggio finto scriverebbe nel
+    database di sviluppo indicato da `DATABASE_URL`."""
+    from app.services import registro
+    monkeypatch.setattr(registro, "_fabbrica", session_factory)
+
+
 @pytest_asyncio.fixture
 async def db(session_factory) -> AsyncIterator[AsyncSession]:
     """

@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Calendar, Users, Scissors, Package,
   DollarSign, TrendingDown, Settings, LogOut, X,
   UserCircle, Clock, MessageSquare, ClipboardList, ShieldCheck,
-  PanelLeftClose, PanelLeft, Search, CalendarSearch, Gift,
+  PanelLeftClose, PanelLeft, Search, CalendarSearch, Gift, ScrollText,
 } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import { useUIStore } from '@/store/uiStore'
@@ -62,6 +62,7 @@ const adminNav: NavGroup[] = [
     title: 'Gestione',
     items: [
       { to: '/admin/messaging', icon: MessageSquare, label: 'Messaggi' },
+      { to: '/admin/registro',  icon: ScrollText,    label: 'Registro messaggi' },
       { to: '/admin/team',      icon: ShieldCheck,   label: 'Team e accessi' },
       { to: '/admin/settings',  icon: Settings,      label: 'Impostazioni' },
     ],

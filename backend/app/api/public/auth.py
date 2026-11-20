@@ -34,6 +34,7 @@ from app.utils.auth import (
 from app.utils.nomi import chiave_nome
 from app.utils.email import send_verification_code_email
 from app.utils.whatsapp import send_verification_code_whatsapp
+from app.services.registro import invio
 
 router = APIRouter(prefix="/auth", tags=["Client Auth"])
 
@@ -52,9 +53,10 @@ async def _send_code(db: AsyncSession, account: ClientAccount, first_name: str) 
     code = await issue_code(account)
     await db.flush()
     try:
-        await send_verification_code_email(
-            account.email, first_name, code, CODE_TTL_MINUTES
-        )
+        with invio("codice_verifica"):
+            await send_verification_code_email(
+                account.email, first_name, code, CODE_TTL_MINUTES
+            )
         return True
     except Exception:
         # `exception` e non `error`: la causa vera sta nello stack (SMTP che
@@ -90,7 +92,8 @@ async def _send_phone_code(db: AsyncSession, account: ClientAccount) -> tuple[bo
     code = await phone_verification.issue_code(account)
     await db.flush()
     try:
-        await send_verification_code_whatsapp(numero, code)
+        with invio("codice_verifica"):
+            await send_verification_code_whatsapp(numero, code)
         return True, numero
     except Exception:
         log.exception(

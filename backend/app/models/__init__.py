@@ -6,7 +6,7 @@ from app.models.appointment import Appointment, AppointmentService
 from app.models.product import Product, ProductMovement
 from app.models.payment import Payment
 from app.models.expense import Expense
-from app.models.communication import Communication
+from app.models.registro_messaggi import RegistroMessaggio
 from app.models.absence import Absence
 from app.models.booking_config import BookingConfig
 from app.models.extra_day import CollaboratorExtraDay
@@ -31,7 +31,7 @@ __all__ = [
     "ProductMovement",
     "Payment",
     "Expense",
-    "Communication",
+    "RegistroMessaggio",
     "Absence",
     "BookingConfig",
     "CollaboratorExtraDay",

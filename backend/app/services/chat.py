@@ -19,6 +19,7 @@ from app.models.chat import (
     ChatMessage, Conversation, MessageDirection, MessageStatus,
 )
 from app.models.client import Client, scheda_in_uso
+from app.services.registro import invio, registra
 
 REPLY_WINDOW_HOURS = 24
 
@@ -298,7 +299,8 @@ async def send_reply(
     db.add(message)
 
     try:
-        sid = await _dispatch_whatsapp(conversation.phone, body)
+        with invio("risposta_chat", client_id=conversation.client_id):
+            sid = await _dispatch_whatsapp(conversation.phone, body)
         message.provider_sid = sid
         message.status = MessageStatus.sent
         conversation.last_message_at = datetime.now(timezone.utc)
@@ -315,26 +317,38 @@ async def _dispatch_whatsapp(to_phone: str, body: str) -> Optional[str]:
     if not (settings.TWILIO_ACCOUNT_SID and settings.TWILIO_AUTH_TOKEN
             and settings.TWILIO_WHATSAPP_FROM):
         print(f"[WA STUB] To: {to_phone} | Message: {body}")
+        await registra(
+            canale="whatsapp", destinatario=normalise_phone(to_phone), stato="errore",
+            testo=body, formato="testo_libero", errore="Twilio non configurato",
+        )
         return None
 
     url = (
         f"https://api.twilio.com/2010-04-01/Accounts/"
         f"{settings.TWILIO_ACCOUNT_SID}/Messages.json"
     )
-    async with httpx.AsyncClient() as client:
-        resp = await client.post(
-            url,
-            auth=(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN),
-            data={
-                "From": settings.TWILIO_WHATSAPP_FROM,
-                "To": f"whatsapp:{normalise_phone(to_phone)}",
-                "Body": body,
-            },
-            timeout=15.0,
-        )
+    numero = normalise_phone(to_phone)
+    dati = {"From": settings.TWILIO_WHATSAPP_FROM, "To": f"whatsapp:{numero}", "Body": body}
+    if settings.TWILIO_STATUS_CALLBACK_URL:
+        dati["StatusCallback"] = settings.TWILIO_STATUS_CALLBACK_URL
+    voce = dict(canale="whatsapp", destinatario=numero, testo=body, formato="testo_libero")
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                url,
+                auth=(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN),
+                data=dati,
+                timeout=15.0,
+            )
+    except Exception as exc:
+        await registra(**voce, stato="errore", errore=f"Twilio irraggiungibile: {exc}")
+        raise
     if resp.status_code not in (200, 201):
+        await registra(**voce, stato="errore", errore=f"Twilio {resp.status_code}: {resp.text}")
         raise RuntimeError(f"Twilio error {resp.status_code}: {resp.text}")
-    return resp.json().get("sid")
+    sid = resp.json().get("sid")
+    await registra(**voce, stato="inviato", id_fornitore=sid)
+    return sid
 
 
 async def mark_read(db: AsyncSession, conversation: Conversation) -> None:

@@ -30,6 +30,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.audit import evento
 from app.database import get_db
 from app.services.chat import record_inbound
+from app.services.registro import aggiorna_stato
 from app.utils.twilio_webhook import is_valid_twilio_request
 
 import logging
@@ -154,3 +155,35 @@ async def whatsapp_webhook(
         )
 
     return Response(content=EMPTY_TWIML, media_type="application/xml")
+
+
+@router.post("/stato", status_code=status.HTTP_204_NO_CONTENT)
+async def whatsapp_stato(
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Twilio comunica com'è andato un messaggio partito: consegnato, letto,
+    non consegnato (col codice). Aggiorna la riga del registro dei messaggi.
+
+    Stesse difese del webhook dei messaggi in arrivo, per la stessa ragione:
+    è un indirizzo pubblico, e senza firma chiunque potrebbe segnare come
+    «letto» un promemoria mai arrivato. Il corpo è limitato prima di leggerlo.
+    """
+    corpo = await _corpo_limitato(request)
+    if corpo is None:
+        return Response(status_code=status.HTTP_413_CONTENT_TOO_LARGE)
+
+    async def _rigioca():
+        return {"type": "http.request", "body": corpo, "more_body": False}
+
+    form = await Request(request.scope, _rigioca).form()
+    params = {k: str(v) for k, v in form.items()}
+    if not is_valid_twilio_request(request, params):
+        return Response(status_code=status.HTTP_403_FORBIDDEN)
+
+    sid = params.get("MessageSid") or params.get("SmsSid")
+    if sid:
+        await aggiorna_stato(db, sid, params.get("MessageStatus", ""), params.get("ErrorCode"))
+    # 204 anche per un SID che non conosciamo: Twilio ritenta su ogni errore,
+    # e un messaggio di prima del registro non diventerà mai noto.
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

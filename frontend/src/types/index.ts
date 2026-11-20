@@ -251,6 +251,13 @@ export interface ExtraWorkDay {
 
 // ── BookingConfig ─────────────────────────────────────────────────
 
+/** Un periodo di chiusura del salone, estremi compresi ("yyyy-MM-dd"). */
+export interface ChiusuraSalone {
+  dal: string
+  al: string
+  nota: string
+}
+
 export interface BookingConfig {
   id: number
   is_enabled: boolean
@@ -259,6 +266,7 @@ export interface BookingConfig {
   min_cancel_hours: number
   slot_duration_minutes: number
   closed_weekdays: number[]
+  closed_dates: ChiusuraSalone[]
   whatsapp_enabled: boolean
   whatsapp_reminder_hours: number
   whatsapp_booking_message: string | null

@@ -690,7 +690,8 @@ ancora la Sandbox `+14155238886`), `TWILIO_TEMPLATE_CONFERMA`,
   POST.
 
   **Resta aperto**:
-  - [ ] Ticket Twilio per correggere il nome business («New Style Hair»)
+  - [x] ~~Ticket Twilio per correggere il nome business~~ — non serve più:
+    letto dal Sender il 2026-11-12, il nome è «New Style Hair».
   - [x] ~~Confermare **a vista** che una risposta vera della cliente sul
     fisso compaia nella pagina Chat~~ — **confermato il 2026-09-23, dai
     fatti e non da una prova.** Nel database (letto in sola lettura) una
@@ -2051,6 +2052,20 @@ password" — quella non invalida nessuna sessione.
 
 ## Funzionalità richieste
 
+- [x] **Chiusure del salone per data** (2026-11-20). In Impostazioni,
+  «Chiusure per data»: giorni singoli o periodi (ferie, ponti, festività in
+  cui il salone non apre), con una nota. In quei giorni il portale non dà
+  orari a nessun collaboratore — calendario, elenco orari e prenotazione —
+  e nel «Nuovo appuntamento» del gestionale la data è barrata come la
+  domenica. Nessuna festività è chiusa di default: il salone non è detto
+  che chiuda (Lorenzo). Prima l'unico modo era un'assenza per ogni
+  collaboratore.
+- [ ] **Natale: alzare «Anticipo massimo» e segnare le chiusure** — con 30
+  giorni, a fine novembre le clienti non arrivano alla settimana di Natale.
+  Flavia: Impostazioni → «Anticipo massimo (giorni)» (es. 60), e in
+  «Chiusure per data» i giorni in cui il salone è chiuso (25 e 26
+  dicembre? 1 e 6 gennaio?). Il 26 dicembre 2026 è sabato.
+
 - [x] **Reset password del portale** (trovato rotto il 2026-11-11 provando
   la chiave Brevo, sistemato lo stesso giorno). Il backend mandava la mail
   ma mancavano il pulsante «Password dimenticata?» nella pagina di accesso
@@ -2514,6 +2529,9 @@ ancora valido».
   catena di build — il `minimatch` moderato arrivava da ESLint. Se un
   giorno serve (più persone sul codice, bug da dipendenze di `useEffect`),
   si rimette con `eslint.config.js` e `eslint-plugin-react-hooks`.
+  **In produzione con la 1.5.7** (2026-11-12 08:18 UTC): `/health` e sito
+  1.5.7, nessun 5xx; `develop` di nuovo sopravvissuto alla cancellazione
+  automatica dei branch.
 - [x] **Dipendenze Python di novembre** (2026-11-12, sostituisce la #196 di
   Dependabot): uvicorn 0.54, celery/kombu 5.7, alembic 1.20, asyncpg 0.32,
   sentry-sdk 2.74, python-multipart 0.0.33, psycopg2 2.9.13, tzdata
@@ -3004,30 +3022,16 @@ tutti, non alcune persone.
   `tel:` è già giusto. **Provare il link su un telefono vero prima del
   rilascio**: da qui non si verifica, perché `wa.me` risponde 302 verso
   `api.whatsapp.com` anche per numeri inesistenti (provato).
-- [ ] **QR in salone con lo stesso link**, sul bancone. Si lega alla voce
-  «Una pagina per chi arriva dal QR code» qui sotto: possono essere due QR
-  (prenota / scrivici) o una pagina che li offre entrambi. Alternativa
-  ufficiale: QR e short link di Meta (`wa.me/message/CODICE`, con testo
-  precompilato) — da vedere se l'account gestito da Twilio dà accesso a
-  WhatsApp Manager o se va chiesto a Twilio.
-- [ ] **Profilo WhatsApp del fisso vuoto** — letto dal Sender il
-  2026-09-24: nome «Vincenzo Romolo», nessuna descrizione, indirizzo, sito,
-  categoria, logo. Il vecchio numero ponte li aveva. Da compilare come
-  quello (descrizione, «Corso Italia, 32 — 83030 Melito Irpino (AV)»,
-  «Beauty, Spa and Salon», `https://www.newstylehair.it`), così chi apre
-  la chat vede che è il salone. **È pubblico: solo con l'ok di Lorenzo.**
-  Il nome resta al ticket del display name.
-- [ ] **Il vecchio `095 441 220` altrove** — il commit `b426a35` l'ha
-  corretto solo nel portale. Controllare scheda Google, Facebook,
-  Instagram, volantini e biglietti.
-
-### Richieste di Flavia — 2026-09-23 (primo giorno col database vuoto)
-
-Cinque punti, ognuno controllato sul codice prima di decidere se era una
-risposta o un lavoro. Tre avevano una risposta immediata; ma due di quelle
-tre, guardate da vicino, nascondevano un difetto vero, che è registrato qui
-sotto come voce aperta.
-
+- [x] **QR in salone sul bancone** — fatto (confermato da Lorenzo il
+  2026-11-12), porta al portale `https://www.newstylehair.it`.
+- [x] **Profilo WhatsApp del fisso** — compilato da Flavia. Letto dal
+  Sender il 2026-11-12: nome «New Style Hair», descrizione, categoria
+  «Beauty, Spa and Salon», sito, email, logo. Manca solo l'**indirizzo**
+  (facoltativo: «Corso Italia, 32 — 83030 Melito Irpino (AV)»).
+- [x] **Il vecchio `095 441 220` non compare più da nessuna parte** —
+  codice, portale e sito verificati il 2026-11-12; scheda Google,
+  Facebook, Instagram e materiale stampato confermati da Flavia lo stesso
+  giorno.
 - [x] ~~**Ordine dei collaboratori nel calendario**~~ — «Vincenzo al
   centro». **Fatto il 2026-09-23.** Non si poteva, e non per
   un'impostazione mancante: `list_collaborators` **non aveva nessun

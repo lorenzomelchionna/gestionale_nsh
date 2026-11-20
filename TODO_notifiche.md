@@ -1511,7 +1511,7 @@ quella che si legge non è mai quella aggiornata — quindi ne resta una.
   su backend col worker a riferimento come `SECRET_KEY` e `BREVO_API_KEY`);
   password per le app Gmail del salone, da Flavia. Brevo fatto il 2026-11-11.
 
-- [ ] **Worker col pool `solo` (1.4.6, 2026-11-10 22:39 UTC)** — controllare
+- [x] **Worker col pool `solo` (1.4.6, 2026-11-10 22:39 UTC)** — controllare
   la memoria fra qualche giorno. Prima: media 7 giorni 180 MB (picco 274)
   col pool prefork a un figlio. Misura locale nell'immagine: 121–147 MB con
   il figlio, 124–128 senza. Subito dopo il deploy 133 MB. Con `solo` non
@@ -1522,6 +1522,10 @@ quella che si legge non è mai quella aggiornata — quindi ne resta una.
   `railway`: `get-service-metrics` del worker su 168 ore. **Programmato**:
   attività «nsh-memoria-worker», 2026-11-17 alle 10:00, sola lettura,
   riporta numeri e verdetto.
+  **Controllato il 2026-11-20** (ultime 168 ore): media **148 MB** contro
+  180 MB prima del pool `solo` (−18%), picco 235 MB contro 274, nessuna
+  crescita. Si tiene `solo`. (L'attività programmata per il 17 non è partita
+  perché l'app era chiusa; misura fatta a mano.)
 - [x] **`/docs` e `/openapi.json` solo in sviluppo** (1.4.7, 2026-11-10
   23:02 UTC). Prima rispondevano 200 a chiunque in produzione. Dal vivo
   dopo il deploy: `/docs`, `/redoc`, `/openapi.json` → 404; `/health`

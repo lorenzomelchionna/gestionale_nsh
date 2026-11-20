@@ -20,6 +20,7 @@ import CashPage from '@/pages/admin/CashPage'
 import ExpensesPage from '@/pages/admin/ExpensesPage'
 import SettingsPage from '@/pages/admin/SettingsPage'
 import MessagingPage from '@/pages/admin/MessagingPage'
+import RegistroMessaggiPage from '@/pages/admin/RegistroMessaggiPage'
 import ChatPage from '@/pages/admin/ChatPage'
 import TeamPage from '@/pages/admin/TeamPage'
 import WaitlistPage from '@/pages/admin/WaitlistPage'
@@ -84,6 +85,7 @@ export default function App() {
           <Route path="settings"             element={<RequireAdmin><SettingsPage /></RequireAdmin>} />
           <Route path="team"                 element={<RequireAdmin><TeamPage /></RequireAdmin>} />
           <Route path="messaging"            element={<RequireAdmin><MessagingPage /></RequireAdmin>} />
+          <Route path="registro"             element={<RequireAdmin><RegistroMessaggiPage /></RequireAdmin>} />
           <Route path="waitlist"             element={<RequireAdmin><WaitlistPage /></RequireAdmin>} />
         </Route>
 

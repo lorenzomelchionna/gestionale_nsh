@@ -76,6 +76,10 @@ class Settings(BaseSettings):
     TWILIO_ACCOUNT_SID: str = ""
     TWILIO_AUTH_TOKEN: str = ""
     TWILIO_WHATSAPP_FROM: str = ""   # e.g. "whatsapp:+14155238886"
+    # Dove Twilio comunica consegnato / letto / non consegnato per ogni
+    # messaggio: `https://<backend>/api/public/whatsapp/stato`. Vuoto, il
+    # registro dei messaggi si ferma a «inviato».
+    TWILIO_STATUS_CALLBACK_URL: str = ""
 
     # Template WhatsApp approvati da Meta, uno per tipo di messaggio.
     #

@@ -30,7 +30,7 @@ sparire dei dati se le si tocca nell'ordine sbagliato.
     appointments          RESTRICT, NOT NULL   blocca la cancellazione finché puntano qui
     waitlist_entries      CASCADE,  NOT NULL   sparisce con la scheda: va spostata PRIMA
     payments              SET NULL             diventerebbe un incasso senza cliente
-    communications        SET NULL             storico invii orfano
+    registro_messaggi     SET NULL             i messaggi inviati restano senza nome
     conversations         SET NULL             la chat WhatsApp si stacca
     gift_cards            SET NULL             si perde chi ha comprato il buono
 
@@ -50,7 +50,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.appointment import Appointment
 from app.models.chat import Conversation
 from app.models.client import Client
-from app.models.communication import Communication
+from app.models.registro_messaggi import RegistroMessaggio
 from app.models.gift_card import GiftCard
 from app.models.payment import Payment
 from app.models.waitlist import WaitlistEntry
@@ -67,7 +67,7 @@ TABELLE = (
     ("waitlist_entries", WaitlistEntry, WaitlistEntry.client_id),
     ("appointments", Appointment, Appointment.client_id),
     ("payments", Payment, Payment.client_id),
-    ("communications", Communication, Communication.client_id),
+    ("registro_messaggi", RegistroMessaggio, RegistroMessaggio.client_id),
     ("conversations", Conversation, Conversation.client_id),
     ("gift_cards", GiftCard, GiftCard.purchaser_client_id),
 )

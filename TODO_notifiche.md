@@ -2056,6 +2056,27 @@ password" — quella non invalida nessuna sessione.
 
 ## Funzionalità richieste
 
+- [x] **Registro messaggi** (2026-11-20, richiesta di Lorenzo). Pagina
+  «Registro messaggi» (solo admin, sotto Gestione): ogni email e WhatsApp
+  partito dal gestionale, di qualunque tipo, in tabella cercabile per
+  cliente, numero (anche scritto con gli spazi), email, oggetto, giorno,
+  canale, tipo, stato; tocco su una riga = dettaglio col testo. Si registra
+  nei tre punti in cui un messaggio parte davvero (`whatsapp._invia`,
+  `chat._dispatch_whatsapp`, `email.send_email`), quindi un invio nuovo
+  domani ci finisce da solo. **Codici di verifica, link di reset e codici
+  dei buoni non si salvano** (chiavi d'accesso): elenco dei tipi col testo
+  permesso, non di quelli vietati. Stato di consegna WhatsApp dal callback
+  di Twilio (firma verificata, va solo avanti, codici d'errore in parole).
+  Righe cancellate dopo **6 mesi** (attività notturna). Prende il posto di
+  `communications`, tabella mai riempita da nessun codice.
+  **Da fare dopo il rilascio:** `railway config apply` per
+  `TWILIO_STATUS_CALLBACK_URL` (backend + worker), senza la quale lo stato
+  resta «inviato».
+- [ ] **Il gestionale è più largo dello schermo a 1024 px** — trovato il
+  2026-11-20: su ogni pagina (Appuntamenti, Clienti, Cassa…) il contenitore
+  principale è 1217 px su 1024, quindi su un tablet in orizzontale o una
+  finestra stretta la pagina scorre di lato e il menu sparisce a sinistra.
+
 - [x] **Chiusure del salone per data** (2026-11-20). In Impostazioni,
   «Chiusure per data»: giorni singoli o periodi (ferie, ponti, festività in
   cui il salone non apre), con una nota. In quei giorni il portale non dà
@@ -3080,7 +3101,7 @@ tutti, non alcune persone.
   - [x] ~~**Mettere Vincenzo al centro**~~ — fatto il 2026-09-23 dal
     gestionale. Letto dal portale: Flavia | Vincenzo | Raffaella.
 
-- [ ] **Vedere se un messaggio è arrivato** — domanda di Flavia: «dove vedo
+- [x] ~~**Vedere se un messaggio è arrivato**~~ — risolto dal «Registro messaggi» (2026-11-20): stato consegnato / letto / non consegnato col motivo, per ogni WhatsApp. — domanda di Flavia: «dove vedo
   se al cliente è arrivato il messaggio?». **Nel gestionale oggi da
   nessuna parte.** Per le notifiche automatiche (conferme, promemoria) il
   gestionale non registra niente: la tabella `communications` esiste ma

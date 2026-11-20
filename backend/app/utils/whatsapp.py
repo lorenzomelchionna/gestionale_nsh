@@ -5,6 +5,7 @@ import re
 import httpx
 from app.config import settings
 from app.logging_config import maschera_telefono
+from app.services.registro import registra
 from app.utils.tempo import ora_salone
 
 log = logging.getLogger("nsh.whatsapp")
@@ -65,13 +66,27 @@ def _render(template: str | None, default: str, **kwargs) -> str:
         return default.format(**kwargs)
 
 
-async def _invia(to_phone: str, contenuto: dict[str, str]) -> None:
+async def _invia(
+    to_phone: str,
+    contenuto: dict[str, str],
+    *,
+    testo: str | None = None,
+    formato: str = "testo_libero",
+) -> None:
     """Parte comune fra testo libero e template: configurazione, numero, POST.
 
     `contenuto` porta la sola differenza fra i due — `Body` per il testo
     libero, `ContentSid` più `ContentVariables` per un template approvato.
+
+    `testo` e `formato` servono solo al registro dei messaggi: per un template
+    il testo che la cliente legge non viaggia nella richiesta, lo si ricostruisce
+    da quello approvato.
     """
     if not _is_configured():
+        await registra(
+            canale="whatsapp", destinatario=to_phone, stato="errore",
+            testo=testo, formato=formato, errore="Twilio non configurato",
+        )
         # Il testo del messaggio non entra nel log: contiene il nome della
         # cliente e l'orario del suo appuntamento, cioè esattamente i dati che
         # i log non devono duplicare. Che il messaggio non sia partito si vede
@@ -88,19 +103,39 @@ async def _invia(to_phone: str, contenuto: dict[str, str]) -> None:
         phone = "+" + phone
 
     url = f"https://api.twilio.com/2010-04-01/Accounts/{settings.TWILIO_ACCOUNT_SID}/Messages.json"
-    async with httpx.AsyncClient() as client:
-        resp = await client.post(
-            url,
-            auth=(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN),
-            data={
-                "From": settings.TWILIO_WHATSAPP_FROM,
-                "To": f"whatsapp:{phone}",
-                **contenuto,
-            },
-            timeout=10.0,
+    dati = {"From": settings.TWILIO_WHATSAPP_FROM, "To": f"whatsapp:{phone}", **contenuto}
+    if settings.TWILIO_STATUS_CALLBACK_URL:
+        dati["StatusCallback"] = settings.TWILIO_STATUS_CALLBACK_URL
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                url,
+                auth=(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN),
+                data=dati,
+                timeout=10.0,
+            )
+    except Exception as exc:
+        await registra(
+            canale="whatsapp", destinatario=phone, stato="errore",
+            testo=testo, formato=formato, errore=f"Twilio irraggiungibile: {exc}",
         )
+        raise
     if resp.status_code not in (200, 201):
+        await registra(
+            canale="whatsapp", destinatario=phone, stato="errore",
+            testo=testo, formato=formato, errore=f"Twilio {resp.status_code}: {resp.text}",
+        )
         raise RuntimeError(f"Twilio error {resp.status_code}: {resp.text}")
+    # Il SID serve solo al registro: una risposta che non si legge non deve
+    # far sembrare fallito un messaggio che Twilio ha accettato.
+    try:
+        sid = resp.json().get("sid")
+    except Exception:
+        sid = None
+    await registra(
+        canale="whatsapp", destinatario=phone, stato="inviato",
+        testo=testo, formato=formato, id_fornitore=sid,
+    )
 
 
 async def send_whatsapp(to_phone: str, message: str) -> None:
@@ -116,7 +151,7 @@ async def send_whatsapp(to_phone: str, message: str) -> None:
     `to_phone` in E.164 (es. '+393331234567'). Se Twilio non è configurato,
     scrive un avviso e non manda niente.
     """
-    await _invia(to_phone, {"Body": message})
+    await _invia(to_phone, {"Body": message}, testo=message, formato="testo_libero")
 
 
 async def send_whatsapp_template(
@@ -179,10 +214,15 @@ async def send_whatsapp_template(
         await send_whatsapp(to_phone, ripiego)
         return
 
-    await _invia(to_phone, {
-        "ContentSid": content_sid,
-        "ContentVariables": json.dumps(variabili, ensure_ascii=False),
-    })
+    await _invia(
+        to_phone,
+        {
+            "ContentSid": content_sid,
+            "ContentVariables": json.dumps(variabili, ensure_ascii=False),
+        },
+        testo=_compila(approvato, variabili) if approvato else None,
+        formato="template",
+    )
 
 
 async def send_verification_code_whatsapp(to_phone: str, code: str) -> None:

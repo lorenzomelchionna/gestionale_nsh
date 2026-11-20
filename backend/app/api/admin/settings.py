@@ -39,7 +39,9 @@ async def update_booking_config(
         db.add(cfg)
         await db.flush()
 
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    # `mode="json"`: le date delle chiusure finiscono in una colonna JSON, che
+    # un `date` di Python non lo sa scrivere.
+    for field, value in payload.model_dump(mode="json", exclude_unset=True).items():
         if value is not None:
             setattr(cfg, field, value)
     await db.flush()

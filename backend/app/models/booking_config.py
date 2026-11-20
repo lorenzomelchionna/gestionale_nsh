@@ -27,6 +27,15 @@ class BookingConfig(Base):
     # Salon closed weekdays: list of JS-convention day numbers (0=Sun, 1=Mon … 6=Sat)
     closed_weekdays: Mapped[list] = mapped_column(JSON, default=lambda: [0, 1], nullable=False)
 
+    # Chiusure per data — ferie, ponti, festività in cui il salone non apre:
+    # `[{"dal": "2026-12-25", "al": "2026-12-26", "nota": "Natale"}]`, estremi
+    # compresi. I giorni della settimana qui sopra sono la regola fissa, queste
+    # le eccezioni del calendario. Non ci sono le festività nazionali di
+    # default: il salone non è detto che chiuda (scelta di Lorenzo, 2026-11-20).
+    closed_dates: Mapped[list] = mapped_column(
+        JSON, default=list, server_default="[]", nullable=False
+    )
+
     # WhatsApp reminders
     whatsapp_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     whatsapp_reminder_hours: Mapped[int] = mapped_column(Integer, default=24, nullable=False)

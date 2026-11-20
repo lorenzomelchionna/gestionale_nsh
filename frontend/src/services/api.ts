@@ -3,7 +3,7 @@ import type {
   TokenResponse, User, Collaborator, CollaboratorSchedule,
   Client, Service, Appointment, Product, ProductMovement,
   Payment, Expense, Absence, ExtraWorkDay, BookingConfig, DashboardStats,
-  PaginatedResponse,
+  PaginatedResponse, VoceRegistro,
 } from '@/types'
 
 const API_BASE = import.meta.env.VITE_API_URL || ''
@@ -569,3 +569,14 @@ export const resendGiftCardEmail = (id: number, recipient_email?: string) =>
   ).then(r => r.data)
 
 export default api
+
+// ── Registro messaggi (solo admin) ────────────────────────────────
+
+export const getRegistroMessaggi = (params: {
+  cerca?: string; dal?: string; al?: string; canale?: string
+  tipo?: string; stato?: string; client_id?: number
+  page?: number; page_size?: number
+}) => api.get<PaginatedResponse<VoceRegistro>>('/admin/registro-messaggi', { params }).then(r => r.data)
+
+export const getTipiMessaggio = () =>
+  api.get<Record<string, string>>('/admin/registro-messaggi/tipi').then(r => r.data)

@@ -469,3 +469,25 @@ export interface GiftCard {
   status: GiftCardStatus
   redemptions: GiftCardRedemption[]
 }
+
+// ── Registro messaggi ─────────────────────────────────────────────
+
+/** Una riga del registro dei messaggi inviati (`/api/admin/registro-messaggi`). */
+export interface VoceRegistro {
+  id: number
+  creato_il: string
+  canale: 'email' | 'whatsapp'
+  tipo: string
+  tipo_etichetta: string
+  destinatario: string
+  client_id: number | null
+  cliente_nome: string | null
+  appointment_id: number | null
+  oggetto: string | null
+  /** Vuoto per codici di verifica, reset e buoni: non si conservano. */
+  testo: string | null
+  formato: 'template' | 'testo_libero' | null
+  stato: 'inviato' | 'consegnato' | 'letto' | 'non_consegnato' | 'errore'
+  errore: string | null
+  stato_aggiornato_il: string | null
+}

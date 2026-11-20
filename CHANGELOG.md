@@ -8,6 +8,16 @@ cambiamento incompatibile il primo.
 Le voci le scrive `scripts/release.py prepare` dai commit di ogni rilascio;
 vedi «CI e flusso di rilascio» in `CLAUDE.md`.
 
+## [1.7.0] — 2026-11-20
+
+### Novità
+
+- message log for every email and WhatsApp the system sends
+
+### Correzioni
+
+- pick salon closures on a calendar instead of from/to fields
+
 ## [1.6.0] — 2026-11-20
 
 ### Novità

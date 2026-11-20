@@ -128,6 +128,9 @@ EXPECTED_GUARDS = {
     ("PUT", "/api/admin/services/{service_id}"): "admin",
     # Team: admin-only, except changing your own password which any staff does.
     ("GET", "/api/admin/team"): "admin",
+    # Registro dei messaggi: numeri, indirizzi e testi di tutte le clienti.
+    ("GET", "/api/admin/registro-messaggi"): "admin",
+    ("GET", "/api/admin/registro-messaggi/tipi"): "admin",
     ("POST", "/api/admin/team"): "admin",
     ("PUT", "/api/admin/team/{user_id}"): "admin",
     ("POST", "/api/admin/team/{user_id}/reset-password"): "admin",
@@ -170,6 +173,8 @@ EXPECTED_GUARDS = {
     # Unauthenticated by necessity — Twilio cannot hold our credentials. The
     # control is the Twilio signature check inside the handler, not a dependency.
     ("POST", "/api/public/whatsapp/webhook"): "public",
+    # Chiamata da Twilio, protetta dalla firma come il webhook qui sopra.
+    ("POST", "/api/public/whatsapp/stato"): "public",
     ("GET", "/api/public/collaborators"): "public",
     # Unauthenticated by necessity: an <img> tag cannot send an Authorization
     # header. The control is the 32-byte token in the path — unguessable and

@@ -68,5 +68,10 @@ celery_app.conf.update(
             "task": "app.tasks.reminders.send_birthday_greetings",
             "schedule": crontab(hour=9, minute=0),
         },
+        # Ogni notte: il registro dei messaggi tiene sei mesi, non di più.
+        "pulisci-registro-messaggi": {
+            "task": "app.tasks.reminders.pulisci_registro_messaggi",
+            "schedule": crontab(hour=3, minute=30),
+        },
     },
 )

@@ -20,7 +20,7 @@ from sqlalchemy import select
 from app.models.appointment import Appointment, AppointmentStatus
 from app.models.chat import Conversation
 from app.models.client import Client, ClientAccount
-from app.models.communication import Communication, CommunicationType
+from app.models.registro_messaggi import RegistroMessaggio
 from app.models.payment import Payment, PaymentMethod
 from app.models.waitlist import WaitlistEntry
 from app.services import client_merge
@@ -138,16 +138,16 @@ class TestCosaSiSposta:
         assert conv.client_id == scheda_salone.id
 
     async def test_lo_storico_invii_segue(self, db, scheda_salone, scheda_online):
-        db.add(Communication(
-            client_id=scheda_online.id, type=CommunicationType.email,
-            subject="Promemoria", content="...",
+        db.add(RegistroMessaggio(
+            client_id=scheda_online.id, canale="email", tipo="promemoria",
+            destinatario="cliente@example.com", oggetto="Promemoria", stato="inviato",
         ))
         await db.commit()
 
         await client_merge.esegui(db, scheda_salone.id, scheda_online.id)
         await db.commit()
 
-        c = (await db.execute(select(Communication))).scalar_one()
+        c = (await db.execute(select(RegistroMessaggio))).scalar_one()
         assert c.client_id == scheda_salone.id
 
 

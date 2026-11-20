@@ -1511,7 +1511,7 @@ quella che si legge non è mai quella aggiornata — quindi ne resta una.
   su backend col worker a riferimento come `SECRET_KEY` e `BREVO_API_KEY`);
   password per le app Gmail del salone, da Flavia. Brevo fatto il 2026-11-11.
 
-- [ ] **Worker col pool `solo` (1.4.6, 2026-11-10 22:39 UTC)** — controllare
+- [x] **Worker col pool `solo` (1.4.6, 2026-11-10 22:39 UTC)** — controllare
   la memoria fra qualche giorno. Prima: media 7 giorni 180 MB (picco 274)
   col pool prefork a un figlio. Misura locale nell'immagine: 121–147 MB con
   il figlio, 124–128 senza. Subito dopo il deploy 133 MB. Con `solo` non
@@ -1522,6 +1522,10 @@ quella che si legge non è mai quella aggiornata — quindi ne resta una.
   `railway`: `get-service-metrics` del worker su 168 ore. **Programmato**:
   attività «nsh-memoria-worker», 2026-11-17 alle 10:00, sola lettura,
   riporta numeri e verdetto.
+  **Controllato il 2026-11-20** (ultime 168 ore): media **148 MB** contro
+  180 MB prima del pool `solo` (−18%), picco 235 MB contro 274, nessuna
+  crescita. Si tiene `solo`. (L'attività programmata per il 17 non è partita
+  perché l'app era chiusa; misura fatta a mano.)
 - [x] **`/docs` e `/openapi.json` solo in sviluppo** (1.4.7, 2026-11-10
   23:02 UTC). Prima rispondevano 200 a chiunque in produzione. Dal vivo
   dopo il deploy: `/docs`, `/redoc`, `/openapi.json` → 404; `/health`
@@ -2052,6 +2056,27 @@ password" — quella non invalida nessuna sessione.
 
 ## Funzionalità richieste
 
+- [x] **Registro messaggi** (2026-11-20, richiesta di Lorenzo). Pagina
+  «Registro messaggi» (solo admin, sotto Gestione): ogni email e WhatsApp
+  partito dal gestionale, di qualunque tipo, in tabella cercabile per
+  cliente, numero (anche scritto con gli spazi), email, oggetto, giorno,
+  canale, tipo, stato; tocco su una riga = dettaglio col testo. Si registra
+  nei tre punti in cui un messaggio parte davvero (`whatsapp._invia`,
+  `chat._dispatch_whatsapp`, `email.send_email`), quindi un invio nuovo
+  domani ci finisce da solo. **Codici di verifica, link di reset e codici
+  dei buoni non si salvano** (chiavi d'accesso): elenco dei tipi col testo
+  permesso, non di quelli vietati. Stato di consegna WhatsApp dal callback
+  di Twilio (firma verificata, va solo avanti, codici d'errore in parole).
+  Righe cancellate dopo **6 mesi** (attività notturna). Prende il posto di
+  `communications`, tabella mai riempita da nessun codice.
+  **Da fare dopo il rilascio:** `railway config apply` per
+  `TWILIO_STATUS_CALLBACK_URL` (backend + worker), senza la quale lo stato
+  resta «inviato».
+- [ ] **Il gestionale è più largo dello schermo a 1024 px** — trovato il
+  2026-11-20: su ogni pagina (Appuntamenti, Clienti, Cassa…) il contenitore
+  principale è 1217 px su 1024, quindi su un tablet in orizzontale o una
+  finestra stretta la pagina scorre di lato e il menu sparisce a sinistra.
+
 - [x] **Chiusure del salone per data** (2026-11-20). In Impostazioni,
   «Chiusure per data»: giorni singoli o periodi (ferie, ponti, festività in
   cui il salone non apre), con una nota. In quei giorni il portale non dà
@@ -2059,7 +2084,8 @@ password" — quella non invalida nessuna sessione.
   e nel «Nuovo appuntamento» del gestionale la data è barrata come la
   domenica. Nessuna festività è chiusa di default: il salone non è detto
   che chiuda (Lorenzo). Prima l'unico modo era un'assenza per ogni
-  collaboratore.
+  collaboratore. **In produzione con la 1.6.0** (2026-11-20 15:33 UTC):
+  migration applicata, calendario del portale 200, nessun 5xx.
 - [ ] **Natale: alzare «Anticipo massimo» e segnare le chiusure** — con 30
   giorni, a fine novembre le clienti non arrivano alla settimana di Natale.
   Flavia: Impostazioni → «Anticipo massimo (giorni)» (es. 60), e in
@@ -3075,7 +3101,7 @@ tutti, non alcune persone.
   - [x] ~~**Mettere Vincenzo al centro**~~ — fatto il 2026-09-23 dal
     gestionale. Letto dal portale: Flavia | Vincenzo | Raffaella.
 
-- [ ] **Vedere se un messaggio è arrivato** — domanda di Flavia: «dove vedo
+- [x] ~~**Vedere se un messaggio è arrivato**~~ — risolto dal «Registro messaggi» (2026-11-20): stato consegnato / letto / non consegnato col motivo, per ogni WhatsApp. — domanda di Flavia: «dove vedo
   se al cliente è arrivato il messaggio?». **Nel gestionale oggi da
   nessuna parte.** Per le notifiche automatiche (conferme, promemoria) il
   gestionale non registra niente: la tabella `communications` esiste ma

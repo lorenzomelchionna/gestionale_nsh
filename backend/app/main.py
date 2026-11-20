@@ -44,6 +44,7 @@ from app.api.admin.extra_days import router as extra_days_router
 from app.api.admin.waitlist import router as waitlist_router
 from app.api.admin.chat import router as chat_router
 from app.api.admin.team import router as team_router
+from app.api.admin.registro import router as registro_router
 
 # Public routers
 from app.api.auth import router as unified_auth_router
@@ -162,6 +163,7 @@ PUBLIC_PREFIX = "/api/public"
 
 app.include_router(chat_router, prefix=ADMIN_PREFIX)
 app.include_router(team_router, prefix=ADMIN_PREFIX)
+app.include_router(registro_router, prefix=ADMIN_PREFIX)
 
 # Shared sign-in, used by the single login screen. Not under /api/admin or
 # /api/public because it serves both and may return either kind of token.

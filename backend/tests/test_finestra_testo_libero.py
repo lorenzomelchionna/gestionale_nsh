@@ -39,7 +39,7 @@ class Spia:
     def __init__(self):
         self.chiamate: list[tuple[str, dict]] = []
 
-    async def __call__(self, to_phone: str, contenuto: dict) -> None:
+    async def __call__(self, to_phone: str, contenuto: dict, **_) -> None:
         self.chiamate.append((to_phone, contenuto))
 
     @property

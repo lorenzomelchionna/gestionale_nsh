@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getBookingConfig, updateBookingConfig } from '@/services/api'
-import { Check, Plus, X } from 'lucide-react'
-import { format, parseISO } from 'date-fns'
-import { it } from 'date-fns/locale'
+import { Check } from 'lucide-react'
 import type { ChiusuraSalone } from '@/types'
+import ChiusureCalendario from '@/components/admin/ChiusureCalendario'
 import { PageHeader } from '@/components/ui'
 import { Toggle } from './ServicesPage'
 import clsx from 'clsx'
@@ -35,101 +34,6 @@ function Section({ title, children }: { title: string; children: React.ReactNode
       </div>
       <div className="p-5 flex flex-col gap-4">{children}</div>
     </div>
-  )
-}
-
-const oggiISO = () => format(new Date(), 'yyyy-MM-dd')
-const leggibile = (iso: string) => format(parseISO(iso), 'd MMM yyyy', { locale: it })
-
-/**
- * Ferie, ponti, festività in cui il salone non apre.
- *
- * I giorni della settimana qui sopra sono la regola fissa; queste sono le
- * eccezioni del calendario. Nessuna festività è chiusa di default — il
- * salone non è detto che chiuda — quindi si aggiungono a mano, e partono col
- * resto della pagina quando si preme «Salva».
- *
- * Senza `<form>` proprio: sta dentro il modulo della pagina, e un modulo
- * dentro un altro non è HTML valido.
- */
-function ChiusurePerData({ value, onChange }: {
-  value: ChiusuraSalone[]
-  onChange: (v: ChiusuraSalone[]) => void
-}) {
-  const [dal, setDal] = useState('')
-  const [al, setAl] = useState('')
-  const [nota, setNota] = useState('')
-  const [errore, setErrore] = useState('')
-
-  const aggiungi = () => {
-    setErrore('')
-    if (!dal) { setErrore('Scegli il primo giorno di chiusura.'); return }
-    const fine = al || dal
-    if (fine < dal) { setErrore("L'ultimo giorno viene prima del primo."); return }
-    const nuove = [...value, { dal, al: fine, nota: nota.trim() }]
-      .sort((a, b) => a.dal.localeCompare(b.dal))
-    onChange(nuove)
-    setDal(''); setAl(''); setNota('')
-  }
-
-  const oggi = oggiISO()
-  return (
-    <>
-      {value.length === 0 ? (
-        <p className="text-[13px] text-ink-3">Nessuna chiusura per data.</p>
-      ) : (
-        <ul className="flex flex-col divide-y divide-rule-soft border border-border">
-          {value.map((c, i) => {
-            const passata = c.al < oggi
-            return (
-              <li
-                key={`${c.dal}-${c.al}-${i}`}
-                className={clsx('flex items-center gap-3 px-3 py-2.5 text-[14px]', passata && 'opacity-50')}
-              >
-                <span className="tabular-nums text-foreground">
-                  {c.dal === c.al ? leggibile(c.dal) : `${leggibile(c.dal)} – ${leggibile(c.al)}`}
-                </span>
-                {c.nota && <span className="text-ink-3 truncate">· {c.nota}</span>}
-                {passata && <span className="text-xs text-ink-3">passata</span>}
-                <button
-                  type="button"
-                  onClick={() => onChange(value.filter((_, j) => j !== i))}
-                  className="btn-icon ml-auto hover:text-danger"
-                  aria-label={`Togli la chiusura del ${leggibile(c.dal)}`}
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </li>
-            )
-          })}
-        </ul>
-      )}
-
-      <div className="grid grid-cols-2 sm:grid-cols-[1fr_1fr_1.4fr_auto] gap-3 items-end">
-        <Field label="Dal">
-          <input className="input tabular-nums" type="date" min={oggi}
-            value={dal} onChange={e => { setDal(e.target.value); if (!al || al < e.target.value) setAl(e.target.value) }} />
-        </Field>
-        <Field label="Al (compreso)">
-          <input className="input tabular-nums" type="date" min={dal || oggi}
-            value={al} onChange={e => setAl(e.target.value)} />
-        </Field>
-        <div className="col-span-2 sm:col-span-1">
-          <Field label="Nota (facoltativa)">
-            <input className="input" maxLength={80} placeholder="Es. Natale, ferie"
-              value={nota} onChange={e => setNota(e.target.value)} />
-          </Field>
-        </div>
-        <button type="button" onClick={aggiungi} className="btn-secondary col-span-2 sm:col-span-1">
-          <Plus className="w-4 h-4" /> Aggiungi
-        </button>
-      </div>
-      {errore && <p className="text-xs text-danger">{errore}</p>}
-      <p className="text-xs text-ink-3">
-        In questi giorni il portale non mostra orari a nessun collaboratore. Un
-        giorno solo: basta il «Dal». Le modifiche valgono dopo «Salva».
-      </p>
-    </>
   )
 }
 
@@ -284,9 +188,10 @@ export default function SettingsPage() {
         </Section>
 
         <Section title="Chiusure per data">
-          <ChiusurePerData
+          <ChiusureCalendario
             value={form.closed_dates}
             onChange={v => set('closed_dates', v)}
+            closedWeekdays={form.closed_weekdays}
           />
         </Section>
 

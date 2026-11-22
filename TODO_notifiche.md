@@ -2115,14 +2115,53 @@ nella 1.x. Analisi completa e fonti in `docs/v2/STRUMENTI.md`, sul worktree
 
 ### Strumenti gratuiti
 
-- [ ] **Sentry** (piano Developer gratuito: 5.000 errori al mese, 1 utente,
-  dati in UE). `sentry-sdk[fastapi]` è già in `requirements.txt` e `main.py`
-  lo inizializza se `SENTRY_DSN` è impostato; oggi non lo è.
+- [ ] **Sentry — codice fatto il 2026-11-22, manca l'account.**
+
+  Cosa c'è nel codice:
+  - `app/osservabilita.py`, usato da API e worker (`worker_init`, perché il
+    pool è `solo`);
+  - `src/sentry.ts` nel frontend, più un `ErrorBoundary` con la pagina
+    «Qualcosa è andato storto» al posto della pagina bianca.
+
+  Cosa non parte verso Sentry:
+  - corpi delle richieste, variabili locali, query string, cookie e IP;
+  - email e telefoni nei testi, mascherati;
+  - JWT e `password=…` nei testi, tolti.
+
+  Al massimo 5 invii dello stesso errore ogni 10 minuti. Test in
+  `tests/test_sentry.py`: provano l'SDK vero e falliscono se si toglie il
+  filtro.
+
+  Resta da fare, a mano:
+  1. Account su sentry.io, regione dati UE.
+  2. Due progetti: FastAPI e React.
+  3. `SENTRY_DSN` sul backend e `VITE_SENTRY_DSN` sul frontend.
+  4. `railway config plan` e poi `apply`, per il riferimento del worker.
+  5. Redeploy del frontend: il DSN si legge al build.
+
+  Gotcha: `railway config plan` lanciato dentro `timeout …` fallisce con
+  «requires Railway CLI 5.42.1». L'SDK controlla la versione del programma
+  in `$_`, che a quel punto è `timeout`. Va lanciato senza wrapper.
+
+  Il problema, com'era: `sentry-sdk[fastapi]` era già in `requirements.txt`
+  e `main.py` lo inizializzava solo con `SENTRY_DSN` impostato, che non lo
+  era.
   - `SENTRY_DSN` su backend e worker (con l'integrazione Celery);
     `@sentry/react` nel frontend.
   - `send_default_pii=False`, e un `before_send` che riusa `FiltroSegreti`
     di `app/logging_config.py`.
   - Un limite di frequenza, perché un errore in ciclo non consumi la quota.
+- [ ] **Lo stack delle eccezioni esce dai log senza filtro** — trovato il
+  2026-11-22 provando Sentry. `FiltroSegreti` ripulisce messaggio e campi,
+  ma il traceback viene formattato *dopo*, dal formatter, e finisce in
+  `eccezione` così com'è.
+
+  Un errore che contiene un'email o un telefono (per esempio «Key
+  (email)=(…)» di un `IntegrityError` di Postgres) li scrive per intero nei
+  log di Railway. Lo stesso vale per un JWT.
+
+  Rimedio: passare il testo formattato da `_ripulisci` e dalle maschere di
+  email e telefono. Si può riusare `osservabilita._testo`.
 - [ ] **Healthchecks.io** (gratuito fino a 20 controlli). Un ping HTTP alla
   fine dei tre compiti del beat:
   - `send_appointment_reminders`, ogni 15 minuti;

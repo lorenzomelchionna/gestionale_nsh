@@ -1,6 +1,6 @@
 from celery import Celery
 from celery.schedules import crontab
-from celery.signals import setup_logging as celery_setup_logging
+from celery.signals import setup_logging as celery_setup_logging, worker_init
 from app.config import settings
 from app.logging_config import setup_logging
 
@@ -19,6 +19,16 @@ def _configura_log(**_kwargs):
     previsto per dire «ci penso io», invece di lasciare che sovrascriva.
     """
     setup_logging()
+
+
+@worker_init.connect
+def _avvia_sentry(**_kwargs):
+    """Sentry anche nel worker: promemoria, auguri e notifiche girano qui, e
+    sono proprio gli errori che nessuno vede. `worker_init` e non
+    `worker_process_init`: col pool `solo` (vedi `worker-start.sh`) non ci
+    sono processi figli, e quel segnale non arriverebbe mai."""
+    from app.osservabilita import avvia_sentry
+    avvia_sentry("worker")
 
 
 celery_app = Celery(

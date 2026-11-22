@@ -2134,9 +2134,16 @@ nella 1.x. Analisi completa e fonti in `docs/v2/STRUMENTI.md`, sul worktree
     prima che Celery configuri i log, quindi la riga INFO si perde. Sentry
     si avvia lo stesso, e il DSN c'è. Rimedio: scrivere la riga al segnale
     `worker_ready`.
-  - [ ] **Errore di prova end-to-end non ancora mandato**: a me è negato
-    eseguire comandi nei container di produzione. Lo lancia Lorenzo con
-    `railway ssh`.
+  - [x] **Errore di prova end-to-end fatto il 2026-11-22.** Lanciato da
+    Lorenzo con `railway ssh --service backend -- python -c …`: l'errore
+    arriva con release 1.7.2, ambiente production, servizio backend, attore
+    anonimo e priorità High, e la mail parte con qualche minuto di ritardo.
+    Le mail si riconoscono dal prefisso `[NSH backend]` / `[NSH frontend]`.
+
+    Inciampo: il primo DSN messo sul backend (progetto `…553885264`) era di
+    un progetto che non esisteva più, e Sentry scartava gli errori senza
+    dirlo. Ricreato `gestionale-backend` (`…615489104`): il worker l'ha
+    preso da solo per riferimento.
 
   Com'era prima:
 

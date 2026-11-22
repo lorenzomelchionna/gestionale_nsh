@@ -483,10 +483,18 @@ ancora la Sandbox `+14155238886`), `TWILIO_TEMPLATE_CONFERMA`,
 
   Costo atteso, per non trovarselo in faccia: **€20–40 al mese** a regime
   (~500–1.000 messaggi). Le conversazioni **iniziate dalla cliente sono
-  gratuite**, e lo sono anche i template utility mandati entro 24 ore da un
-  suo messaggio: quindi tutta la chat quotidiana non costa niente, e quella
-  stima è un tetto, non il valore atteso. Si paga solo quando è il salone a
-  scrivere per primo a freddo.
+  gratuite** (risposte in testo libero dentro la finestra di 24 ore, fino a
+  1.000 al mese per numero): quindi la chat quotidiana non costa niente, e
+  quella stima è un tetto, non il valore atteso.
+
+  **Corretto il 2026-11-22**: qui c'era scritto che erano gratuiti anche i
+  template utility mandati entro 24 ore da un messaggio della cliente. Non è
+  più vero dal 2026-10-01: Meta li fa pagare anche dentro la finestra
+  ([fonte](https://developers.facebook.com/documentation/business-messaging/whatsapp/pricing/non-template-messages)).
+  Per questo il risparmio della 1.5.0 (template mandato come testo libero
+  quando la finestra è aperta) vale più di quanto stimato allora. Il tetto
+  delle 1.000 risposte gratuite al mese non è un problema: secondo Lorenzo non
+  lo raggiungeremo mai. Nessuna azione.
 
   ### Ordine dei passi che restano
 
@@ -2054,6 +2062,106 @@ password" — quella non invalida nessuna sessione.
 
 ---
 
+## Dall'analisi strumenti della 2.0 (2026-11-22)
+
+Nate nella sessione di progettazione della 2.0. Lorenzo le ha volute anche
+nella 1.x. Analisi completa e fonti in `docs/v2/STRUMENTI.md`, sul worktree
+`v2` (locale, non committato).
+
+### Da portare nella 1.x
+
+- [x] **Fatto il 2026-11-22.** `blocca_agenda` in `services/availability.py`,
+  chiamato da `valida_prenotazione` prima di leggere gli slot: copre le tre
+  strade (portale, ospite senza account, richiesta di modifica). Test in
+  `test_prenotazioni_contemporanee.py`; senza il blocco fallisce. Il
+  gestionale non serviva: creazione e modifica dall'admin non controllano la
+  disponibilità per scelta (il salone può sovrapporre), quindi non c'è un
+  controllo da proteggere.
+
+  Il problema, com'era: **due prenotazioni nello stesso istante passavano
+  entrambe.** In
+  `api/public/booking.py` (verso riga 400) si chiama `get_available_slots` e
+  poi si inserisce l'appuntamento, senza nessun blocco in mezzo: due
+  richieste contemporanee sullo stesso collaboratore e orario superano
+  entrambe il controllo.
+
+  Proposta: `SELECT pg_advisory_xact_lock(collaborator_id, giorno)` nella
+  stessa transazione, prima di `get_available_slots`, su tutte le strade che
+  passano di lì: portale, ospite senza account, richiesta di modifica.
+  Controllare anche la creazione dal gestionale (`api/admin/appointments.py`).
+
+  Un vincolo `EXCLUDE` sugli intervalli non va bene: col tempo di posa due
+  appuntamenti dello stesso collaboratore possono sovrapporsi legittimamente.
+
+  Test: due prenotazioni in parallelo sullo stesso posto, una risponde 201 e
+  l'altra 409.
+- [ ] **Consenso e disiscrizione per auguri e messaggi promozionali.** Si
+  tratta di `notify_birthday` e `notify_custom` (pagina Messaggi). Oggi su
+  `Client` non c'è nessun consenso e nelle email non c'è un link per
+  disiscriversi.
+  - **Email** promozionali a clienti già acquisite: ogni messaggio deve
+    offrire un modo semplice per dire basta (art. 130 c.4 Codice privacy).
+  - **WhatsApp** promozionale: serve il consenso esplicito, anche per le
+    regole di Meta.
+
+  Proposta:
+  - campo `consenso_promozioni` sulla scheda, con data e fonte;
+  - link di disiscrizione con un clic, senza login (token firmato), nelle
+    email promozionali;
+  - esclusione automatica di chi si è disiscritto nelle spedizioni.
+
+  **Prima di decidere il valore iniziale per le clienti esistenti, sentire
+  un legale.**
+
+### Strumenti gratuiti
+
+- [ ] **Sentry** (piano Developer gratuito: 5.000 errori al mese, 1 utente,
+  dati in UE). `sentry-sdk[fastapi]` è già in `requirements.txt` e `main.py`
+  lo inizializza se `SENTRY_DSN` è impostato; oggi non lo è.
+  - `SENTRY_DSN` su backend e worker (con l'integrazione Celery);
+    `@sentry/react` nel frontend.
+  - `send_default_pii=False`, e un `before_send` che riusa `FiltroSegreti`
+    di `app/logging_config.py`.
+  - Un limite di frequenza, perché un errore in ciclo non consumi la quota.
+- [ ] **Healthchecks.io** (gratuito fino a 20 controlli). Un ping HTTP alla
+  fine dei tre compiti del beat:
+  - `send_appointment_reminders`, ogni 15 minuti;
+  - `send_birthday_greetings`, alle 9:00;
+  - `pulisci_registro_messaggi`, alle 3:30.
+
+  Se un ping non arriva in tempo, parte un avviso per email. È l'unico modo
+  di accorgersi che worker o beat si sono fermati e i promemoria non partono.
+  Gli URL dei ping vanno come variabili del worker su Railway.
+- [ ] **Better Stack Uptime** (gratuito: 10 monitor, controllo ogni 3
+  minuti) su `/health` del backend e su `www.newstylehair.it`, con avvisi per
+  email. La pagina di stato serve solo alla 2.0.
+
+### Piccoli miglioramenti
+
+- [ ] **Calendario nella conferma.** File `.ics` allegato alla conferma e al
+  cambio d'orario, più un link «Aggiungi a Google Calendar». Libreria
+  `icalendar`, orari calcolati con `app/utils/tempo.py`. Dentro solo
+  servizio, data, ora e salone.
+- [ ] **Ricerca clienti che tollera gli errori.** `api/admin/clients.py`
+  (righe 46–56 circa) usa `ILIKE '%testo%'`.
+
+  Proposta: estensioni `pg_trgm` e `unaccent`, attivate con
+  `CREATE EXTENSION` in una migration; prima verificare che il Postgres di
+  Railway le abbia. Poi un indice GIN e l'ordinamento per somiglianza. Così
+  «Nicolo» trova «Nicolò» e «Esposto» trova «Esposito».
+- [ ] **Stato delle email nel registro messaggi.** `registro.aggiorna_stato`
+  conosce solo gli stati di Twilio, quindi le email restano «inviato» per
+  sempre.
+
+  Brevo manda webhook transazionali (consegnato, rimbalzo, bloccato, spam), e
+  `id_fornitore` contiene già il `messageId` di Brevo.
+
+  Proposta: un endpoint pubblico con corpo limitato, come quello di Twilio,
+  autenticato (verificare cosa offre Brevo: token nell'URL o elenco di
+  indirizzi IP), da aggiungere a `EXPECTED_GUARDS`.
+
+---
+
 ## Funzionalità richieste
 
 - [x] **Registro messaggi** (2026-11-20, richiesta di Lorenzo). Pagina
@@ -2069,9 +2177,11 @@ password" — quella non invalida nessuna sessione.
   di Twilio (firma verificata, va solo avanti, codici d'errore in parole).
   Righe cancellate dopo **6 mesi** (attività notturna). Prende il posto di
   `communications`, tabella mai riempita da nessun codice.
-  **Da fare dopo il rilascio:** `railway config apply` per
-  `TWILIO_STATUS_CALLBACK_URL` (backend + worker), senza la quale lo stato
-  resta «inviato».
+  **In produzione con la 1.7.0** (2026-11-20 16:42 UTC); `railway config
+  apply` per `TWILIO_STATUS_CALLBACK_URL` fatto alle 16:49 (solo le due
+  variabili, plan poi «up to date»); primi callback di Twilio arrivati con
+  204, firma valida. «Letto» = spunte blu: chi ha tolto le conferme di
+  lettura resta «Consegnato» anche se l'ha letto.
 - [ ] **Il gestionale è più largo dello schermo a 1024 px** — trovato il
   2026-11-20: su ogni pagina (Appuntamenti, Clienti, Cassa…) il contenitore
   principale è 1217 px su 1024, quindi su un tablet in orizzontale o una

@@ -27,7 +27,7 @@ griglia sotto i piedi dell'altra e apre doppie prenotazioni.
 from datetime import datetime, date, time, timedelta, timezone
 from typing import List, Optional, Sequence
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_
+from sqlalchemy import func, select, and_
 from sqlalchemy.orm import selectinload
 from app.models.collaborator import Collaborator, CollaboratorSchedule
 from app.models.absence import Absence
@@ -89,6 +89,22 @@ def salone_chiuso(cfg: Optional[BookingConfig], giorno: date) -> bool:
         return False
     g = giorno.isoformat()
     return any(c["dal"] <= g <= c["al"] for c in cfg.closed_dates)
+
+
+async def blocca_agenda(db: AsyncSession, collaborator_id: int, giorno: date) -> None:
+    """Mette in fila le prenotazioni per lo stesso collaboratore e giorno.
+
+    Blocco consultivo di Postgres legato alla transazione: si libera da solo
+    al commit o al rollback, quindi non c'è niente da rilasciare a mano e una
+    richiesta che fallisce a metà non lascia l'agenda bloccata. Chi lo prende
+    deve leggere gli slot *dopo*: in READ COMMITTED ogni istruzione vede ciò
+    che il precedente titolare ha appena scritto.
+
+    Chiave a due interi (collaboratore, giorno): non si sovrappone allo spazio
+    delle chiavi a un intero, e collaboratori o giorni diversi non si
+    aspettano a vicenda.
+    """
+    await db.execute(select(func.pg_advisory_xact_lock(collaborator_id, giorno.toordinal())))
 
 
 async def get_available_slots(

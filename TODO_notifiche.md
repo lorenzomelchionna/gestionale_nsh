@@ -2070,7 +2070,7 @@ nella 1.x. Analisi completa e fonti in `docs/v2/STRUMENTI.md`, sul worktree
 
 ### Da portare nella 1.x
 
-- [x] **Fatto il 2026-11-22.** `blocca_agenda` in `services/availability.py`,
+- [x] **Fatto il 2026-11-22, in produzione con la 1.7.1** (PR #229, rilascio #230; backend, worker e frontend SUCCESS, `/health` 1.7.1). `blocca_agenda` in `services/availability.py`,
   chiamato da `valida_prenotazione` prima di leggere gli slot: copre le tre
   strade (portale, ospite senza account, richiesta di modifica). Test in
   `test_prenotazioni_contemporanee.py`; senza il blocco fallisce. Il

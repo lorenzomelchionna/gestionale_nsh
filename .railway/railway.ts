@@ -57,6 +57,12 @@ const MITTENTE = "noreply@newstylehair.it";
 // www: è il backend che risponde, e Twilio firma l'URL esatto che chiama.
 const STATO_TWILIO = "https://gestionalensh-production.up.railway.app/api/public/whatsapp/stato";
 
+// Sentry (2026-11-22): `SENTRY_DSN` sul backend, il worker lo legge da lì per
+// riferimento (stesso progetto Sentry, distinti dal tag `servizio`);
+// `VITE_SENTRY_DSN` sul frontend è il DSN di un secondo progetto, letto al
+// build. Il DSN non è una password (quello del frontend finisce comunque nel
+// browser), ma permette di mandare eventi a nome nostro: `preserve()`, fuori
+// dal repository.
 export default defineRailway(() => {
   const gestionale_nsh = github("lorenzomelchionna/gestionale_nsh", { checkSuites: false, rootDirectory: "/backend" });
 
@@ -75,7 +81,7 @@ export default defineRailway(() => {
     replicas: { "europe-west4-drams3a": 1 },
     deploy: { restartPolicyMaxRetries: 3 },
     networking: { privateNetworkEndpoint: "gestionalensh" },
-    env: { ACCESS_TOKEN_EXPIRE_MINUTES: preserve(), ADMIN_EMAIL: preserve(), ALGORITHM: preserve(), APP_ENV: preserve(), BREVO_API_KEY: preserve(), DATABASE_URL: Postgres.env.DATABASE_URL, EMAILS_FROM_EMAIL: MITTENTE, EMAILS_FROM_NAME: preserve(), FRONTEND_URL: preserve(), REDIS_URL: Redis.env.REDIS_URL, REFRESH_TOKEN_EXPIRE_DAYS: preserve(), SECRET_KEY: preserve(), SEED_DEMO: preserve(), SMTP_HOST: preserve(), SMTP_PASSWORD: preserve(), SMTP_PORT: preserve(), SMTP_USER: preserve(), TWILIO_ACCOUNT_SID: preserve(), TWILIO_AUTH_TOKEN: preserve(), TWILIO_TEMPLATE_CONFERMA: preserve(), TWILIO_TEMPLATE_PROMEMORIA: preserve(), TWILIO_TEMPLATE_VERIFICA: preserve(), TWILIO_WHATSAPP_FROM: preserve(), TWILIO_STATUS_CALLBACK_URL: STATO_TWILIO },
+    env: { ACCESS_TOKEN_EXPIRE_MINUTES: preserve(), ADMIN_EMAIL: preserve(), ALGORITHM: preserve(), APP_ENV: preserve(), BREVO_API_KEY: preserve(), DATABASE_URL: Postgres.env.DATABASE_URL, EMAILS_FROM_EMAIL: MITTENTE, EMAILS_FROM_NAME: preserve(), FRONTEND_URL: preserve(), REDIS_URL: Redis.env.REDIS_URL, REFRESH_TOKEN_EXPIRE_DAYS: preserve(), SECRET_KEY: preserve(), SEED_DEMO: preserve(), SMTP_HOST: preserve(), SMTP_PASSWORD: preserve(), SMTP_PORT: preserve(), SMTP_USER: preserve(), TWILIO_ACCOUNT_SID: preserve(), TWILIO_AUTH_TOKEN: preserve(), TWILIO_TEMPLATE_CONFERMA: preserve(), TWILIO_TEMPLATE_PROMEMORIA: preserve(), TWILIO_TEMPLATE_VERIFICA: preserve(), TWILIO_WHATSAPP_FROM: preserve(), TWILIO_STATUS_CALLBACK_URL: STATO_TWILIO, SENTRY_DSN: preserve() },
   });
   // Dopo il backend perché ne legge la `SECRET_KEY` per riferimento
   // (2026-11-10): il worker non firma niente, ma per avviarsi ne vuole una
@@ -87,7 +93,7 @@ export default defineRailway(() => {
     replicas: { "europe-west4-drams3a": 1 },
     deploy: { restartPolicyMaxRetries: 3 },
     networking: { privateNetworkEndpoint: "celery-worker" },
-    env: { ACCESS_TOKEN_EXPIRE_MINUTES: preserve(), ALGORITHM: preserve(), APP_ENV: preserve(), BREVO_API_KEY: backend.env.BREVO_API_KEY, DATABASE_URL: Postgres.env.DATABASE_URL, EMAILS_FROM_EMAIL: MITTENTE, EMAILS_FROM_NAME: preserve(), FRONTEND_URL: preserve(), REDIS_URL: Redis.env.REDIS_URL, REFRESH_TOKEN_EXPIRE_DAYS: preserve(), SECRET_KEY: backend.env.SECRET_KEY, SEED_DEMO: preserve(), SMTP_HOST: preserve(), SMTP_PASSWORD: preserve(), SMTP_PORT: preserve(), SMTP_USER: preserve(), TWILIO_ACCOUNT_SID: preserve(), TWILIO_AUTH_TOKEN: preserve(), TWILIO_TEMPLATE_CONFERMA: preserve(), TWILIO_TEMPLATE_PROMEMORIA: preserve(), TWILIO_TEMPLATE_VERIFICA: preserve(), TWILIO_WHATSAPP_FROM: preserve(), TWILIO_STATUS_CALLBACK_URL: backend.env.TWILIO_STATUS_CALLBACK_URL },
+    env: { ACCESS_TOKEN_EXPIRE_MINUTES: preserve(), ALGORITHM: preserve(), APP_ENV: preserve(), BREVO_API_KEY: backend.env.BREVO_API_KEY, DATABASE_URL: Postgres.env.DATABASE_URL, EMAILS_FROM_EMAIL: MITTENTE, EMAILS_FROM_NAME: preserve(), FRONTEND_URL: preserve(), REDIS_URL: Redis.env.REDIS_URL, REFRESH_TOKEN_EXPIRE_DAYS: preserve(), SECRET_KEY: backend.env.SECRET_KEY, SEED_DEMO: preserve(), SMTP_HOST: preserve(), SMTP_PASSWORD: preserve(), SMTP_PORT: preserve(), SMTP_USER: preserve(), TWILIO_ACCOUNT_SID: preserve(), TWILIO_AUTH_TOKEN: preserve(), TWILIO_TEMPLATE_CONFERMA: preserve(), TWILIO_TEMPLATE_PROMEMORIA: preserve(), TWILIO_TEMPLATE_VERIFICA: preserve(), TWILIO_WHATSAPP_FROM: preserve(), TWILIO_STATUS_CALLBACK_URL: backend.env.TWILIO_STATUS_CALLBACK_URL, SENTRY_DSN: backend.env.SENTRY_DSN },
   });
   const frontend = service("frontend", {
     source: github("lorenzomelchionna/gestionale_nsh", { checkSuites: false, rootDirectory: "/frontend" }),
@@ -97,7 +103,7 @@ export default defineRailway(() => {
     deploy: { restartPolicyMaxRetries: 3 },
     domains: ["www.newstylehair.it"],
     networking: { privateNetworkEndpoint: "happy-benevolence" },
-    env: { VITE_API_URL: preserve() },
+    env: { VITE_API_URL: preserve(), VITE_SENTRY_DSN: preserve() },
   });
 
   return project("new-style-hair", {

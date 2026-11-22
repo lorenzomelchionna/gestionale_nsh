@@ -9,6 +9,7 @@ from app.version import __version__
 from app.audit import RegistroAccessi
 from app.config import settings
 from app.logging_config import setup_logging
+from app.osservabilita import avvia_sentry
 from app.rate_limit import limiter, rate_limit_handler
 
 # Prima di qualunque altra cosa: da qui in poi anche gli errori di avvio
@@ -16,14 +17,8 @@ from app.rate_limit import limiter, rate_limit_handler
 setup_logging()
 log = logging.getLogger("nsh")
 
-# Sentry — init only when SENTRY_DSN is configured
-if settings.SENTRY_DSN:
-    import sentry_sdk
-    sentry_sdk.init(
-        dsn=settings.SENTRY_DSN,
-        environment=settings.APP_ENV,
-        traces_sample_rate=0.2,
-    )
+# Sentry, solo con SENTRY_DSN impostato. Cosa parte e cosa no: `app/osservabilita.py`.
+avvia_sentry("backend")
 
 # Admin routers
 from app.api.admin.auth import router as admin_auth_router
@@ -120,8 +115,9 @@ async def global_exception_handler(request: Request, exc: Exception):
 
     Finora questo gestore inghiottiva l'eccezione e restituiva 500 senza
     scrivere niente da nessuna parte: con `SENTRY_DSN` non configurato — che è
-    il caso oggi — un guasto in produzione spariva del tutto, e restava solo
-    una cliente che dice «non funziona».
+    stato il caso fino alla 1.8 — un guasto in produzione spariva del tutto, e
+    restava solo una cliente che dice «non funziona». Il `log.error` qui sotto
+    è anche quello che arriva a Sentry, tramite l'integrazione dei log.
 
     `exc_info` porta lo stack completo. Va nei log, non nella risposta: al
     chiamante un percorso di file e un frammento di query direbbero come è

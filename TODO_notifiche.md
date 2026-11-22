@@ -2115,7 +2115,30 @@ nella 1.x. Analisi completa e fonti in `docs/v2/STRUMENTI.md`, sul worktree
 
 ### Strumenti gratuiti
 
-- [ ] **Sentry — codice fatto il 2026-11-22, manca l'account.**
+- [x] **Sentry — attivo in produzione dalla 1.7.2 (2026-11-22).**
+
+  Configurazione:
+  - account di Lorenzo, regione dati UE (`ingest.de.sentry.io`);
+  - progetti `gestionale-backend` (FastAPI) e `gestionale-frontend` (React);
+  - avvisi «High priority issues» per email.
+
+  Variabili su Railway:
+  - `SENTRY_DSN` sul backend;
+  - `VITE_SENTRY_DSN` sul frontend;
+  - worker per riferimento al backend: `config apply` fatto, il plan dice
+    «up to date».
+
+  Nel log del backend c'è «Sentry attivo».
+
+  - [ ] **Il worker non scrive «Sentry attivo».** `worker_init` arriva
+    prima che Celery configuri i log, quindi la riga INFO si perde. Sentry
+    si avvia lo stesso, e il DSN c'è. Rimedio: scrivere la riga al segnale
+    `worker_ready`.
+  - [ ] **Errore di prova end-to-end non ancora mandato**: a me è negato
+    eseguire comandi nei container di produzione. Lo lancia Lorenzo con
+    `railway ssh`.
+
+  Com'era prima:
 
   Cosa c'è nel codice:
   - `app/osservabilita.py`, usato da API e worker (`worker_init`, perché il

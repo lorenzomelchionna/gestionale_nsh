@@ -2070,7 +2070,16 @@ nella 1.x. Analisi completa e fonti in `docs/v2/STRUMENTI.md`, sul worktree
 
 ### Da portare nella 1.x
 
-- [ ] **Due prenotazioni nello stesso istante passano entrambe.** In
+- [x] **Fatto il 2026-11-22.** `blocca_agenda` in `services/availability.py`,
+  chiamato da `valida_prenotazione` prima di leggere gli slot: copre le tre
+  strade (portale, ospite senza account, richiesta di modifica). Test in
+  `test_prenotazioni_contemporanee.py`; senza il blocco fallisce. Il
+  gestionale non serviva: creazione e modifica dall'admin non controllano la
+  disponibilità per scelta (il salone può sovrapporre), quindi non c'è un
+  controllo da proteggere.
+
+  Il problema, com'era: **due prenotazioni nello stesso istante passavano
+  entrambe.** In
   `api/public/booking.py` (verso riga 400) si chiama `get_available_slots` e
   poi si inserisce l'appuntamento, senza nessun blocco in mezzo: due
   richieste contemporanee sullo stesso collaboratore e orario superano

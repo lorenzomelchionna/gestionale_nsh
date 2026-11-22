@@ -25,7 +25,9 @@ from app.schemas.common import MessageResponse
 from app.dependencies import bearer_facoltativo, get_current_client, get_client_facoltativo
 from app.services import modifiche
 from app.utils.tempo import istante, oggi_salone
-from app.services.availability import CHIUSURA_PORTALE, busy_slot_offsets, get_available_slots
+from app.services.availability import (
+    CHIUSURA_PORTALE, blocca_agenda, busy_slot_offsets, get_available_slots,
+)
 
 router = APIRouter(prefix="", tags=["Public Booking"])
 
@@ -395,6 +397,16 @@ async def valida_prenotazione(
     # Same figure the availability endpoints use, summed because a booking may
     # carry several services ("taglio + barba" is two blocks, not one).
     duration_slots = sum(svc.duration_slots for svc in services)
+    # Una prenotazione per volta per collaboratore e giorno, fino al commit.
+    # Fra il controllo qui sotto e l'inserimento in `registra_prenotazione`
+    # c'è una finestra: due clienti che confermano lo stesso orario nello
+    # stesso istante vedevano entrambe lo slot libero e venivano registrate
+    # entrambe. Con il blocco la seconda aspetta, e quando legge gli slot la
+    # prima è già nel database: riceve il 409 «non più disponibile».
+    # Un vincolo sul database (EXCLUDE sugli intervalli) non andava: col tempo
+    # di posa due appuntamenti dello stesso collaboratore si sovrappongono
+    # legittimamente, ed è `get_available_slots` a sapere quando.
+    await blocca_agenda(db, collaborator_id, start.date())
     # Lo stesso tetto delle 19 dell'elenco degli orari: altrimenti la fascia
     # che il portale non mostra resterebbe prenotabile con una chiamata a mano.
     slots = await get_available_slots(

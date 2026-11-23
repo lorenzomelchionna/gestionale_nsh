@@ -26,8 +26,18 @@ def send_appointment_reminders():
     """
     Send reminders (email + WhatsApp) for appointments starting in
     `whatsapp_reminder_hours` from now (default 24h). Runs every 15 min.
+
+    Ogni giro batte anche il cuore del worker (`app/battito.py`): se beat o
+    il worker si fermano, il silenzio diventa un allarme.
     """
-    _run_async(_async_send_reminders())
+    from app.battito import batti
+
+    try:
+        _run_async(_async_send_reminders())
+    except Exception:
+        batti(riuscito=False)
+        raise
+    batti()
 
 
 async def _async_send_reminders():

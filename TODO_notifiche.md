@@ -2201,18 +2201,24 @@ nella 1.x. Analisi completa e fonti in `docs/v2/STRUMENTI.md`, sul worktree
 
   Rimedio: passare il testo formattato da `_ripulisci` e dalle maschere di
   email e telefono. Si può riusare `osservabilita._testo`.
-- [ ] **Healthchecks.io** (gratuito fino a 20 controlli). Un ping HTTP alla
-  fine dei tre compiti del beat:
-  - `send_appointment_reminders`, ogni 15 minuti;
-  - `send_birthday_greetings`, alle 9:00;
-  - `pulisci_registro_messaggi`, alle 3:30.
-
-  Se un ping non arriva in tempo, parte un avviso per email. È l'unico modo
-  di accorgersi che worker o beat si sono fermati e i promemoria non partono.
-  Gli URL dei ping vanno come variabili del worker su Railway.
-- [ ] **Better Stack Uptime** (gratuito: 10 monitor, controllo ogni 3
-  minuti) su `/health` del backend e su `www.newstylehair.it`, con avvisi per
-  email. La pagina di stato serve solo alla 2.0.
+- [x] **Battito del worker e monitor dei siti: fatto il 2026-11-23, 1.7.4**
+  (PR #235, rilascio #236). Un solo servizio, Better Stack (piano gratuito),
+  invece di Healthchecks.io + Better Stack: fa sia i monitor sia gli heartbeat.
+  - Heartbeat «Worker promemoria»: ogni 15 min + 10 di tolleranza. Lo batte
+    `send_appointment_reminders` a fine giro (`app/battito.py`), `…/fail` se
+    il giro solleva. URL in `HEARTBEAT_URL` sul solo worker (`preserve()`).
+    Primo battito al giro delle 21:30 UTC, nessun «battito non inviato».
+  - Monitor: `www.newstylehair.it` e `/health` del backend (parola chiave
+    `"status":"ok"`), ogni 3 min, confirmation period 3 min. I deploy non
+    li fanno scattare: Railway sposta il traffico solo a healthcheck passato.
+  - [ ] Auguri (9:00) e pulizia notturna (3:30) senza battito: se il beat è
+    fermo se ne accorge già quello dei promemoria. Aggiungerli solo se un
+    giorno fallissero da soli.
+- [ ] **Id dei task Celery mascherati come telefoni nei log.** `_TELEFONO`
+  prende le cifre di un UUID: `ac15***7474b26-…` nel messaggio di
+  `celery.app.trace`. L'id intero resta nel campo `data.id`, quindi si trova
+  lo stesso; cosmetico. Rimedio: non mascherare sequenze attaccate a
+  lettere esadecimali (lookbehind/lookahead `[0-9a-f-]`).
 
 ### Piccoli miglioramenti
 
@@ -2260,7 +2266,14 @@ nella 1.x. Analisi completa e fonti in `docs/v2/STRUMENTI.md`, sul worktree
   variabili, plan poi «up to date»); primi callback di Twilio arrivati con
   204, firma valida. «Letto» = spunte blu: chi ha tolto le conferme di
   lettura resta «Consegnato» anche se l'ha letto.
-- [ ] **Il gestionale è più largo dello schermo a 1024 px** — trovato il
+- [x] **Sistemato il 2026-11-23** (PR fix/layout-1024): il colpevole era
+  solo la barra scura in alto, 1217 px su 1024 — le pagine stavano già nello
+  schermo. La barra è a `overflow-hidden`, quindi tagliava fuori «Scuro» e
+  l'email con **«esci»** (a 1024 px non si poteva uscire). Sotto i 1280 px
+  ora spariscono indirizzo ed email (resta «esci», l'email nel tooltip) e la
+  ricerca scende a 240 px; sopra, l'email si tronca a 200 px. Misurato a 1024
+  e 1280 su tutte le 17 pagine admin.
+- ~~**Il gestionale è più largo dello schermo a 1024 px**~~ — trovato il
   2026-11-20: su ogni pagina (Appuntamenti, Clienti, Cassa…) il contenitore
   principale è 1217 px su 1024, quindi su un tablet in orizzontale o una
   finestra stretta la pagina scorre di lato e il menu sparisce a sinistra.
@@ -2274,7 +2287,7 @@ nella 1.x. Analisi completa e fonti in `docs/v2/STRUMENTI.md`, sul worktree
   che chiuda (Lorenzo). Prima l'unico modo era un'assenza per ogni
   collaboratore. **In produzione con la 1.6.0** (2026-11-20 15:33 UTC):
   migration applicata, calendario del portale 200, nessun 5xx.
-- [ ] **Natale: alzare «Anticipo massimo» e segnare le chiusure** — con 30
+- [x] **Natale: alzare «Anticipo massimo» e segnare le chiusure** (fatto con Flavia, confermato da Lorenzo il 2026-11-23) — con 30
   giorni, a fine novembre le clienti non arrivano alla settimana di Natale.
   Flavia: Impostazioni → «Anticipo massimo (giorni)» (es. 60), e in
   «Chiusure per data» i giorni in cui il salone è chiuso (25 e 26

@@ -2115,7 +2115,39 @@ nella 1.x. Analisi completa e fonti in `docs/v2/STRUMENTI.md`, sul worktree
 
 ### Strumenti gratuiti
 
-- [ ] **Sentry — codice fatto il 2026-11-22, manca l'account.**
+- [x] **Sentry — attivo in produzione dalla 1.7.2 (2026-11-22).**
+
+  Configurazione:
+  - account di Lorenzo, regione dati UE (`ingest.de.sentry.io`);
+  - progetti `gestionale-backend` (FastAPI) e `gestionale-frontend` (React);
+  - avvisi «High priority issues» per email.
+
+  Variabili su Railway:
+  - `SENTRY_DSN` sul backend;
+  - `VITE_SENTRY_DSN` sul frontend;
+  - worker per riferimento al backend: `config apply` fatto, il plan dice
+    «up to date».
+
+  Nel log del backend c'è «Sentry attivo».
+
+  - [x] **Fatto il 2026-11-23**: la riga la scrive `worker_ready`.
+
+    Il problema, com'era: **il worker non scriveva «Sentry attivo».** `worker_init` arriva
+    prima che Celery configuri i log, quindi la riga INFO si perde. Sentry
+    si avvia lo stesso, e il DSN c'è. Rimedio: scrivere la riga al segnale
+    `worker_ready`.
+  - [x] **Errore di prova end-to-end fatto il 2026-11-22.** Lanciato da
+    Lorenzo con `railway ssh --service backend -- python -c …`: l'errore
+    arriva con release 1.7.2, ambiente production, servizio backend, attore
+    anonimo e priorità High, e la mail parte con qualche minuto di ritardo.
+    Le mail si riconoscono dal prefisso `[NSH backend]` / `[NSH frontend]`.
+
+    Inciampo: il primo DSN messo sul backend (progetto `…553885264`) era di
+    un progetto che non esisteva più, e Sentry scartava gli errori senza
+    dirlo. Ricreato `gestionale-backend` (`…615489104`): il worker l'ha
+    preso da solo per riferimento.
+
+  Com'era prima:
 
   Cosa c'è nel codice:
   - `app/osservabilita.py`, usato da API e worker (`worker_init`, perché il
@@ -2151,7 +2183,14 @@ nella 1.x. Analisi completa e fonti in `docs/v2/STRUMENTI.md`, sul worktree
   - `send_default_pii=False`, e un `before_send` che riusa `FiltroSegreti`
     di `app/logging_config.py`.
   - Un limite di frequenza, perché un errore in ciclo non consumi la quota.
-- [ ] **Lo stack delle eccezioni esce dai log senza filtro** — trovato il
+- [x] **Fatto il 2026-11-23**: `ripulisci_testo` in `app/logging_config.py`
+  è l'unico filtro dei testi, e lo usano log, traceback e Sentry. I due
+  formatter passano per lì anche lo stack. Un indirizzo già mascherato non
+  viene mascherato di nuovo, e un segnaposto `token=%s` resta com'è. Test in
+  `TestITraceback`: falliscono se si toglie il filtro dal formatter.
+
+  Il problema, com'era: **lo stack delle eccezioni usciva dai log senza
+  filtro** — trovato il
   2026-11-22 provando Sentry. `FiltroSegreti` ripulisce messaggio e campi,
   ma il traceback viene formattato *dopo*, dal formatter, e finisce in
   `eccezione` così com'è.

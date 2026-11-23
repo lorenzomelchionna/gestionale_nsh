@@ -383,6 +383,65 @@ class TestGliErrori:
         assert any("guasto finto" in str(r.exc_info[1]) for r in esplosi if r.exc_info)
 
 
+class TestITraceback:
+    """Il traceback viene formattato *dopo* il filtro, dal formatter: fino alla
+    1.7.2 usciva così com'era. Un `IntegrityError` riporta il valore duplicato
+    per intero, e lo stack lo ripete, quindi email, telefoni e token delle
+    clienti finivano nei log di Railway (trovato provando Sentry)."""
+
+    EMAIL = "mario.rossi@gmail.com"
+    TELEFONO = "+393331234567"
+    JWT = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjMifQ.c2lnbmF0dXJh"
+
+    def _errore(self, caplog) -> logging.LogRecord:
+        with caplog.at_level(logging.INFO):
+            try:
+                raise RuntimeError(
+                    f"Key (email)=({self.EMAIL}) telefono {self.TELEFONO} token {self.JWT}"
+                )
+            except RuntimeError:
+                logging.getLogger("nsh.test").exception("errore non gestito")
+        return caplog.records[-1]
+
+    async def test_il_json_non_porta_dati_personali_nello_stack(self, caplog):
+        prodotto = come_json(self._errore(caplog))
+        for vietato in (self.EMAIL, self.TELEFONO, "3331234567", self.JWT):
+            assert vietato not in json.dumps(prodotto), f"{vietato!r} nel traceback"
+        assert "m***i@gmail.com" in prodotto["eccezione"], "mascherato, non cancellato"
+        assert "RuntimeError" in prodotto["eccezione"], "lo stack deve restare leggibile"
+
+    async def test_anche_il_formato_di_sviluppo(self, caplog):
+        from app.logging_config import ContestoRichiesta, FormatoLeggibile
+
+        record = self._errore(caplog)
+        # Il gestore di pytest ha già formattato lo stack e l'ha lasciato in
+        # cache sul record; in produzione c'è solo il nostro handler e la
+        # cache è vuota. Senza questa riga il test proverebbe la cache.
+        record.exc_text = None
+        ContestoRichiesta().filter(record)
+        FiltroSegreti().filter(record)
+        testo = FormatoLeggibile().format(record)
+        assert self.EMAIL not in testo and self.TELEFONO not in testo
+
+    async def test_un_indirizzo_gia_mascherato_resta_com_e(self, caplog):
+        """I chiamanti mascherano già con `maschera_email`: il filtro non deve
+        rimascherare `m***i@gmail.com` in `m***i***@gmail.com`."""
+        with caplog.at_level(logging.INFO):
+            logging.getLogger("nsh.test").info(
+                "login", extra={"email": maschera_email(self.EMAIL)}
+            )
+        assert come_json(caplog.records[-1])["email"] == "m***i@gmail.com"
+
+    async def test_date_e_numeri_brevi_non_sono_telefoni(self, caplog):
+        with caplog.at_level(logging.INFO):
+            logging.getLogger("nsh.test").info(
+                "appuntamento 2026-11-22 cliente 1234 durata 45"
+            )
+        assert come_json(caplog.records[-1])["message"] == (
+            "appuntamento 2026-11-22 cliente 1234 durata 45"
+        )
+
+
 class TestIlFormato:
     async def test_una_riga_e_un_json_valido(self, caplog):
         with caplog.at_level(logging.INFO):

@@ -2130,7 +2130,7 @@ nella 1.x. Analisi completa e fonti in `docs/v2/STRUMENTI.md`, sul worktree
 
   Nel log del backend c'è «Sentry attivo».
 
-  - [x] **Fatto il 2026-11-23**: la riga la scrive `worker_ready`.
+  - [x] **Fatto il 2026-11-23, 1.7.3**: la riga la scrive `worker_ready`; vista nei log del worker alle 13:31 UTC.
 
     Il problema, com'era: **il worker non scriveva «Sentry attivo».** `worker_init` arriva
     prima che Celery configuri i log, quindi la riga INFO si perde. Sentry
@@ -2183,7 +2183,7 @@ nella 1.x. Analisi completa e fonti in `docs/v2/STRUMENTI.md`, sul worktree
   - `send_default_pii=False`, e un `before_send` che riusa `FiltroSegreti`
     di `app/logging_config.py`.
   - Un limite di frequenza, perché un errore in ciclo non consumi la quota.
-- [x] **Fatto il 2026-11-23**: `ripulisci_testo` in `app/logging_config.py`
+- [x] **Fatto il 2026-11-23, in produzione con la 1.7.3** (PR #233, rilascio #234): `ripulisci_testo` in `app/logging_config.py`
   è l'unico filtro dei testi, e lo usano log, traceback e Sentry. I due
   formatter passano per lì anche lo stack. Un indirizzo già mascherato non
   viene mascherato di nuovo, e un segnaposto `token=%s` resta com'è. Test in

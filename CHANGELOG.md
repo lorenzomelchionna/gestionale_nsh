@@ -8,6 +8,12 @@ cambiamento incompatibile il primo.
 Le voci le scrive `scripts/release.py prepare` dai commit di ogni rilascio;
 vedi «CI e flusso di rilascio» in `CLAUDE.md`.
 
+## [1.7.4] — 2026-11-23
+
+### Correzioni
+
+- worker heartbeat so a stopped beat or stuck worker raises an alert
+
 ## [1.7.3] — 2026-11-23
 
 ### Correzioni

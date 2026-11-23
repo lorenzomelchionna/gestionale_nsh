@@ -72,6 +72,10 @@ class Settings(BaseSettings):
     # Sentry (optional)
     SENTRY_DSN: Optional[str] = Field(default=None)
 
+    # Battito del worker (vedi app/battito.py): l'URL di un heartbeat di
+    # Better Stack o di Healthchecks.io. Vuoto = spento.
+    HEARTBEAT_URL: Optional[str] = Field(default=None)
+
     # Twilio WhatsApp (optional — leave empty to disable)
     TWILIO_ACCOUNT_SID: str = ""
     TWILIO_AUTH_TOKEN: str = ""

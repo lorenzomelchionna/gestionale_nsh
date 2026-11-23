@@ -29,29 +29,18 @@ il servizio.
 from __future__ import annotations
 
 import logging
-import re
 import time
 from typing import Any, Optional
 
 from app.config import settings
 from app.logging_config import (
-    CAMPI_SEGRETI, SOSTITUTO, _ripulisci, attore, id_richiesta,
-    maschera_email, maschera_telefono,
+    CAMPI_SEGRETI, SOSTITUTO, attore, id_richiesta, ripulisci_testo,
 )
 from app.version import __version__
 
 log = logging.getLogger("nsh")
 
-_EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
-# Nove cifre o più, con spazi o trattini in mezzo: un numero di telefono.
-# Gli id degli oggetti (fino a qualche migliaio) e gli anni restano.
-_TELEFONO = re.compile(r"\+?\d(?:[\s-]?\d){8,}")
-
 # Le intestazioni che servono a capire un errore. Le altre non partono.
-# `password=…`, `token: …` dentro un testo libero (un messaggio d'errore,
-# una riga di log scritta in fretta).
-_COPPIA_SEGRETA = re.compile(r"(?i)\b(password|token|secret|codice|code|otp)(\s*[=:]\s*)[^\s&,;]+")
-
 _INTESTAZIONI_UTILI = frozenset({"user-agent", "content-type", "accept", "host", "x-request-id"})
 
 #: Quante volte lo stesso errore può partire verso Sentry in `FINESTRA_SECONDI`,
@@ -64,19 +53,12 @@ FINESTRA_SECONDI = 600
 _visti: dict[str, list[float]] = {}
 
 
-def _testo(s: str) -> str:
-    s = _ripulisci(s)
-    s = _COPPIA_SEGRETA.sub(lambda m: f"{m.group(1)}{m.group(2)}{SOSTITUTO}", s)
-    s = _EMAIL.sub(lambda m: maschera_email(m.group(0)), s)
-    return _TELEFONO.sub(lambda m: maschera_telefono(m.group(0)), s)
-
-
 def ripulisci(valore: Any, chiave: str = "") -> Any:
     """Toglie i dati personali da un evento o da un suo pezzo, ricorsivamente."""
     if chiave and any(s in chiave.lower() for s in CAMPI_SEGRETI):
         return SOSTITUTO
     if isinstance(valore, str):
-        return _testo(valore)
+        return ripulisci_testo(valore)
     if isinstance(valore, dict):
         return {k: ripulisci(v, str(k)) for k, v in valore.items()}
     if isinstance(valore, (list, tuple)):
@@ -172,3 +154,11 @@ def avvia_sentry(servizio: str) -> bool:
     sentry_sdk.set_tag("servizio", servizio)
     log.info("Sentry attivo", extra={"servizio": servizio})
     return True
+
+
+def sentry_attivo() -> bool:
+    """Se in questo processo Sentry è acceso."""
+    if not settings.SENTRY_DSN:
+        return False
+    import sentry_sdk
+    return sentry_sdk.get_client().is_active()

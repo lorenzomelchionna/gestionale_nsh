@@ -138,3 +138,27 @@ def test_senza_dsn_resta_spento(monkeypatch):
 ])
 def test_telefoni_mascherati_il_resto_no(testo, atteso):
     assert osservabilita.ripulisci(testo) == atteso
+
+
+def test_il_worker_dice_nei_log_se_sentry_e_acceso(sentry, caplog):
+    """`worker_init` arriva prima che Celery configuri i log, e la riga di
+    `avvia_sentry` lì si perde: la conferma la scrive `worker_ready`."""
+    import logging
+
+    from app.tasks.celery_app import _conferma_sentry
+
+    with caplog.at_level(logging.INFO):
+        _conferma_sentry()
+    assert any(r.getMessage() == "Sentry attivo" and getattr(r, "servizio", "") == "worker"
+               for r in caplog.records)
+
+
+def test_senza_dsn_il_worker_non_dice_niente(monkeypatch, caplog):
+    import logging
+
+    from app.tasks.celery_app import _conferma_sentry
+
+    monkeypatch.setattr(settings, "SENTRY_DSN", None)
+    with caplog.at_level(logging.INFO):
+        _conferma_sentry()
+    assert not any(r.getMessage() == "Sentry attivo" for r in caplog.records)

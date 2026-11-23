@@ -2130,7 +2130,9 @@ nella 1.x. Analisi completa e fonti in `docs/v2/STRUMENTI.md`, sul worktree
 
   Nel log del backend c'è «Sentry attivo».
 
-  - [ ] **Il worker non scrive «Sentry attivo».** `worker_init` arriva
+  - [x] **Fatto il 2026-11-23**: la riga la scrive `worker_ready`.
+
+    Il problema, com'era: **il worker non scriveva «Sentry attivo».** `worker_init` arriva
     prima che Celery configuri i log, quindi la riga INFO si perde. Sentry
     si avvia lo stesso, e il DSN c'è. Rimedio: scrivere la riga al segnale
     `worker_ready`.
@@ -2181,7 +2183,14 @@ nella 1.x. Analisi completa e fonti in `docs/v2/STRUMENTI.md`, sul worktree
   - `send_default_pii=False`, e un `before_send` che riusa `FiltroSegreti`
     di `app/logging_config.py`.
   - Un limite di frequenza, perché un errore in ciclo non consumi la quota.
-- [ ] **Lo stack delle eccezioni esce dai log senza filtro** — trovato il
+- [x] **Fatto il 2026-11-23**: `ripulisci_testo` in `app/logging_config.py`
+  è l'unico filtro dei testi, e lo usano log, traceback e Sentry. I due
+  formatter passano per lì anche lo stack. Un indirizzo già mascherato non
+  viene mascherato di nuovo, e un segnaposto `token=%s` resta com'è. Test in
+  `TestITraceback`: falliscono se si toglie il filtro dal formatter.
+
+  Il problema, com'era: **lo stack delle eccezioni usciva dai log senza
+  filtro** — trovato il
   2026-11-22 provando Sentry. `FiltroSegreti` ripulisce messaggio e campi,
   ma il traceback viene formattato *dopo*, dal formatter, e finisce in
   `eccezione` così com'è.

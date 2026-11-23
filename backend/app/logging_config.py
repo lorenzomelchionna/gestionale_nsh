@@ -117,11 +117,36 @@ def maschera_telefono(numero: str | None) -> str:
     return f"{prefisso}{cifre[:2]}***{cifre[-4:]}"
 
 
+# Dentro un testo libero: un messaggio d'errore, un traceback, una riga
+# scritta in fretta. Un `IntegrityError` di Postgres riporta il valore
+# duplicato per intero — «Key (email)=(…)» — e il traceback lo ripete.
+# Non preceduta da `*`: un indirizzo già mascherato (`m***i@gmail.com`) non
+# va mascherato una seconda volta.
+_EMAIL = re.compile(r"(?<![*\w.%+-])[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
+# Nove cifre o più, con spazi o trattini in mezzo: un numero di telefono.
+# Gli id (fino a qualche migliaio), le date e gli anni restano.
+_TELEFONO = re.compile(r"\+?\d(?:[\s-]?\d){8,}")
+# `password=…`, `token: …`. Non un segnaposto come `token=%s`: il valore
+# vero arriva negli argomenti, che il filtro ripulisce a parte, e sostituire
+# il `%s` romperebbe la formattazione della riga.
+_COPPIA_SEGRETA = re.compile(r"(?i)\b(password|token|secret|codice|code|otp)(\s*[=:]\s*)(?!%)[^\s&,;]+")
+
+
+def ripulisci_testo(testo: str) -> str:
+    """Un testo senza segreti e con email e telefoni mascherati.
+
+    Lo usano il filtro dei log, il formatter per i traceback e Sentry
+    (`app/osservabilita.py`): stesse regole ovunque un testo esca.
+    """
+    testo = _JWT.sub(SOSTITUTO, testo)
+    testo = _BEARER.sub(SOSTITUTO, testo)
+    testo = _COPPIA_SEGRETA.sub(lambda m: f"{m.group(1)}{m.group(2)}{SOSTITUTO}", testo)
+    testo = _EMAIL.sub(lambda m: maschera_email(m.group(0)), testo)
+    return _TELEFONO.sub(lambda m: maschera_telefono(m.group(0)), testo)
+
+
 def _ripulisci(valore: Any) -> Any:
-    if isinstance(valore, str):
-        valore = _JWT.sub(SOSTITUTO, valore)
-        valore = _BEARER.sub(SOSTITUTO, valore)
-    return valore
+    return ripulisci_testo(valore) if isinstance(valore, str) else valore
 
 
 class FiltroSegreti(logging.Filter):
@@ -199,6 +224,9 @@ class FormatoJson(logging.Formatter):
     scelta.
     """
 
+    def formatException(self, ei) -> str:
+        return ripulisci_testo(super().formatException(ei))
+
     def format(self, record: logging.LogRecord) -> str:
         riga: dict[str, Any] = {
             "ts": self.formatTime(record, "%Y-%m-%dT%H:%M:%S%z"),
@@ -226,6 +254,9 @@ class FormatoLeggibile(logging.Formatter):
     def __init__(self) -> None:
         super().__init__("%(asctime)s %(levelname)-7s %(name)s [%(richiesta)s %(attore)s] %(message)s",
                          datefmt="%H:%M:%S")
+
+    def formatException(self, ei) -> str:
+        return ripulisci_testo(super().formatException(ei))
 
     def format(self, record: logging.LogRecord) -> str:
         base = super().format(record)

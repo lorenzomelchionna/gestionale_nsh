@@ -1,6 +1,6 @@
 from celery import Celery
 from celery.schedules import crontab
-from celery.signals import setup_logging as celery_setup_logging, worker_init
+from celery.signals import setup_logging as celery_setup_logging, worker_init, worker_ready
 from app.config import settings
 from app.logging_config import setup_logging
 
@@ -29,6 +29,20 @@ def _avvia_sentry(**_kwargs):
     sono processi figli, e quel segnale non arriverebbe mai."""
     from app.osservabilita import avvia_sentry
     avvia_sentry("worker")
+
+
+@worker_ready.connect
+def _conferma_sentry(**_kwargs):
+    """La riga «Sentry attivo» del worker, scritta qui e non sopra.
+
+    `worker_init` arriva prima che Celery configuri i log: la riga INFO di
+    `avvia_sentry` lì si perde, e dai log di Railway non si capiva se nel
+    worker Sentry fosse acceso. A worker pronto i log ci sono.
+    """
+    import logging
+    from app.osservabilita import sentry_attivo
+    if sentry_attivo():
+        logging.getLogger("nsh").info("Sentry attivo", extra={"servizio": "worker"})
 
 
 celery_app = Celery(

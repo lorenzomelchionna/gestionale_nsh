@@ -2280,7 +2280,7 @@ nella 1.x. Analisi completa e fonti in `docs/v2/STRUMENTI.md`, sul worktree
   che chiuda (Lorenzo). Prima l'unico modo era un'assenza per ogni
   collaboratore. **In produzione con la 1.6.0** (2026-11-20 15:33 UTC):
   migration applicata, calendario del portale 200, nessun 5xx.
-- [ ] **Natale: alzare «Anticipo massimo» e segnare le chiusure** — con 30
+- [x] **Natale: alzare «Anticipo massimo» e segnare le chiusure** (fatto con Flavia, confermato da Lorenzo il 2026-11-23) — con 30
   giorni, a fine novembre le clienti non arrivano alla settimana di Natale.
   Flavia: Impostazioni → «Anticipo massimo (giorni)» (es. 60), e in
   «Chiusure per data» i giorni in cui il salone è chiuso (25 e 26

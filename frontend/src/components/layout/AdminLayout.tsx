@@ -166,13 +166,16 @@ export default function AdminLayout() {
       {/* ── The dark bar ───────────────────────────────────────────
           Runs the full width above both rail and page, the way the header
           of a bound register runs across the spread. */}
-      <header className="hidden lg:flex items-center gap-5 h-14 px-[22px] bg-chrome shrink-0">
+      {/* Sotto i 1280 px (tablet in orizzontale, finestra stretta) l'indirizzo
+          e l'email lasciano il posto: con tutto in fila la barra arrivava a
+          1217 px su 1024 e tagliava fuori «esci». */}
+      <header className="hidden lg:flex items-center gap-5 h-14 px-[22px] bg-chrome shrink-0 min-w-0">
         <Logo height={26} className="text-chrome-ink" />
-        <span className="text-xs text-chrome-dim border-l border-chrome-ink/20 pl-5 whitespace-nowrap">
+        <span className="hidden xl:inline text-xs text-chrome-dim border-l border-chrome-ink/20 pl-5 whitespace-nowrap">
           {INDIRIZZO.visita}
         </span>
 
-        <form onSubmit={runSearch} className="relative">
+        <form onSubmit={runSearch} className="relative min-w-0">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-chrome-dim pointer-events-none" />
           <input
             type="search"
@@ -180,7 +183,7 @@ export default function AdminLayout() {
             onChange={e => setTerm(e.target.value)}
             placeholder="Cerca cliente per nome, telefono, email…"
             aria-label="Cerca cliente"
-            className="w-[320px] bg-on-chrome/[0.07] border border-chrome-ink/20 text-on-chrome placeholder:text-chrome-dim text-[13px] pl-9 pr-3 py-2 outline-none focus:border-primary transition-colors"
+            className="w-[240px] xl:w-[320px] max-w-full bg-on-chrome/[0.07] border border-chrome-ink/20 text-on-chrome placeholder:text-chrome-dim text-[13px] pl-9 pr-3 py-2 outline-none focus:border-primary transition-colors"
           />
         </form>
 
@@ -197,9 +200,8 @@ export default function AdminLayout() {
 
         <ThemeSwitch isDark={isDark} onToggle={toggleDark} />
 
-        <span className="text-[13px] text-chrome-dim whitespace-nowrap">
-          {user?.email}
-          {' · '}
+        <span className="text-[13px] text-chrome-dim whitespace-nowrap" title={user?.email}>
+          <span className="hidden xl:inline-block max-w-[200px] truncate align-bottom">{user?.email}</span><span className="hidden xl:inline">{' · '}</span>
           <button onClick={handleLogout} className="text-chrome-ink hover:underline">
             esci
           </button>

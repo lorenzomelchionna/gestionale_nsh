@@ -237,6 +237,21 @@ function NowRule({ date, timeToY, gridHeight }: {
   )
 }
 
+/**
+ * L'orario `ore:minuti` nello stesso giorno di `giorno`, oppure `null` se non
+ * è un orario. I campi sono `type="number"`: il browser lascia scrivere 24,
+ * 75, -1 o 9.5, e da lì usciva una data non valida che faceva saltare
+ * `toISOString()` invece di mostrare «Inserisci un orario valido».
+ */
+export function orarioNelGiorno(giorno: Date, ore: string, minuti: string): Date | null {
+  if (!/^\d{1,2}$/.test(ore.trim()) || !/^\d{1,2}$/.test(minuti.trim())) return null
+  const h = Number(ore), m = Number(minuti)
+  if (h > 23 || m > 59) return null
+  const risultato = new Date(giorno)
+  risultato.setHours(h, m, 0, 0)
+  return risultato
+}
+
 export default function CalendarPage() {
   const qc = useQueryClient()
   const [viewMode, setViewMode] = useState<ViewMode>('day')
@@ -1296,15 +1311,11 @@ function AppointmentModal({
 
   const handleSaveEarlyEnd = () => {
     setEarlyEndError('')
-    const h = Number(earlyHours)
-    const m = Number(earlyMinutes)
-    if (earlyHours === '' || earlyMinutes === '' || isNaN(h) || isNaN(m)) {
+    const newEnd = orarioNelGiorno(apptStart, earlyHours, earlyMinutes)
+    if (!newEnd) {
       setEarlyEndError('Inserisci un orario valido.')
       return
     }
-    // Build newEnd in local time using the same calendar day as apptStart
-    const dateStr = format(apptStart, 'yyyy-MM-dd')
-    const newEnd = new Date(`${dateStr}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`)
     if (newEnd <= apptStart) {
       setEarlyEndError(`L'orario deve essere dopo ${format(apptStart, 'HH:mm')}.`)
       return
@@ -1318,14 +1329,11 @@ function AppointmentModal({
 
   const handleSaveResize = () => {
     setResizeError('')
-    const h = Number(resizeHours)
-    const m = Number(resizeMinutes)
-    if (resizeHours === '' || resizeMinutes === '' || isNaN(h) || isNaN(m)) {
+    const newEnd = orarioNelGiorno(apptStart, resizeHours, resizeMinutes)
+    if (!newEnd) {
       setResizeError('Inserisci un orario valido.')
       return
     }
-    const dateStr = format(apptStart, 'yyyy-MM-dd')
-    const newEnd = new Date(`${dateStr}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`)
     if (newEnd <= apptStart) {
       setResizeError(`L'orario deve essere dopo ${format(apptStart, 'HH:mm')}.`)
       return

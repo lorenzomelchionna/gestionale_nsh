@@ -2220,6 +2220,19 @@ nella 1.x. Analisi completa e fonti in `docs/v2/STRUMENTI.md`, sul worktree
   lo stesso; cosmetico. Rimedio: non mascherare sequenze attaccate a
   lettere esadecimali (lookbehind/lookahead `[0-9a-f-]`).
 
+- [x] **Primo errore vero da Sentry (2026-11-26, GESTIONALE-FRONTEND-1)**:
+  `RangeError: Invalid time value` su `/admin/calendar`. «Modifica orario di
+  fine» / «Termina prima» accettavano 75, -1, 9.5 (campi `type=number`): la
+  data non valida saltava in `toISOString()` e «Salva» non faceva niente.
+  Corretto con `orarioNelGiorno` (PR #239), **in produzione con la 1.7.6**.
+  Nessun dato toccato. Da chiedere a Flavia se era lei.
+- [ ] **Source map su Sentry.** Lo stack del frontend arriva sul JS
+  compresso (`index-….js:498`): per trovare la riga ho dovuto scaricare il
+  bundle. Con `@sentry/vite-plugin` al build (token Sentry creato da
+  Lorenzo, variabile del servizio frontend su Railway) l'errore punta al
+  file sorgente. Le mappe vanno caricate e poi **cancellate dal build**, non
+  servite su www.
+
 ### Piccoli miglioramenti
 
 - [ ] **Calendario nella conferma.** File `.ics` allegato alla conferma e al

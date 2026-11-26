@@ -2266,7 +2266,7 @@ nella 1.x. Analisi completa e fonti in `docs/v2/STRUMENTI.md`, sul worktree
   variabili, plan poi «up to date»); primi callback di Twilio arrivati con
   204, firma valida. «Letto» = spunte blu: chi ha tolto le conferme di
   lettura resta «Consegnato» anche se l'ha letto.
-- [x] **Sistemato il 2026-11-23** (PR fix/layout-1024): il colpevole era
+- [x] **Sistemato il 2026-11-23, in produzione con la 1.7.5** (PR #237, rilascio #238; build del frontend su www verificata): il colpevole era
   solo la barra scura in alto, 1217 px su 1024 — le pagine stavano già nello
   schermo. La barra è a `overflow-hidden`, quindi tagliava fuori «Scuro» e
   l'email con **«esci»** (a 1024 px non si poteva uscire). Sotto i 1280 px

@@ -420,7 +420,7 @@ class TestLeEmailAlloStaff:
         nuova_id = r.json()["id"]
         inviate = []
 
-        async def finta(to, subject, body):
+        async def finta(to, subject, body, **_):
             inviate.append((to, subject, body))
         monkeypatch.setattr(email_util, "send_email", finta)
 
@@ -451,7 +451,7 @@ class TestLeEmailAlloStaff:
         a = await _appuntamento(db, cliente, collaborator, service, _giorno())
         inviate = []
 
-        async def finta(to, subject, body):
+        async def finta(to, subject, body, **_):
             inviate.append(body)
         monkeypatch.setattr(email_util, "send_email", finta)
         a = (await db.execute(

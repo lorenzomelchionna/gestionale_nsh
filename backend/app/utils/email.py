@@ -1,15 +1,22 @@
 """Email utility — Brevo HTTP API (preferred) with SMTP fallback."""
+import base64
 import logging
 import html
 import smtplib
 import socket
+from email.mime.base import MIMEBase
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email import encoders
 import httpx
 from app.config import settings
 from app.logging_config import maschera_email
 from app.services.registro import html_in_testo, registra
 from app.utils.tempo import ora_salone
+from app.utils import calendario
+
+#: Un allegato: nome del file, contenuto, tipo MIME.
+Allegato = tuple[str, bytes, str]
 
 log = logging.getLogger("nsh.email")
 
@@ -41,7 +48,9 @@ def _resolve_ipv4(host: str) -> str:
     return socket.getaddrinfo(host, None, socket.AF_INET)[0][4][0]
 
 
-async def _send_via_brevo(to: str, subject: str, html_body: str) -> str | None:
+async def _send_via_brevo(
+    to: str, subject: str, html_body: str, allegati: list[Allegato] | None = None,
+) -> str | None:
     """Send through Brevo's transactional email HTTP API (works behind SMTP blocks)."""
     payload = {
         "sender": {"name": settings.EMAILS_FROM_NAME, "email": settings.EMAILS_FROM_EMAIL},
@@ -49,6 +58,12 @@ async def _send_via_brevo(to: str, subject: str, html_body: str) -> str | None:
         "subject": subject,
         "htmlContent": html_body,
     }
+    if allegati:
+        # Brevo vuole il contenuto in base64 e ricava il tipo dall'estensione.
+        payload["attachment"] = [
+            {"name": nome, "content": base64.b64encode(contenuto).decode("ascii")}
+            for nome, contenuto, _tipo in allegati
+        ]
     headers = {
         "api-key": settings.BREVO_API_KEY,
         "Content-Type": "application/json",
@@ -64,13 +79,22 @@ async def _send_via_brevo(to: str, subject: str, html_body: str) -> str | None:
         return None
 
 
-def _send_via_smtp(to: str, subject: str, html_body: str) -> None:
+def _send_via_smtp(
+    to: str, subject: str, html_body: str, allegati: list[Allegato] | None = None,
+) -> None:
     """Fallback SMTP path (used for local dev; cloud hosts often block outbound SMTP)."""
-    msg = MIMEMultipart("alternative")
+    msg = MIMEMultipart("mixed" if allegati else "alternative")
     msg["Subject"] = subject
     msg["From"] = f"{settings.EMAILS_FROM_NAME} <{settings.EMAILS_FROM_EMAIL}>"
     msg["To"] = to
     msg.attach(MIMEText(html_body, "html"))
+    for nome, contenuto, tipo in allegati or []:
+        principale, sotto = tipo.split("/", 1)
+        parte = MIMEBase(principale, sotto)
+        parte.set_payload(contenuto)
+        encoders.encode_base64(parte)
+        parte.add_header("Content-Disposition", "attachment", filename=nome)
+        msg.attach(parte)
 
     # Connect over IPv4 explicitly (Railway has no IPv6 egress) but keep the
     # hostname for TLS certificate verification via starttls.
@@ -83,7 +107,9 @@ def _send_via_smtp(to: str, subject: str, html_body: str) -> None:
         server.sendmail(settings.EMAILS_FROM_EMAIL, to, msg.as_string())
 
 
-async def send_email(to: str, subject: str, html_body: str) -> None:
+async def send_email(
+    to: str, subject: str, html_body: str, allegati: list[Allegato] | None = None,
+) -> None:
     """Spedisce e scrive nel registro dei messaggi, riuscito o no.
 
     Il registro ha il testo leggibile, non l'HTML: è quello che serve a chi
@@ -94,12 +120,12 @@ async def send_email(to: str, subject: str, html_body: str) -> None:
     try:
         # Prefer Brevo HTTP API (HTTPS is not blocked on cloud hosts).
         if settings.BREVO_API_KEY:
-            id_brevo = await _send_via_brevo(to, subject, html_body)
+            id_brevo = await _send_via_brevo(to, subject, html_body, allegati)
             await registra(**voce, stato="inviato", id_fornitore=id_brevo)
             return
         # Fallback to SMTP (e.g. local dev).
         if settings.SMTP_USER:
-            _send_via_smtp(to, subject, html_body)
+            _send_via_smtp(to, subject, html_body, allegati)
             await registra(**voce, stato="inviato")
             return
     except Exception as exc:
@@ -196,6 +222,24 @@ async def send_booking_confirmation_email(appointment) -> None:
     start = ora_salone(appointment.start_time).strftime("%d/%m/%Y alle %H:%M")
     collab_name = f"{collab.first_name} {collab.last_name}" if collab else "il collaboratore"
     subject = f"Prenotazione confermata – {start}"
+    # Una richiesta di cambio confermata: chi aveva salvato il vecchio
+    # orario nel calendario se lo ritroverebbe accanto al nuovo.
+    vecchio = (
+        "<p>Se avevi salvato nel calendario l'orario precedente, cancellalo: "
+        "vale questo.</p>"
+        if getattr(appointment, "replaces_appointment_id", None) else ""
+    )
+    # Il calendario è un di più: se per qualunque motivo non si riesce a
+    # preparare, la conferma parte lo stesso, senza.
+    try:
+        allegati = [("appuntamento.ics", calendario.file_ics(appointment), "text/calendar")]
+        salva = (
+            "<p>Salvala nel calendario: apri l'allegato <em>appuntamento.ics</em>, oppure "
+            f'<a href="{esc(calendario.link_google(appointment))}">aggiungila a Google Calendar</a>.</p>'
+        )
+    except Exception:
+        log.exception("evento del calendario non preparato", extra={"id_appuntamento": getattr(appointment, "id", None)})
+        allegati, salva = None, ""
     body = f"""
     <h2>New Style Hair</h2>
     <p>Ciao {esc(client.first_name)},</p>
@@ -204,9 +248,11 @@ async def send_booking_confirmation_email(appointment) -> None:
       <li>Data: <strong>{esc(start)}</strong></li>
       <li>Con: <strong>{esc(collab_name)}</strong></li>
     </ul>
+    {salva}
+    {vecchio}
     <p>Ti aspettiamo!</p>
     """
-    await send_email(client.email, subject, body)
+    await send_email(client.email, subject, body, allegati=allegati)
 
 
 async def send_new_booking_staff_email(to_email: str, appointment) -> None:

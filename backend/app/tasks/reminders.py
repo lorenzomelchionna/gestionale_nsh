@@ -162,7 +162,7 @@ def send_booking_confirmation_task(appointment_id: int):
 
 async def _async_send_booking_confirmation(appointment_id: int):
     from app.database import create_task_session_factory
-    from app.models.appointment import Appointment
+    from app.models.appointment import Appointment, AppointmentService
     from app.utils.notifications import notify_booking_confirmation
 
     task_engine, session_factory = create_task_session_factory()
@@ -173,6 +173,10 @@ async def _async_send_booking_confirmation(appointment_id: int):
                 .options(
                     selectinload(Appointment.client),
                     selectinload(Appointment.collaborator),
+                    # I servizi danno il titolo all'evento del calendario
+                    # allegato alla conferma (`utils/calendario.py`).
+                    selectinload(Appointment.appointment_services)
+                    .selectinload(AppointmentService.service),
                 )
                 .where(Appointment.id == appointment_id)
             )

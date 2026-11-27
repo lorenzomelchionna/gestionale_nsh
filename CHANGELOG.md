@@ -8,6 +8,12 @@ cambiamento incompatibile il primo.
 Le voci le scrive `scripts/release.py prepare` dai commit di ogni rilascio;
 vedi «CI e flusso di rilascio» in `CLAUDE.md`.
 
+## [1.10.0] — 2026-11-27
+
+### Novità
+
+- confirmation email lets the client save the appointment to her calendar
+
 ## [1.9.0] — 2026-11-27
 
 ### Novità

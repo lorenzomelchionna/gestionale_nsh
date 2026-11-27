@@ -64,6 +64,10 @@ const STATO_TWILIO = "https://gestionalensh-production.up.railway.app/api/public
 // browser), ma permette di mandare eventi a nome nostro: `preserve()`, fuori
 // dal repository.
 //
+// FRONTEND_URL (2026-11-27): il worker lo legge dal backend. Aveva ancora
+// l'indirizzo Railway del sito, e le email che spedisce lui (conferme, con
+// il link nell'evento del calendario) puntavano lì invece che a www.
+//
 // Battito (2026-11-23): `HEARTBEAT_URL` solo sul worker, che lo chiama a ogni
 // giro dei promemoria (`app/battito.py`). Chi ha l'URL può battere al posto
 // del worker e nascondere un guasto: `preserve()`.
@@ -97,7 +101,7 @@ export default defineRailway(() => {
     replicas: { "europe-west4-drams3a": 1 },
     deploy: { restartPolicyMaxRetries: 3 },
     networking: { privateNetworkEndpoint: "celery-worker" },
-    env: { ACCESS_TOKEN_EXPIRE_MINUTES: preserve(), ALGORITHM: preserve(), APP_ENV: preserve(), BREVO_API_KEY: backend.env.BREVO_API_KEY, DATABASE_URL: Postgres.env.DATABASE_URL, EMAILS_FROM_EMAIL: MITTENTE, EMAILS_FROM_NAME: preserve(), FRONTEND_URL: preserve(), REDIS_URL: Redis.env.REDIS_URL, REFRESH_TOKEN_EXPIRE_DAYS: preserve(), SECRET_KEY: backend.env.SECRET_KEY, SEED_DEMO: preserve(), SMTP_HOST: preserve(), SMTP_PASSWORD: preserve(), SMTP_PORT: preserve(), SMTP_USER: preserve(), TWILIO_ACCOUNT_SID: preserve(), TWILIO_AUTH_TOKEN: preserve(), TWILIO_TEMPLATE_CONFERMA: preserve(), TWILIO_TEMPLATE_PROMEMORIA: preserve(), TWILIO_TEMPLATE_VERIFICA: preserve(), TWILIO_WHATSAPP_FROM: preserve(), TWILIO_STATUS_CALLBACK_URL: backend.env.TWILIO_STATUS_CALLBACK_URL, SENTRY_DSN: backend.env.SENTRY_DSN, HEARTBEAT_URL: preserve() },
+    env: { ACCESS_TOKEN_EXPIRE_MINUTES: preserve(), ALGORITHM: preserve(), APP_ENV: preserve(), BREVO_API_KEY: backend.env.BREVO_API_KEY, DATABASE_URL: Postgres.env.DATABASE_URL, EMAILS_FROM_EMAIL: MITTENTE, EMAILS_FROM_NAME: preserve(), FRONTEND_URL: backend.env.FRONTEND_URL, REDIS_URL: Redis.env.REDIS_URL, REFRESH_TOKEN_EXPIRE_DAYS: preserve(), SECRET_KEY: backend.env.SECRET_KEY, SEED_DEMO: preserve(), SMTP_HOST: preserve(), SMTP_PASSWORD: preserve(), SMTP_PORT: preserve(), SMTP_USER: preserve(), TWILIO_ACCOUNT_SID: preserve(), TWILIO_AUTH_TOKEN: preserve(), TWILIO_TEMPLATE_CONFERMA: preserve(), TWILIO_TEMPLATE_PROMEMORIA: preserve(), TWILIO_TEMPLATE_VERIFICA: preserve(), TWILIO_WHATSAPP_FROM: preserve(), TWILIO_STATUS_CALLBACK_URL: backend.env.TWILIO_STATUS_CALLBACK_URL, SENTRY_DSN: backend.env.SENTRY_DSN, HEARTBEAT_URL: preserve() },
   });
   const frontend = service("frontend", {
     source: github("lorenzomelchionna/gestionale_nsh", { checkSuites: false, rootDirectory: "/frontend" }),

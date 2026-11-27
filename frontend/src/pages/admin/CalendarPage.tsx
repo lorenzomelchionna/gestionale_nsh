@@ -15,6 +15,9 @@ import {
   createAppointment, getAllClients, getServices, updateAppointment, getAbsences, getBookingConfig,
   createClient, getAbsencesInRange, getExtraDaysInRange,
 } from '@/services/api'
+import {
+  appuntamentiFra, assenzeFra, conRiserva, copre, straordinariFra,
+} from '@/offline/agenda'
 import { errorText } from '@/components/admin/ClientFormSheet'
 import type { Absence, Appointment, ChiusuraSalone, Client, Collaborator, ExtraWorkDay } from '@/types'
 import Sheet from '@/components/ui/Sheet'
@@ -274,23 +277,39 @@ export default function CalendarPage() {
     ? format(currentDate, 'yyyy-MM-dd') + 'T23:59:59'
     : format(addDays(startOfWeek(currentDate, { weekStartsOn: 1 }), 6), 'yyyy-MM-dd') + 'T23:59:59'
 
-  const { data: apptsData } = useQuery({
+  const { data: apptsData, isError: apptsError } = useQuery({
     queryKey: ['appointments', dateFrom, dateTo, selectedCollaboratorId],
-    queryFn: () => getAppointmentsInRange({
-      date_from: dateFrom,
-      date_to: dateTo,
-      collaborator_id: selectedCollaboratorId ?? undefined,
-    }),
+    networkMode: 'always',
+    // Senza rete, la copia salvata in questo browser (`offline/agenda.ts`),
+    // purché copra almeno un capo dei giorni in vista.
+    queryFn: () => conRiserva(
+      () => getAppointmentsInRange({
+        date_from: dateFrom,
+        date_to: dateTo,
+        collaborator_id: selectedCollaboratorId ?? undefined,
+      }),
+      c => copre(c, dateFrom.slice(0, 10)) || copre(c, dateTo.slice(0, 10))
+        ? appuntamentiFra(c, dateFrom, dateTo, selectedCollaboratorId ?? undefined)
+        : undefined,
+    ),
   })
 
   const { data: collabsData } = useQuery({
     queryKey: ['collaborators-active'],
-    queryFn: () => getCollaborators({ active_only: true }),
+    networkMode: 'always',
+    queryFn: () => conRiserva(
+      () => getCollaborators({ active_only: true }),
+      c => c.collaboratori && {
+        items: c.collaboratori, total: c.collaboratori.length,
+        page: 1, page_size: c.collaboratori.length, pages: 1,
+      },
+    ),
   })
 
   const { data: bookingConfig } = useQuery({
     queryKey: ['booking-config'],
-    queryFn: getBookingConfig,
+    networkMode: 'always',
+    queryFn: () => conRiserva(getBookingConfig, c => c.configurazione),
   })
 
   // Cancelled/rejected appointments free up their slot: hide them so the
@@ -307,7 +326,11 @@ export default function CalendarPage() {
   // un permesso bloccava le prenotazioni online ma qui l'ora sembrava libera.
   const { data: absencesData } = useQuery({
     queryKey: ['absences-range', dateFrom.slice(0, 10), dateTo.slice(0, 10)],
-    queryFn: () => getAbsencesInRange(dateFrom.slice(0, 10), dateTo.slice(0, 10)),
+    networkMode: 'always',
+    queryFn: () => conRiserva(
+      () => getAbsencesInRange(dateFrom.slice(0, 10), dateTo.slice(0, 10)),
+      c => assenzeFra(c, dateFrom.slice(0, 10), dateTo.slice(0, 10)),
+    ),
   })
   const visibleIds = new Set(visibleCollabs.map(c => c.id))
   const absences = (absencesData ?? []).filter(a => visibleIds.has(a.collaborator_id))
@@ -319,7 +342,11 @@ export default function CalendarPage() {
   // finita sopra il bordo, invisibile.
   const { data: extraDaysData } = useQuery({
     queryKey: ['extra-days-range', dateFrom.slice(0, 10), dateTo.slice(0, 10)],
-    queryFn: () => getExtraDaysInRange(dateFrom.slice(0, 10), dateTo.slice(0, 10)),
+    networkMode: 'always',
+    queryFn: () => conRiserva(
+      () => getExtraDaysInRange(dateFrom.slice(0, 10), dateTo.slice(0, 10)),
+      c => straordinariFra(c, dateFrom.slice(0, 10), dateTo.slice(0, 10)),
+    ),
   })
   const extraDays = (extraDaysData ?? []).filter(e => visibleIds.has(e.collaborator_id))
 
@@ -541,6 +568,17 @@ export default function CalendarPage() {
       </div>
 
       <StatusLegend />
+
+      {/* Una griglia vuota direbbe «nessun appuntamento». Se i giorni in vista
+          non sono arrivati (senza rete e fuori dall'agenda salvata, o il
+          server che risponde con un errore), va detto. */}
+      {apptsError && (
+        <p role="alert" className="border border-danger bg-danger/[0.08] px-4 py-2.5 text-[13px] text-foreground">
+          Non riesco a caricare gli appuntamenti di questi giorni. La griglia qui sotto
+          <strong> non è vuota davvero</strong>: senza internet si vedono solo i giorni
+          dell'agenda salvata.
+        </p>
+      )}
 
       {/* Mobile: chronological agenda instead of a squeezed time grid. */}
       <AgendaView
@@ -1360,6 +1398,16 @@ function AppointmentModal({
       {/* The record itself, read as a ruled list of entries. */}
       <div className="border-t border-rule-soft">
         <Row label="Cliente" value={appointment.client_name ?? '–'} />
+        {/* Il telefono qui e non solo nella scheda cliente: senza internet la
+            scheda non si apre, e richiamarla è la prima cosa da fare. */}
+        {appointment.client_phone && (
+          <div className="flex gap-2">
+            <span className="text-xs text-muted-foreground w-24 flex-shrink-0">Telefono:</span>
+            <a href={`tel:${appointment.client_phone.replace(/\s/g, '')}`} className="text-sm font-medium text-primary tabular-nums hover:underline">
+              {appointment.client_phone}
+            </a>
+          </div>
+        )}
         <Row label="Collaboratore" value={appointment.collaborator_name ?? '–'} />
         <Row label="Orario" value={`${format(apptStart, 'dd/MM/yyyy HH:mm')} → ${format(apptEnd, 'HH:mm')}`} />
         <Row label="Totale" value={`€${(appointment.total_price ?? 0).toFixed(2)}`} />

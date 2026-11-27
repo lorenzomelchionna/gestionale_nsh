@@ -105,6 +105,9 @@ class AppointmentOutWithNames(AppointmentOut):
     """
 
     client_name: str = ""
+    # Il telefono della cliente: senza internet in salone (2026-11-27) è
+    # l'unico modo di avvisarla, e l'agenda salvata per l'offline lo porta.
+    client_phone: Optional[str] = None
     collaborator_name: str = ""
     service_names: List[str] = []
     # Allineati a `service_names`, `None` per un servizio senza colore: il
@@ -130,6 +133,7 @@ class AppointmentOutWithNames(AppointmentOut):
         to the query that fetched it."""
         out = cls.model_validate(a)
         out.client_name = f"{a.client.first_name} {a.client.last_name}" if a.client else ""
+        out.client_phone = a.client.phone if a.client else None
         out.collaborator_name = (
             f"{a.collaborator.first_name} {a.collaborator.last_name}" if a.collaborator else ""
         )

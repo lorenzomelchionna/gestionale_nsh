@@ -138,6 +138,7 @@ export interface Appointment {
   appointment_services: AppointmentServiceItem[]
   // enriched fields
   client_name?: string
+  client_phone?: string | null
   collaborator_name?: string
   total_price?: number
   /** Incassato per i servizi, e come ('contanti' | 'carta' | 'misto'); null se non ancora. */

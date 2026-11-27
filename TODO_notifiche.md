@@ -2261,6 +2261,24 @@ nella 1.x. Analisi completa e fonti in `docs/v2/STRUMENTI.md`, sul worktree
 
 ## Funzionalità richieste
 
+### Incidente — 2026-11-27: in salone niente internet, gestionale «vuoto»
+
+Nessun dato perso: server su tutto il giorno, il salone non lo raggiungeva.
+Lo staff è andato nel panico perché non sapeva chi arrivava. (Il backup del
+DB è un altro problema: non avrebbe aiutato. Vedi «Backup automatici».)
+
+- [ ] Dire allo staff: senza internet, **hotspot dal telefono** e il
+  gestionale funziona normalmente.
+- [x] **Scarica Excel** in Appuntamenti (solo admin): da oggi a +30 giorni o
+  le date della pagina, annullati/rifiutati esclusi, A4 orizzontale, ogni
+  esportazione nel registro di sicurezza. **In produzione con la 1.8.0**
+  (PR #241, rilascio #242), 2026-11-27.
+- [x] **Fatto il 2026-11-27, PR feat/agenda-offline** — `frontend/src/offline/` + `public/sw.js`: copia di ieri + 14 giorni in `localStorage`, rinnovata ogni 5 min, calendario da lì quando il server non risponde (nessuna risposta o 502/503/504), avviso in cima, telefono nel riquadro dell'appuntamento, errore esplicito fuori dalla copia. Service worker solo dal gestionale, solo build di produzione; uscita = copia, worker e cache cancellati. Provato spegnendo sito e server. Interruttore d'emergenza scritto in testa a `sw.js`.
+  Era: **Gestionale consultabile offline** (scelta C di Lorenzo): copia degli
+  appuntamenti dei prossimi giorni nel browser, sola lettura, avviso «Senza
+  connessione — dati aggiornati alle …», cancellata all'uscita. Scrivere
+  offline no (conflitti col portale): semmai 2.0.
+
 - [x] **Registro messaggi** (2026-11-20, richiesta di Lorenzo). Pagina
   «Registro messaggi» (solo admin, sotto Gestione): ogni email e WhatsApp
   partito dal gestionale, di qualunque tipo, in tabella cercabile per

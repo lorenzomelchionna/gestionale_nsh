@@ -8,6 +8,13 @@ cambiamento incompatibile il primo.
 Le voci le scrive `scripts/release.py prepare` dai commit di ogni rilascio;
 vedi «CI e flusso di rilascio» in `CLAUDE.md`.
 
+## [1.10.1] — 2026-11-27
+
+### Correzioni
+
+- two calendar buttons in the confirmation, by calendar not device
+- worker reads FRONTEND_URL from the backend
+
 ## [1.10.0] — 2026-11-27
 
 ### Novità

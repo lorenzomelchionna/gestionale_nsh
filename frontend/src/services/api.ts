@@ -6,6 +6,8 @@ import type {
   PaginatedResponse, VoceRegistro,
 } from '@/types'
 
+import { cancellaCopia } from '@/offline/copia'
+
 const API_BASE = import.meta.env.VITE_API_URL || ''
 
 // Niente `Content-Type` di default, ed è una correzione, non una dimenticanza.
@@ -123,6 +125,8 @@ api.interceptors.response.use(
         return api(original)
       } catch {
         clearTokens()
+        // Sessione finita: la copia offline dell'agenda non resta qui.
+        cancellaCopia()
         window.location.href = '/login'
       }
     }

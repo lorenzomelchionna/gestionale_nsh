@@ -14,6 +14,7 @@ import { useChatAlerts } from '@/hooks/useChatAlerts'
 import { VERSIONE } from '@/config/version'
 import { INDIRIZZO } from '@/config/business'
 import Logo from '@/components/ui/Logo'
+import { AvvisoOffline, useAgendaOffline } from '@/offline/AvvisoOffline'
 import clsx from 'clsx'
 
 type Badge = 'pending' | 'waitlist' | 'chat'
@@ -120,6 +121,9 @@ export default function AdminLayout() {
     enabled: isAdmin,
   })
   const waitlistCount = waitlistData?.length ?? 0
+
+  // La copia dell'agenda per quando in salone manca internet.
+  useAgendaOffline()
 
   // Il numero sul menu, e gli avvisi quando arriva un messaggio.
   const chatCount = useChatAlerts()
@@ -320,6 +324,8 @@ export default function AdminLayout() {
               <ThemeSwitch isDark={isDark} onToggle={toggleDark} compact />
             </div>
           </header>
+
+          <AvvisoOffline />
 
           {/* Page content — bottom padding clears the mobile tab bar. */}
           <main className="flex-1 lg:overflow-y-auto p-4 sm:p-6 pb-[calc(theme(spacing.tabbar)+1rem)] lg:pb-6">

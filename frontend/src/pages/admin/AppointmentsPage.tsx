@@ -3,8 +3,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { format, parseISO } from 'date-fns'
 import { it } from 'date-fns/locale'
-import { CalendarSearch, ChevronRight, NotebookPen } from 'lucide-react'
-import { getAppointments, getCollaborators, updateAppointment } from '@/services/api'
+import { CalendarSearch, ChevronRight, Download, NotebookPen } from 'lucide-react'
+import { exportAppointments, getAppointments, getCollaborators, updateAppointment } from '@/services/api'
+import { useAuthStore } from '@/store/authStore'
 import type { Appointment } from '@/types'
 import Sheet from '@/components/ui/Sheet'
 import {
@@ -37,6 +38,7 @@ const STATUS_OPTIONS = [
  *  schermata. Questa legge dallo stesso endpoint del calendario, con l'ordine
  *  invertito: qui si parte da ieri e si va indietro. */
 export default function AppointmentsPage() {
+  const isAdmin = useAuthStore(s => s.user?.role === 'admin')
   const [search, setSearch] = useState('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
@@ -90,6 +92,7 @@ export default function AppointmentsPage() {
       <PageHeader
         title="Appuntamenti"
         subtitle={data ? `${data.total} in archivio` : undefined}
+        action={isAdmin ? <ScaricaExcel dal={dateFrom} al={dateTo} /> : undefined}
       />
 
       <div className="space-y-3">
@@ -387,6 +390,56 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
     <div className="flex gap-3 py-2.5 border-b border-rule-soft">
       <span className="kicker w-28 shrink-0 pt-1">{label}</span>
       <span className="text-sm text-foreground min-w-0 break-words">{children}</span>
+    </div>
+  )
+}
+
+/** Il pulsante «Scarica Excel».
+ *
+ *  Nato dal 2026-11-27: senza internet in salone il gestionale era vuoto e
+ *  nessuno sapeva chi stava arrivando. Il file, scaricato prima, si apre
+ *  anche offline e si stampa su un foglio. Usa le date «Dal» / «Al» della
+ *  pagina; senza, da oggi a fra 30 giorni. Annullati e rifiutati restano
+ *  fuori. */
+function ScaricaExcel({ dal, al }: { dal: string; al: string }) {
+  const [inCorso, setInCorso] = useState(false)
+  const [errore, setErrore] = useState('')
+
+  const scarica = async () => {
+    setInCorso(true)
+    setErrore('')
+    try {
+      const { file, nome } = await exportAppointments(dal || undefined, al || undefined)
+      const url = URL.createObjectURL(file)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = nome
+      link.click()
+      URL.revokeObjectURL(url)
+    } catch (e: unknown) {
+      // Con `responseType: 'blob'` anche il messaggio d'errore arriva come
+      // file: va letto per mostrarlo.
+      const dati = (e as { response?: { data?: Blob } })?.response?.data
+      let messaggio = 'Scaricamento non riuscito. Riprova.'
+      if (dati instanceof Blob) {
+        try { messaggio = JSON.parse(await dati.text()).detail ?? messaggio } catch { /* resta il generico */ }
+      }
+      setErrore(typeof messaggio === 'string' ? messaggio : 'Scaricamento non riuscito. Riprova.')
+    } finally {
+      setInCorso(false)
+    }
+  }
+
+  return (
+    <div className="flex flex-col items-start gap-1 sm:items-end">
+      <button onClick={scarica} disabled={inCorso} className="btn-secondary btn-sm">
+        <Download className="w-4 h-4" />
+        {inCorso ? 'Preparo il file…' : 'Scarica Excel'}
+      </button>
+      <span className="text-[11px] text-ink-3">
+        {dal || al ? 'Le date scelte qui sotto' : 'Da oggi a fra 30 giorni'}
+      </span>
+      {errore && <span className="text-xs text-danger">{errore}</span>}
     </div>
   )
 }

@@ -18,6 +18,8 @@ salvare, non un invito; con l'invito Gmail mostrerebbe «Parteciperai?».
 """
 from __future__ import annotations
 
+import hashlib
+import hmac
 from datetime import datetime, timezone
 from urllib.parse import urlencode
 
@@ -78,7 +80,7 @@ def _servizi(appointment) -> str:
     return " + ".join(nomi)
 
 
-def _titolo(appointment) -> str:
+def titolo(appointment) -> str:
     servizi = _servizi(appointment)
     return f"{NOME_SALONE} – {servizi}" if servizi else NOME_SALONE
 
@@ -105,12 +107,12 @@ def file_ics(appointment) -> bytes:
         f"DTSTAMP:{_utc(adesso())}",
         f"DTSTART:{_utc(appointment.start_time)}",
         f"DTEND:{_utc(appointment.end_time)}",
-        f"SUMMARY:{_testo(_titolo(appointment))}",
+        f"SUMMARY:{_testo(titolo(appointment))}",
         f"LOCATION:{_testo(INDIRIZZO_SALONE)}",
         f"DESCRIPTION:{_testo(_descrizione())}",
         "BEGIN:VALARM",
         "ACTION:DISPLAY",
-        f"DESCRIPTION:{_testo(_titolo(appointment))}",
+        f"DESCRIPTION:{_testo(titolo(appointment))}",
         "TRIGGER:-PT2H",
         "END:VALARM",
         "END:VEVENT",
@@ -123,9 +125,36 @@ def link_google(appointment) -> str:
     """Il link che apre Google Calendar con l'evento già compilato."""
     parametri = {
         "action": "TEMPLATE",
-        "text": _titolo(appointment),
+        "text": titolo(appointment),
         "dates": f"{_utc(appointment.start_time)}/{_utc(appointment.end_time)}",
         "location": INDIRIZZO_SALONE,
         "details": _descrizione(),
     }
     return "https://calendar.google.com/calendar/render?" + urlencode(parametri)
+
+
+# ── Il link nella mail ────────────────────────────────────────────
+
+def firma(appointment_id: int) -> str:
+    """La firma che rende il link di un appuntamento non indovinabile.
+
+    Gli id sono numeri in fila: senza firma chiunque potrebbe scorrere
+    `?a=1, 2, 3…` e leggere gli appuntamenti di tutte. HMAC con la
+    `SECRET_KEY` del server, scopo «calendario» dentro il messaggio così la
+    stessa chiave firmata per altro non vale qui. Nessuna scadenza: il link
+    serve finché l'appuntamento esiste."""
+    messaggio = f"calendario:{appointment_id}".encode()
+    return hmac.new(settings.SECRET_KEY.encode(), messaggio, hashlib.sha256).hexdigest()[:32]
+
+
+def firma_valida(appointment_id: int, data: str | None) -> bool:
+    return bool(data) and hmac.compare_digest(firma(appointment_id), data)
+
+
+def link_ics(appointment) -> str:
+    """Il pulsante «Calendario del telefono o del computer»: il file `.ics`
+    servito dal backend. Safari (iPhone, Mac) lo apre e propone «Aggiungi»;
+    altrove si scarica e lo apre l'app del calendario. Chi usa Google
+    Calendar ha il suo pulsante: l'app di Google non importa i `.ics`."""
+    return (f"{settings.API_URL.rstrip('/')}/api/public/calendario/"
+            f"{appointment.id}/appuntamento.ics?f={firma(appointment.id)}")

@@ -143,6 +143,7 @@ EXPECTED_GUARDS = {
     ("DELETE", "/api/admin/waitlist/{entry_id}"): "admin",
     ("PATCH", "/api/admin/waitlist/{entry_id}/fulfil"): "admin",
     ("POST", "/api/admin/waitlist/{entry_id}/notify"): "admin",
+    ("GET", "/api/public/calendario/{appointment_id}/appuntamento.ics"): "public",
     ("GET", "/api/public/appointments"): "client",
     ("POST", "/api/public/appointments"): "client",
     ("POST", "/api/public/appointments/{appointment_id}/accept-alternative"): "client",

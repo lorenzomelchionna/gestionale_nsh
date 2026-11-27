@@ -103,7 +103,9 @@ class TestNellaMail:
         corpo, allegati = partite[0]
         assert [(n, t) for n, _, t in allegati] == [("appuntamento.ics", "text/calendar")]
         assert b"BEGIN:VEVENT" in allegati[0][1]
+        assert f"/api/public/calendario/42/appuntamento.ics?f={calendario.firma(42)}" in corpo
         assert "calendar.google.com/calendar/render?action=TEMPLATE&amp;" in corpo, "link con & protetti nell'HTML"
+        assert "Calendario del telefono o del computer" in corpo and ">Google Calendar</a>" in corpo
         assert "orario precedente" not in corpo
 
     async def test_un_cambio_dice_di_cancellare_il_vecchio(self, monkeypatch):
@@ -223,3 +225,59 @@ async def test_se_il_calendario_fallisce_la_conferma_parte_senza(monkeypatch):
     await email_util.send_booking_confirmation_email(_appuntamento())
     corpo, allegati = partite[0]
     assert allegati is None and "confermata" in corpo and "Google Calendar" not in corpo
+
+
+# ── Il file servito dal pulsante «Calendario del telefono» ────────
+
+
+async def _confermato(db, client_account, collaborator, service, stato=AppointmentStatus.confirmed):
+    cliente = (await db.execute(select(Client).where(Client.account_id == client_account.id))).scalar_one()
+    inizio = istante(date.today() + timedelta(days=3), time(10, 0))
+    a = Appointment(client_id=cliente.id, collaborator_id=collaborator.id, start_time=inizio,
+                    end_time=inizio + timedelta(minutes=45), status=stato)
+    db.add(a)
+    await db.flush()
+    db.add(AppointmentService(appointment_id=a.id, service_id=service.id, price_snapshot=float(service.price)))
+    await db.commit()
+    return a.id
+
+
+def _percorso(i):
+    return f"/api/public/calendario/{i}/appuntamento.ics"
+
+
+class TestIlFileDalLink:
+    async def test_con_la_firma_giusta(self, client, db, client_account, collaborator, service):
+        i = await _confermato(db, client_account, collaborator, service)
+        f = await client.get(_percorso(i), params={"f": calendario.firma(i)})
+        assert f.status_code == 200
+        assert f.headers["content-type"].startswith("text/calendar")
+        assert 'filename="appuntamento.ics"' in f.headers["content-disposition"]
+        assert b"BEGIN:VEVENT" in f.content and service.name.encode() in f.content.replace(b"\r\n ", b"")
+        assert b"Giulia" not in f.content, "niente nomi di persone"
+
+    def test_il_link_della_mail_punta_qui(self, monkeypatch):
+        monkeypatch.setattr(calendario.settings, "API_URL", "https://api.esempio.it/")
+        a = SimpleNamespace(id=7)
+        assert calendario.link_ics(a) == f"https://api.esempio.it{_percorso(7)}?f={calendario.firma(7)}"
+
+    async def test_senza_firma_o_con_quella_di_un_altro(self, client, db, client_account, collaborator, service):
+        i = await _confermato(db, client_account, collaborator, service)
+        for f in (None, "", "0" * 32, calendario.firma(i + 1)):
+            params = {} if f is None else {"f": f}
+            assert (await client.get(_percorso(i), params=params)).status_code == 404
+
+    async def test_un_id_che_non_esiste_risponde_come_una_firma_sbagliata(self, client):
+        r = await client.get(_percorso(999999), params={"f": calendario.firma(999999)})
+        assert r.status_code == 404
+
+    async def test_annullato(self, client, db, client_account, collaborator, service):
+        i = await _confermato(db, client_account, collaborator, service, AppointmentStatus.cancelled)
+        r = await client.get(_percorso(i), params={"f": calendario.firma(i)})
+        assert r.status_code == 410
+        assert "annullato" in r.json()["detail"]
+
+    def test_la_firma_dipende_dalla_chiave(self, monkeypatch):
+        prima = calendario.firma(5)
+        monkeypatch.setattr(calendario.settings, "SECRET_KEY", "un-altra-chiave-del-tutto-diversa-123")
+        assert calendario.firma(5) != prima

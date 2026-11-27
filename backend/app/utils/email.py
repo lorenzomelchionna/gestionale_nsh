@@ -233,9 +233,19 @@ async def send_booking_confirmation_email(appointment) -> None:
     # preparare, la conferma parte lo stesso, senza.
     try:
         allegati = [("appuntamento.ics", calendario.file_ics(appointment), "text/calendar")]
+        # Due pulsanti, per calendario e non per dispositivo: chi usa
+        # Google Calendar (anche su iPhone) prende il secondo, tutti gli
+        # altri il primo. L'allegato resta per chi lo apre dalla mail.
+        pulsante = (
+            "display:inline-block;margin:0 8px 8px 0;padding:10px 16px;background:#2b2622;"
+            "color:#ffffff;text-decoration:none;border-radius:4px"
+        )
         salva = (
-            "<p>Salvala nel calendario: apri l'allegato <em>appuntamento.ics</em>, oppure "
-            f'<a href="{esc(calendario.link_google(appointment))}">aggiungila a Google Calendar</a>.</p>'
+            "<p>Salvala nel tuo calendario:</p>"
+            f'<p><a href="{esc(calendario.link_ics(appointment))}" style="{pulsante}">'
+            "Calendario del telefono o del computer</a>"
+            f'<a href="{esc(calendario.link_google(appointment))}" style="{pulsante}">'
+            "Google Calendar</a></p>"
         )
     except Exception:
         log.exception("evento del calendario non preparato", extra={"id_appuntamento": getattr(appointment, "id", None)})

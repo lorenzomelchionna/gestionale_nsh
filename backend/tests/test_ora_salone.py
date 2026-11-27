@@ -27,6 +27,7 @@ from app.utils.tempo import istante, minuti_salone, ora_salone
 
 def _appuntamento(quando: datetime):
     return SimpleNamespace(
+        id=1,
         client=SimpleNamespace(first_name="Giulia", phone="+393330000001",
                                email="giulia@nsh-test.it"),
         collaborator=SimpleNamespace(first_name="Flavia", last_name="Romolo"),

@@ -83,7 +83,7 @@ def twilio(monkeypatch):
 def brevo(monkeypatch):
     monkeypatch.setattr(settings, "BREVO_API_KEY", "chiave-di-prova")
 
-    async def finto(to, subject, html_body):
+    async def finto(to, subject, html_body, allegati=None):
         return "<id-brevo@test>"
 
     monkeypatch.setattr(email_util, "_send_via_brevo", finto)

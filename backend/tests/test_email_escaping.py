@@ -25,7 +25,7 @@ def spedita(monkeypatch):
     """Cattura (destinatario, oggetto, corpo) invece di spedire."""
     box = []
 
-    async def fake_send_email(to, subject, html_body):
+    async def fake_send_email(to, subject, html_body, **_):
         box.append((to, subject, html_body))
 
     monkeypatch.setattr(email_util, "send_email", fake_send_email)
@@ -52,6 +52,7 @@ def _appuntamento(nome=PAYLOAD):
         client=_cliente(nome),
         collaborator=Finto(first_name="Sofia", last_name="Test"),
         start_time=datetime(2026, 8, 10, 10, 0, tzinfo=timezone.utc),
+        end_time=datetime(2026, 8, 10, 11, 0, tzinfo=timezone.utc),
         notes=None,
         appointment_services=[],
     )

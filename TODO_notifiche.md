@@ -2273,7 +2273,8 @@ DB è un altro problema: non avrebbe aiutato. Vedi «Backup automatici».)
   le date della pagina, annullati/rifiutati esclusi, A4 orizzontale, ogni
   esportazione nel registro di sicurezza. **In produzione con la 1.8.0**
   (PR #241, rilascio #242), 2026-11-27.
-- [ ] **Gestionale consultabile offline** (scelta C di Lorenzo): copia degli
+- [x] **Fatto il 2026-11-27, PR feat/agenda-offline** — `frontend/src/offline/` + `public/sw.js`: copia di ieri + 14 giorni in `localStorage`, rinnovata ogni 5 min, calendario da lì quando il server non risponde (nessuna risposta o 502/503/504), avviso in cima, telefono nel riquadro dell'appuntamento, errore esplicito fuori dalla copia. Service worker solo dal gestionale, solo build di produzione; uscita = copia, worker e cache cancellati. Provato spegnendo sito e server. Interruttore d'emergenza scritto in testa a `sw.js`.
+  Era: **Gestionale consultabile offline** (scelta C di Lorenzo): copia degli
   appuntamenti dei prossimi giorni nel browser, sola lettura, avviso «Senza
   connessione — dati aggiornati alle …», cancellata all'uscita. Scrivere
   offline no (conflitti col portale): semmai 2.0.

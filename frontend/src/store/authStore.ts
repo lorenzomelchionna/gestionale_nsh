@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { User } from '@/types'
 import { setTokens, clearTokens } from '@/services/api'
+import { spegniOffline } from '@/offline/registra'
 import type { TokenResponse } from '@/types'
 
 interface AuthState {
@@ -23,6 +24,7 @@ export const useAuthStore = create<AuthState>()(
       },
       logout: () => {
         clearTokens()
+        void spegniOffline()
         set({ user: null, isAuthenticated: false })
       },
       setUser: (user) => set({ user }),

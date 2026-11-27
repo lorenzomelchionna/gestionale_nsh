@@ -2235,7 +2235,8 @@ nella 1.x. Analisi completa e fonti in `docs/v2/STRUMENTI.md`, sul worktree
 
 ### Piccoli miglioramenti
 
-- [ ] **Calendario nella conferma.** File `.ics` allegato alla conferma e al
+- [x] **Fatto, in produzione con la 1.10.0** (2026-11-27, PR #245, rilascio #246): `.ics` allegato + link Google Calendar nella conferma (`app/utils/calendario.py`), solo servizio/data/ora/salone, promemoria 2 h prima; il calendario non può fermare la conferma.
+  Era: **Calendario nella conferma.** File `.ics` allegato alla conferma e al
   cambio d'orario, più un link «Aggiungi a Google Calendar». Libreria
   `icalendar`, orari calcolati con `app/utils/tempo.py`. Dentro solo
   servizio, data, ora e salone.

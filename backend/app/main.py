@@ -48,6 +48,7 @@ from app.api.public.booking import router as booking_router
 from app.api.public.guest import router as guest_router
 from app.api.public.whatsapp import router as whatsapp_router
 from app.api.public.product_images import router as product_images_router
+from app.api.public.calendario import router as calendario_router
 
 
 @asynccontextmanager
@@ -170,6 +171,7 @@ app.include_router(booking_router, prefix=PUBLIC_PREFIX)
 app.include_router(guest_router, prefix=PUBLIC_PREFIX)
 app.include_router(whatsapp_router, prefix=PUBLIC_PREFIX)
 app.include_router(product_images_router, prefix=PUBLIC_PREFIX)
+app.include_router(calendario_router, prefix=PUBLIC_PREFIX)
 
 
 @app.get("/health")

@@ -483,6 +483,17 @@ export const getChatUnreadCount = () =>
 export const replyToConversation = (id: number, body: string) =>
   api.post<ChatMessage>(`/admin/chat/conversations/${id}/reply`, { body }).then(r => r.data)
 
+/** Gli appuntamenti fra due giorni in Excel (solo amministratori). Date
+    `yyyy-MM-dd`; senza, il backend usa da oggi a fra 30 giorni. */
+export const exportAppointments = (dal?: string, al?: string) =>
+  api.get<Blob>('/admin/appointments/export', {
+    params: { ...(dal ? { dal } : {}), ...(al ? { al } : {}) },
+    responseType: 'blob',
+  }).then(r => {
+    const nome = /filename="([^"]+)"/.exec(r.headers['content-disposition'] ?? '')?.[1]
+    return { file: r.data, nome: nome ?? 'appuntamenti.xlsx' }
+  })
+
 /** Il file di un allegato, preso dal backend: l'URL di Twilio vuole le
     credenziali dell'account, e la pagina non le ha. */
 export const getChatMedia = (messageId: number, index: number) =>

@@ -90,3 +90,4 @@ slowapi==0.1.10
 # significa che il giorno che Celery cambia impacchettamento il servizio non
 # parte più, per un motivo che nessuno collegherebbe a Celery.
 tzdata==2026.6
+openpyxl==3.1.5

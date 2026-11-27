@@ -45,6 +45,8 @@ NUMERO_CORRETTO = "numero_corretto"        # «Numero sbagliato?» prima del cod
 VERIFICA_FALLITA = "verifica_fallita"
 RESET_CHIESTO = "reset_password_chiesto"
 RESET_ESEGUITO = "reset_password_eseguito"
+# Nomi e telefoni di tutte le clienti di un periodo escono dal gestionale.
+ESPORTAZIONE = "esportazione_appuntamenti"
 
 # Richieste che non finiscono nel registro: il check di salute di Railway
 # arriva ogni pochi secondi per sempre, e un registro fatto per il 99% di

@@ -1,6 +1,7 @@
 from typing import Annotated, List, Optional
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, or_
 from app.database import get_db
@@ -21,7 +22,10 @@ from app.services.vendite import scala_venduti
 from app.services import modifiche
 from app.schemas.common import PaginatedResponse
 from app.dependencies import get_current_user, require_admin
-from app.utils.tempo import istante_da_ingresso
+from app.utils.tempo import istante, istante_da_ingresso, oggi_salone
+from app.services.esporta import ESCLUSI, foglio_appuntamenti
+from app.audit import ESPORTAZIONE, evento
+from datetime import time as ora_del_giorno
 
 router = APIRouter(prefix="/appointments", tags=["Appointments"])
 
@@ -123,6 +127,57 @@ async def list_pending(
         .order_by(Appointment.created_at)
     )
     return [_enrich(a) for a in result.scalars().all()]
+
+
+#: Più di un anno in un file non serve a niente in salone e pesa sul server.
+MAX_GIORNI_EXPORT = 366
+MIME_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+
+@router.get("/export")
+async def export_appointments(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(require_admin)],
+    dal: Optional[date] = Query(None, description="Primo giorno (incluso); default oggi"),
+    al: Optional[date] = Query(None, description="Ultimo giorno (incluso); default fra 30 giorni"),
+):
+    """Gli appuntamenti fra due giorni, in un file Excel.
+
+    Solo amministratori: il file contiene nomi e telefoni di tutte le
+    clienti del periodo, ed è l'unico punto del gestionale da cui escono
+    tutti insieme. Ogni esportazione finisce nel registro di sicurezza.
+    Dichiarata prima di `/{appointment_id}`, che altrimenti la catturerebbe.
+    """
+    dal = dal or oggi_salone()
+    al = al or dal + timedelta(days=30)
+    if al < dal:
+        raise HTTPException(status_code=422, detail="La data finale è prima di quella iniziale.")
+    if (al - dal).days >= MAX_GIORNI_EXPORT:
+        raise HTTPException(status_code=422, detail="Si può esportare al massimo un anno alla volta.")
+
+    result = await db.execute(
+        select(Appointment)
+        .options(*appointment_detail_loads())
+        .where(
+            Appointment.start_time >= istante(dal, ora_del_giorno(0, 0)),
+            Appointment.start_time < istante(al + timedelta(days=1), ora_del_giorno(0, 0)),
+            Appointment.status.notin_(ESCLUSI),
+        )
+        .order_by(Appointment.start_time, Appointment.collaborator_id, Appointment.id)
+    )
+    appuntamenti = result.scalars().all()
+    contenuto = foglio_appuntamenti(appuntamenti, dal, al)
+
+    evento(ESPORTAZIONE, dal=dal.isoformat(), al=al.isoformat(), righe=len(appuntamenti))
+    nome = f"appuntamenti_{dal.isoformat()}_{al.isoformat()}.xlsx"
+    return Response(
+        content=contenuto,
+        media_type=MIME_XLSX,
+        headers={
+            "Content-Disposition": f'attachment; filename="{nome}"',
+            "Cache-Control": "no-store",
+        },
+    )
 
 
 @router.post("", response_model=AppointmentOutWithNames, status_code=status.HTTP_201_CREATED)

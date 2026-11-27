@@ -68,6 +68,10 @@ class Settings(BaseSettings):
     # ha solo Postgres e un Redis assente farebbe fallire i test sbagliati.
     RATE_LIMIT_STORAGE_URI: str = ""
     FRONTEND_URL: str = "http://localhost:5173"
+    # L'indirizzo pubblico di questa API, per i link che escono nelle email e
+    # puntano al backend (il file `.ics` della conferma). Su Railway lo ha il
+    # backend e il worker lo legge da lì (`.railway/railway.ts`).
+    API_URL: str = "http://localhost:8000"
 
     # Sentry (optional)
     SENTRY_DSN: Optional[str] = Field(default=None)

@@ -1413,6 +1413,15 @@ quella che si legge non è mai quella aggiornata — quindi ne resta una.
 
 ---
 
+## Repository privato — deciso il 2026-11-27: per ora resta pubblico
+
+Valutato da Lorenzo: privato con GitHub gratuito perde protezione di `main`
+(4 check obbligatori), ruleset di `develop` e auto-merge, e ha 2.000 minuti
+di Actions al mese (consumo misurato 28/10–27/11: ~1.500). Con GitHub Pro
+(4 $/mese) torna tutto, ma oggi non vale la spesa. **Da rivalutare con la
+2.0 a canone**: in quel caso Pro prima, poi privato, poi verificare l'app
+GitHub di Railway, protezioni e auto-merge, e aggiornare CLAUDE.md.
+
 ## Infrastruttura Railway — dal changelog di giugno–novembre (letto il 2026-11-10)
 
 - [ ] **Backup automatici del database — quando si passa al piano Pro.**
